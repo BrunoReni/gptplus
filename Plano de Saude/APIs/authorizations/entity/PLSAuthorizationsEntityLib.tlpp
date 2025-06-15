@@ -1,0 +1,82 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSAuthorizationsEntityLib
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSAuthorizationsEntityLib
+
+    Data cGuia as Character
+    Data oDaoCab as Object
+    Data oDaoEve as Object
+    Data oDaoCri as Object
+    Data oResult as Object
+    Data nStatus as Integer
+    Data aTabDup as Array
+
+    public method new()
+    public method getDao(cAlias)
+    public method maskField(xValue,lData)
+    public method getAliasTemp(cAlias)
+    public method getResult()
+    public method getStatusCode()
+
+endClass
+
+method new(cGuia) class PLSAuthorizationsEntityLib
+    self:cGuia   := cGuia
+    self:oResult := JsonObject():new()
+    self:nStatus := 200
+    self:aTabDup := PlsBusTerDup(SuperGetMv("MV_TISSCAB", .F. ,"87"))
+Return self
+
+
+method getDao(cAlias) class PLSAuthorizationsEntityLib
+    default cAlias := ''
+    do case
+        case cAlias == "CAB"
+            return self:oDaoCab
+        case cAlias == "EVE"
+            return self:oDaoEve
+        case cAlias == "CRI"
+            return self:oDaoCri
+    endCase
+return nil
+
+method maskField(xValue,lData) class PLSAuthorizationsEntityLib
+
+    local xRet := nil
+    default lData := .F.
+    
+    if lData
+
+        if (!empty(xValue))
+            xRet := xValue
+            cAno := SubStr(xRet,1,4)
+            cMes := SubStr(xRet,5,2)
+            cDia := SubStr(xRet,7,2)
+            xRet := cAno + "-" + cMes + "-" + cDia
+        endIf
+
+    elseIf ValType(xValue) == "C"
+        xRet := Alltrim(xValue)
+    
+    elseIf ValType(xValue) == "N"
+        xRet := xValue
+    endif
+
+Return xRet
+
+method getAliasTemp(cAlias) class PLSAuthorizationsEntityLib
+Return (self:getDao(cAlias):getAliasTemp())
+
+method getResult() class PLSAuthorizationsEntityLib
+return self:oResult
+
+method getStatusCode() class PLSAuthorizationsEntityLib
+return self:nStatus

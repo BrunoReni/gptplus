@@ -1,0 +1,99 @@
+#INCLUDE "PROTHEUS.CH"
+#INCLUDE "SHPWIZ.CH"
+#INCLUDE "TLPP-CORE.TH"
+
+#DEFINE CRLF CHR(13)+CHR(10)
+
+using namespace totvs.protheus.retail.rmi.wizard.configuracao.solucao
+using namespace totvs.protheus.retail.rmi.wizard.configuracao.credenciais
+using namespace totvs.protheus.retail.rmi.wizard.configuracao.servicos
+using namespace totvs.protheus.retail.rmi.wizard.configuracao.confirmacao
+
+Static oConfigWiz
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PSHWizard
+Função da criação do objeto wizard do Smarthub Protheus
+
+@type    Function
+@author  Evandro Pattaro
+@since   06/03/23
+@version 12.1.2210
+/*/
+//-------------------------------------------------------------------
+Function PSHWizard()
+
+Local oSHPWiz   := Nil	//Objto tipo Wizard
+Local oNewPag   := Nil	//Objeto que adiciona nova pagina no wizard
+Local aCoords   := {} as Array
+Local lNewCfg	:= oConfigWiz == nil
+
+If FindFunction('__FWWIZCTLR')   // valida se a classe FWWizardControl existe no RPO
+	//Instancia a classe FWWizard
+    aCoords := FWGetDialogSize()
+    oSHPWiz := FWWizardControl():New( , {aCoords[3] , aCoords[4] * 0.5} )// Define o tamanho do wizard  ex: {600,800}
+	oSHPWiz:ActiveUISteps()
+
+	If lNewCfg
+		oConfigWiz := JsonObject():New()
+		oConfigWiz['aProdutos'] := {'','Venda Digital by PluginBot'}	
+		oConfigWiz['aLinks']	:= {'','https://produtos.totvs.com/ficha-tecnica/venda-digital-by-pluginbot/'}
+		oConfigWiz['aAssinante']:= {'','VENDA DIGITAL'}
+		oConfigWiz['cComboProd']:= ''
+		oConfigWiz['oTBold']	:= TFont():New(,,-20,.T.,.T.)
+		oConfigWiz['oTFont']	:= TFont():New(,,-12,.T.)
+		oConfigWiz['oTSubl']	:= TFont():New(,,-12,.T.,,,,,,.T.)
+		oConfigWiz["mensagem"]  := ""
+
+		// 01 ------------------------------Configuração de Solução  
+		oNewPag := oSHPWiz:AddStep("1")//Adiciona a primeira tela do wizard
+		oNewPag:SetStepDescription(STR0001) //Altera a descrição do step    //"Configuração de Solução"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+		oNewPag:SetConstruction({|oPanel|TelaSolucao(oPanel,oConfigWiz)}) //Define o bloco de construção
+		oNewPag:SetNextAction({||ValidaSolucao(oConfigWiz)})//Define o bloco ao clicar no botão Próximo
+		oNewPag:SetCancelAction({|| .T. })//Valida acao cancelar
+		oNewPag:SetPrevAction({|| voltar(oConfigWiz) })  //Define o bloco de código que deverá executar ao pressionar o botão Voltar
+	EndIf
+	// 02 ------------------------------Configuração de Credenciais
+	oNewPag := oSHPWiz:AddStep("2",{|oPanel|TelaCredenciais(oPanel,oConfigWiz)})
+	oNewPag:SetStepDescription(STR0002)   //"Configuração de Credenciais"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
+	oNewPag:SetNextAction({||ValidaCredenciais(oConfigWiz)})
+	oNewPag:SetCancelAction({|| .T. })
+    oNewPag:SetPrevAction({|| voltar(oConfigWiz) })  //Define o bloco de código que deverá executar ao pressionar o botão Voltar
+
+	If lNewCfg
+		// 03 ------------------------------Configuração dos serviços SHP(RMI)
+		oNewPag := oSHPWiz:AddStep("3",{|oPanel|TelaServicos(oPanel,oConfigWiz)})
+		oNewPag:SetStepDescription(STR0004) //"Configuração de Serviços"
+		oNewPag:SetNextAction({||Validaservicos(oConfigWiz)})
+		oNewPag:SetCancelAction({|| .T. }) 
+		oNewPag:SetPrevAction({|| voltar(oConfigWiz) })  //Define o bloco de código que deverá executar ao pressionar o botão Voltar    
+	EndIf
+	// 04 ------------------------------Tela de Confirmação
+	oNewPag := oSHPWiz:AddStep("4",{|oPanel|Telaconfirmacao(oPanel,oConfigWiz)})
+	oNewPag:SetStepDescription(STR0005) //"Confirmação"
+	oNewPag:SetNextAction({||Validaconfirmacao(oConfigWiz)})
+	oNewPag:SetCancelAction({|| .T. })
+    oNewPag:SetPrevAction({|| voltar(oConfigWiz) })  //Define o bloco de código que deverá executar ao pressionar o botão Voltar
+
+	//Ativa Wizard
+	oSHPWiz:Activate()
+	//Desativa Wizard
+	oSHPWiz:Destroy()
+Else
+	Alert('Classe FWWizardControl não disponível. É necessário a atualização do pacote LIB disponivel no portal do cliente.'	)
+Endif
+
+Return .T.
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} voltar
+Implentações ao clicar no botão voltar
+
+@author  Rafael Tenorio da Costa
+@since   30/03/2023
+@version 1.0
+/*/
+//-------------------------------------------------------------------
+Function voltar(oConfigWiz) as Logical
+    oConfigWiz["mensagem"] := ""
+Return .T.

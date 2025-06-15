@@ -1,0 +1,337 @@
+#include 'tlpp-core.th'
+#include 'backoffice.fin.tabledata.service.ch'
+
+NAMESPACE totvs.protheus.backoffice.fin.tabledata
+USING NAMESPACE totvs.protheus.backoffice.fin.apiutil
+USING NAMESPACE totvs.protheus.backoffice.fin.functions
+USING NAMESPACE gfin.api.tables
+USING NAMESPACE gfin.util
+
+/*/{Protheus.doc} className
+	classe para retorno de lista de itens
+	@author user
+	@since 20/10/2022
+	@version version
+/*/
+Class TableData From FWAdapterBaseV2
+	Public Data cAlias         as Character
+	Public Data aRespFields    as Array
+	Public Data lFieldsUsado   as Logical
+	Public Data lFieldsBrowser as Logical
+	Public Data lMSBLQL        as Logical
+	Public Data cAddFields	   as Character
+
+	Public Method new()
+	Public Method destroy()
+	Private Method setParams()
+	Private Method setMapFields()
+	Private Method setCustom()
+	Private Method responseCustom()
+	Public Method prepareItems()
+	Public Method getResponse()
+	Public Method prepareItemsCustom()
+	Private Method ValueToJson()
+EndClass
+
+/*/{Protheus.doc} new
+	construtor da classe
+	@author renato.ito
+	@since 20/10/2022
+/*/
+Method new() Class TableData
+	::cAlias := ""
+	::aRespFields := {}
+	::lFieldsUsado := .F.
+	::lFieldsBrowser := .F.
+	::lMSBLQL := .F.
+	::cAddFields := ""
+	_Super:new('GET')
+Return Self
+
+/*/{Protheus.doc} destroy
+	limpa da memória as variáveis
+	@author renato.ito
+	@since 20/10/2022
+/*/
+Method destroy() Class TableData
+	::cAddFields := ""
+	FwFreeArray(::aRespFields)
+Return
+
+/*/{Protheus.doc} getItems
+	retorna a lista de itens no formato json
+	@author renato.ito
+	@since 20/10/2022
+	@param cAlias, character, tabela do sistema
+	@param jQueryParams, json, query params da requisicao
+	@param jHeaders, json, headres da requisicao
+	@return json, json com a lista de itens
+/*/
+Method prepareItems(cAlias as Character, jQueryParams as Json, jHeaders as Json) Class TableData
+	::cAlias := UPPER(cAlias)
+	::setParams(jQueryParams, jHeaders)
+	::setMapFields()
+	::setQuery(queryDefault(::cAlias, ::lMSBLQL))
+	If ::Execute()
+		// Gera o arquivo Json com o retorno da Query
+		::FillGetResponse()
+	EndIf
+Return ::getJSONResponse()
+
+/*/{Protheus.doc} getResponse
+	prepara a resposta para a API
+	@author renato.ito
+	@since 20/10/2022
+	@return json, json com a lista de itens
+/*/
+Method getResponse() Class TableData
+Return ::getJSONResponse()
+
+/*/{Protheus.doc} ValueToJson
+	Função para conversão de valores para o Json (Chamada na execução ::getJSONResponse())
+
+	@param cField, Character, Nome do campo
+	@param xValue, Any, Valor do campo
+
+	@author  Vitor Duca
+	@since   02/12/2022
+	@version 1.0
+/*/
+METHOD ValueToJson( cField As Character, xValue ) CLASS TableData
+    Local xRetValue
+
+	If ValType(xValue) == "C"
+		xRetValue := RTrim(xValue)	 
+	Else
+		xRetValue := self:oJsonObj:ValueToJson( cField, xValue  )
+	Endif
+	
+Return xRetValue
+
+/*/{Protheus.doc} getItemsCustom
+	retorna a lista de itens no formato json para querys personalizadas
+	@author renato.ito
+	@since 20/10/2022
+	@param cAlias, character, id da query
+	@param jQueryParams, json, query params da requisicao
+	@param jHeaders, json, headres da requisicao
+	@return json, json com a lista de itens
+/*/
+Method prepareItemsCustom(cAliasID as Character, jQueryParams as Json, jHeaders as Json) Class TableData
+	cAliasID := UPPER(cAliasID)
+	Do Case
+		Case cAliasID == "SA1FIN"
+			SA1FIN(jQueryParams, jHeaders, Self)
+		Case cAliasID == "SE1ACFLEG"
+			SE1LEG(jQueryParams, jHeaders, Self, "ACF")	
+	EndCase
+Return
+
+/*/{Protheus.doc} setParams
+	configuras os parametros recebidos pela api
+	@author renato.ito
+	@since 20/10/2022
+	@param jQueryParams, json, query params da requisicao
+	@param jHeaders, json, headres da requisicao
+	@return json, json com a lista de itens
+/*/
+Method setParams(jQueryParams as Json, jHeaders as Json) Class TableData
+	Local lFilterFilial := .F. as Logical
+	Local aBranches := {} As Array
+	Local cQueryWhere := "" As Character
+
+	// indica qual pagina devemos retornar
+	If jQueryParams:hasProperty('page')
+		::setPage(Val(jQueryParams['page']))
+	EndIf
+
+	// indica o tamanho da pagina
+	If jQueryParams:hasProperty('pagesize')
+		::setPageSize(Val(jQueryParams['pagesize']))
+	ElseIf jQueryParams:hasProperty('pageSize')
+		::setPageSize(Val(jQueryParams['pageSize']))
+	EndIf
+
+	// indica o filtro querystring recebido (pode se utilizar um filtro oData)
+	If jQueryParams:hasProperty('filter')
+		::SetUrlFilter({{"FILTER", jQueryParams['filter']}})
+		lFilterFilial := "_FILIAL" $ UPPER(jQueryParams['filter'])
+	EndIf
+
+	// order da query
+	If jQueryParams:hasProperty('order') .and. !Empty(jQueryParams['order'])
+		::SetOrder(UPPER(jQueryParams['order']))
+	Else
+		::SetOrder(normalizeIndex((::cAlias)->(IndexKey(1))))
+	EndIf
+
+	// adiciona os fields
+	If jQueryParams:hasProperty('fields')
+		::aRespFields := STRtokARR(UPPER(jQueryParams['fields']), ',')
+	EndIf
+	// adiciona os fields usado
+	If jQueryParams:hasProperty('usado')
+		If UPPER(jQueryParams['usado']) == 'S'
+			::lFieldsUsado:= .T.
+		EndIf
+	EndIf
+	// adiciona os fields browser
+	If jQueryParams:hasProperty('browser')
+		If UPPER(jQueryParams['browser']) == 'S'
+			::lFieldsBrowser:= .T.
+		EndIf
+	EndIf
+	If jQueryParams:hasProperty('msblql')
+		If UPPER(jQueryParams['msblql']) == 'S'
+			::lMSBLQL:= .T.
+		EndIf
+	EndIf
+
+	totvs.protheus.backoffice.fin.functions.branchesForUser(@aBranches, RetCodUsr())
+	
+	If Len(aBranches) > 0
+	 	cQueryWhere := " AND " + ::cAlias + "." + gfin.api.tables.getCutAliasName(::cAlias) + "_FILIAL" + " IN (" + gfin.util.branchesFormatToIn(aBranches, ::cAlias) + ")"
+	 	::SetWhere(cQueryWhere)
+	Endif
+
+	// trata as filiais encaminhadas no header para o filtro
+	// If !lFilterFilial .And. jHeaders:hasProperty('branches')
+	// 	aBranches := STRtokARR(UPPER(jHeaders['branches']), ',')
+	// 	aTableField := ::oHashFields:keys()
+	// 	nPos := Ascan(aTableField, {|x| "_FILIAL" $ UPPER(x)})
+	// 	If Len(aBranches) > 0
+	// 	cQueryWhere := " AND " + ::cTableOwner + "."+ aTableField[nPos] + " IN (" + gfin.util.branchesFormatToIn(aBranches, ::cTableOwner) + ")"
+	// 	::SetWhere(cQueryWhere)
+	// 	endif
+	// endif
+
+Return
+
+/*/{Protheus.doc} setMapFields
+	configuras os campos na classe e trata quais serao retornados
+	@author renato.ito
+	@since 20/10/2022
+/*/
+Method setMapFields() Class TableData
+	Local aAllFields    := {}                     as Array
+	Local aFieldsLGPD   := {}                     as Array
+	Local aStruct       := {}                     as Array
+	Local lVerifyLGPD   := .F.                    as Logical
+	Local lAllFields    := .F.                    as Logical
+	Local lAddField     := .F.                    as Logical
+	Local lFilterFields := Len(::aRespFields) > 0 as Logical
+	Local nField        := 0                      as Numeric
+
+	aAllFields := FWSX3Util():GetAllFields(::cAlias, .F.)
+	If !::lFieldsUsado .And. !::lFieldsBrowser .And. !lFilterFields
+		lAllFields := .T.
+	EndIf
+
+	aFieldsLGPD := FwProtectedDataUtil():UsrAccessPDField(__cUserID, aAllFields)
+	// verifica a necessidade de testar LGPD
+	lVerifyLGPD := Len(aAllFields) <> Len(aFieldsLGPD)
+
+	// adiciona os campos enviados
+	For nField := 1 To Len(aAllFields)
+		lAddField  := .F.
+		cField     := aAllFields[nField]
+		lFieldLGPD := lVerifyLGPD .and. aScan(aFieldsLGPD , cField) == 0
+		aStruct    := FWSX3Util():GetFieldStruct(cField)
+
+		// logica para verificar se o campo deve entrar na query e retornar
+		If lAllFields .Or. "_FILIAL" $ cField
+			lAddField  := .T.
+		Else
+			If ::lFieldsUsado
+				lAddField := X3Uso(GetSX3Cache(cField, 'X3_USADO'), 6) // modulo 6 SIGAFIN
+			EndIf
+			If !lAddField .And. ::lFieldsBrowser
+				lAddField := GetSX3Cache(cField, 'X3_BROWSE' ) == 'S'
+			EndIf
+			If !lAddField .And. lFilterFields
+				lAddField := AScan(::aRespFields, cField) > 0
+			EndIf
+		EndIf
+		If lAddField
+			::cAddFields += "," + cField
+		EndIf
+
+		::AddMapFields(;
+			cField,;
+			cField,;
+			lAddField,;
+			.F.,;
+			{cField, aStruct[2], aStruct[3], aStruct[4]},;
+			If(lFieldLGPD, "'" + STR0001 + "'", NIL);  // Confidencial
+		)
+	Next nField
+	::setFields(::cAddFields)
+Return
+
+/*/{Protheus.doc} queryDefault
+	query padrao para utilização na classe
+	@author renato.ito
+	@since 20/10/2022
+	@param cAlias, character, codigo da tabela
+	@param lverifyMSBLQL, logical, .t. = verifica se existe o campo e não retorna bloqueados
+	@return json, json com a lista de itens
+/*/
+Function queryDefault(cAlias as Character, lverifyMSBLQL as Logical) as Character
+	Local cQuery  := ""  as Character
+	Local lMSBLQL := .F. as Logical
+	Local cMSBLQL := ""  as Character
+
+	If lverifyMSBLQL
+		If (cAlias)->(FieldPos(cAlias +"_MSBLQL")) > 0
+			cMSBLQL := cAlias +"_MSBLQL"
+			lMSBLQL := .T.
+		ElseIf (cAlias)->(FieldPos(SUBSTR(cAlias, 2) +"_MSBLQL")) > 0
+			cMSBLQL := SUBSTR(cAlias, 2) +"_MSBLQL"
+			lMSBLQL := .T.
+		EndIf
+	EndIf
+
+	cQuery := " SELECT #QueryFields# "
+	cQuery += " FROM " + RetSqlName(cAlias) + " " + cAlias
+	cQuery += " WHERE  " + cAlias + ".D_E_L_E_T_ = ' ' "
+	If lverifyMSBLQL .And. lMSBLQL
+		cQuery += " AND  " + cAlias + "." + cMSBLQL + " <> '1' "
+	EndIf
+	cQuery += " #QueryWhere# "
+Return cQuery
+
+/*/{Protheus.doc} SA1FIN
+	tratamento para adicionar os títulos em aberto do cliente
+	adiciona a propriedades:
+	{
+		open: number - quandidade de títulos em aberto,
+		openlabel: string - 1 se existe títulos em aberto e 0 se não existir,
+	}
+	@type  Function
+	@author renato.ito
+	@since 20/10/2022
+	@version version
+	@param jQueryParams, json, query params
+	@param jHeaders, json, headers
+/*/
+Function SA1FIN(jQueryParams as Json, jHeaders as Json, oSelf as Object)
+	oSelf:prepareItems('SA1', jQueryParams, jHeaders)
+	responseSA1FIN(oSelf:OjsonObj:oJsonObj)
+Return
+
+/*/{Protheus.doc} SE1LEG
+	Tratamento para adicionar legenda customizada
+	{
+		status: string - legenda customizada	
+	}
+	@type  Function
+	@author Vitor Duca
+	@since 02/12/2022
+	@version 1.0
+	@param jQueryParams, json, query params
+	@param jHeaders, json, headers
+/*/
+Function SE1LEG(jQueryParams as Json, jHeaders as Json, oSelf as Object, cIdLeg As Character)
+	oSelf:prepareItems('SE1', jQueryParams, jHeaders)
+	responseSE1LEG(oSelf:OjsonObj:oJsonObj, cIdLeg)
+Return

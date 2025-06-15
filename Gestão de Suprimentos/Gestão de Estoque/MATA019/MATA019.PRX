@@ -1,0 +1,373 @@
+#include "MATA019.CH"
+#include "Protheus.CH"
+#include "FWMVCDef.CH"
+
+/*/{Protheus.doc} MATA019
+Cadastro de indicadores do produto.
+
+Esse fonte é usado por todos os paises, por esse motivo tudo que existir aqui deve ser referente ao
+padrão. Se alguma regra se aplica somente a um pais ou a alguns paises, a regra deve ser escrita
+no fonte correspondente ao pais(es).
+
+As validações e integrações realizadas após/durante a gravação estão definidas nos eventos do modelo, 
+na classe MATA010EVDEF.
+
+@author Juliane Venteu
+@since 27/03/2017
+@version P12.1.17
+ 
+/*/
+
+Function MATA019()
+Local oBrowse := BrowseDef()
+
+	oBrowse:Activate()
+Return
+
+Static Function BrowseDef()
+Local oBrowse
+
+	oBrowse := FWMBrowse():New()
+	oBrowse:SetDescription(STR0007)
+	oBrowse:SetAlias('SBZ')
+	
+Return oBrowse
+
+Static Function MenuDef()     
+Local  aRotina := { 	{ STR0001 ,"AxPesqui"  , 0 , 1},; 	 	//"Pesquisar"
+						{ STR0002 ,"A019Visual", 0 , 2},;   	//"Visualizar"
+						{ STR0003 ,"A019Inclui", 0 , 3},;   	//"Incluir"
+						{ STR0004 ,"A019Altera", 0 , 4, 2},;	//"Alterar"
+						{ STR0005 ,"A019Exclui", 0 , 5, 1}} 	//"Excluir"
+
+If HistFiscal()
+	Aadd(aRotina, { STR0018, "A019Hist", 0 , 0, 0}) 	//"Excluir"
+EndIf
+
+Return(aRotina) 
+
+Static Function ModelDef()
+Local oModel
+Local oStruSB1 := FWFormStruct(1,"SB1")
+Local oStruSBZ := MTA019MdlStruct()
+
+oModel := MPFormModel():New("MATA019")
+
+oModel:SetDescription(OemtoAnsi(STR0007) ) //"Indicador Produto (Mod. 2)"
+
+oModel:AddFields("SB1MASTER",,oStruSB1)
+oModel:SetOnlyQuery("SB1MASTER",.T.)
+
+oModel:AddGrid("SBZDETAIL","SB1MASTER",oStruSBZ)	
+oModel:SetRelation('SBZDETAIL', { { 'BZ_COD', 'B1_COD' } }, SBZ->(IndexKey(1)) )
+
+oModel:GetModel("SBZDETAIL"):SetUseOldGrid(.T.)
+oModel:GetModel("SBZDETAIL"):SetUniqueLine({"BZ_FILIAL"})	
+
+oModel:InstallEvent("PAD.",,MATA019EVDEF():New())
+oModel:InstallEvent("PE.",,MATA019EVPE():New())
+
+oModel:InstallEvent("PCP",,MATA019PCP():NEW(oModel, "SBZDETAIL"))
+
+oModel:AddRules( 'SBZDETAIL', 'BZ_LOCPAD', 'SBZDETAIL', 'BZ_FILIAL', 3)
+	
+Return oModel
+
+Static Function ViewDef()
+Local oView
+Local oModel := ModelDef() 
+Local oStrSB1:= FWFormStruct(2, 'SB1') 
+Local oStrSBZ:= MTA019ViewStruct()
+
+If X3Uso(GetSX3Cache('B1_IDHIST', "X3_USADO"))
+	oStrSB1:RemoveField('B1_IDHIST')
+EndIf
+oStrSBZ:RemoveField('BZ_IDHIST')
+
+oView := FWFormView():New()
+oView:SetModel(oModel)
+
+oView:AddField('FORMSB1' , oStrSB1,'SB1MASTER' )
+oView:AddGrid('FORMSBZ' , oStrSBZ,'SBZDETAIL')
+
+oView:CreateHorizontalBox( 'BOXFORMSB1', 50)
+oView:SetOwnerView('FORMSB1','BOXFORMSB1')
+oView:SetViewProperty('FORMSB1' , 'ONLYVIEW' )
+
+
+oView:CreateHorizontalBox( 'BOXFORMSBZ', 50)
+oView:SetOwnerView('FORMSBZ','BOXFORMSBZ')
+
+oView:SetViewProperty('FORMSBZ' , 'CHANGELINE', {{|oView| A019Change(oView)}})
+
+Return oView
+
+Function MTA019MdlStruct()
+Local oStruct := FWFormStruct(1,"SBZ", {|cField| !(AllTrim(Upper(cField)) $ "BZ_COD") })
+
+If aScan(oStruct:aFields,{|x|x[3] == "BZ_FILIAL"}) == 0
+
+	//-- Adicionado campo na mão porque via updistr não estava alterando o uso do campo
+	oStruct:AddField(FWX3Titulo("BZ_FILIAL")											,;	// 	[01]  C   Titulo do campo  
+					 FWX3Titulo("BZ_FILIAL")									   		,;	// 	[02]  C   ToolTip do campo 
+					 "BZ_FILIAL"														,;	// 	[03]  C   Id do Field
+					 "C"																,;	// 	[04]  C   Tipo do campo
+					 TAMSX3("BZ_FILIAL")[1]												,;	// 	[05]  N   Tamanho do campo
+					 TAMSX3("BZ_FILIAL")[2]												,;	// 	[06]  N   Decimal do campo
+					 NIL																,;	// 	[07]  B   Code-block de validação do campo
+					 NIL																,;	// 	[08]  B   Code-block de validação When do campo
+					 NIL																,;	//	[09]  A   Lista de valores permitido do campo
+					 .F.																,;	//	[10]  L   Indica se o campo tem preenchimento obrigatório
+					 NIL																,;	//	[11]  B   Code-block de inicializacao do campo
+					 NIL																,;	//	[12]  L   Indica se trata-se de um campo chave
+					 NIL																,;	//	[13]  L   Indica se o campo pode receber valor em uma operação de update.
+					 .F.																)	// 	[14]  L   Indica se o campo é virtual
+					
+EndIf
+				 
+Return oStruct
+
+Function MTA019ViewStruct()
+Local oStruct := FWFormStruct(2,"SBZ", {|cField| !(AllTrim(Upper(cField)) $ "BZ_COD") })
+
+//-- Adicionado campo na mão porque via updistr não estava alterando o uso do campo
+oStruct:AddField("BZ_FILIAL"														,;	// [01]  C   Nome do Campo
+				"00"																,;	// [02]  C   Ordem
+				FWX3Titulo("BZ_FILIAL")												,;	// [03]  C   Titulo do campo//"Código"
+				FWX3Titulo("BZ_FILIAL")												,;	// [04]  C   Descricao do campo//"Código"
+				NIL																	,;	// [05]  A   Array com Help
+				"C"																	,;	// [06]  C   Tipo do campo
+				""																	,;	// [07]  C   Picture
+				NIL																	,;	// [08]  B   Bloco de Picture Var
+				"SM0"																,;	// [09]  C   Consulta F3
+				.T.																	,;	// [10]  L   Indica se o campo é alteravel
+				NIL																	,;	// [11]  C   Pasta do campo
+				NIL																	,;	// [12]  C   Agrupamento do campo
+				NIL																	,;	// [13]  A   Lista de valores permitido do campo (Combo)
+				NIL																	,;	// [14]  N   Tamanho maximo da maior opção do combo
+				NIL																	,;	// [15]  C   Inicializador de Browse
+				.F.																	,;	// [16]  L   Indica se o campo é virtual
+				NIL																	,;	// [17]  C   Picture Variavel
+				NIL																	)	// [18]  L   Indica pulo de linha após o campo	
+
+Return oStruct
+
+Function A019Inclui(cAlias,nReg,nOpc)
+	execMVC(OP_INCLUIR)
+Return
+
+Function A019Altera(cAlias,nReg,nOpc)
+	execMVC(OP_ALTERAR)
+Return
+
+Function A019Visual(cAlias,nReg,nOpc)
+	execMVC(MODEL_OPERATION_VIEW)
+Return
+
+Function A019Exclui(cAlias,nReg,nOpc)
+	execMVC(OP_EXCLUIR)
+Return
+
+Static Function execMVC(nOpc)
+Local aAreaSB1 := SB1->(GetArea())
+Local cUsrFil   := cFilAnt // Filial original
+Local cCodPrd := If(nOpc == OP_INCLUIR, A019BuscaPrd(), SBZ->BZ_COD)
+Local cFilSeek := If(nOpc == OP_INCLUIR, xFilial("SB1"), xFilial("SB1", SBZ->BZ_FILIAL))
+
+Local aButtons := { ;
+	{.T., Nil}, ; // Copiar
+	{.T., Nil}, ; // Recortar
+	{.T., Nil}, ; // Colar
+	{.T., Nil}, ; // Calculadora
+	{.T., Nil}, ; // Spool
+	{.T., Nil}, ; // Imprimir
+	{.T., Nil}, ; // Confirmar
+	{.T., Nil}, ; // Cancelar
+	{.T., Nil}, ; // WalkTrhough
+	{.T., Nil}, ; // Ambiente
+	{.T., Nil}, ; // Mashup
+	{.T., Nil}, ; // Help
+	{.T., Nil}, ; // Formulário HTML
+	{.T., Nil}, ; // ECM
+	{.F., Nil}, ; // Salvar e Criar Novo
+}
+
+nOpc := If(nOpc == OP_INCLUIR, OP_ALTERAR, nOpc)
+
+If !Empty(cCodPrd)
+	SB1->(DbSelectArea(1))
+	If SB1->(DBSeek(cFilSeek + cCodPrd))
+		FWExecView(,"MATA019", nOpc,,,,,aButtons)
+	Else
+		Help("",1,"REGNOIS")
+	EndIf
+EndIf
+
+cFilAnt:= cUsrFil
+RestArea(aAreaSB1) 	
+ 	
+Return
+
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Fun‡…o    ³A019BuscaPrd³ Autor ³ Rafael Braga Cancian  ³ Data ³ 03/08/07 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ Funcao que monta tela de escolha do produto para inclusao    ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Sintaxe   ³ A019Inclui(Void)                                             ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³ Uso      ³ MATA019()                                                    ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+*/
+Function A019BuscaPrd()
+
+Local aRet 		:= {}
+Local aParam 	:= {}
+Local aArea		:= GetArea()
+Local nTamCProd	:= TamSX3("B1_COD")[1]
+
+//Carrega vetor com os parametros
+AAdd(aRet,Space(nTamCProd))   	 // Produto
+
+//Define tela de parametros
+AAdd(aParam,{1,FWX3Titulo("B1_COD"),aRet[1],"","","SB1","",If(nTamCProd>15,120,60),.T.})
+If !ParamBox(aParam,STR0016,@aRet,{||A019VldPrd(aRet[1])},,.T.,80,3)
+	aRet[1]:= ""
+EndIf
+
+RestArea(aArea)
+
+Return aRet[1]
+
+/*  
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Fun‡…o    ³A019VldPrd³ Autor ³ Rafael Braga Cancian  ³ Data ³ 03/08/07 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ Verifica se o produto já existe no cadastro                ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Sintaxe   ³ A019VldPrd(ExpC1)                                          ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Parametros³ ExpC1 = Codigo do produto a ser validado                   ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³ Uso      ³ MATA019()                                                  ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+*/
+Function A019VldPrd(cCod)
+
+Local lRet		:= .T.
+Local aArea		:= GetArea()
+
+dbSelectArea("SB1")
+dbSetOrder(1)
+
+If !dbSeek(xFilial("SB1") + cCod)
+	MsgInfo(STR0008) //Produto não encontrado no cadastro de produtos
+	lRet:= .F.
+EndIf
+
+dbSelectArea("SBZ")
+dbSetOrder(1)
+
+If dbSeek(xFilial("SBZ") + cCod)
+	MsgInfo(STR0009) //Já existe produto com essa informação. Utilize a opcao alterar do produto
+	lRet:= .F.
+EndIf
+
+RestArea(aArea)
+
+Return lRet
+
+
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÉÍÍÍÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍ»±±
+±±ºPrograma  ³MATA019   ºAutor  ³Wemerson Randolfo   º Data ³  06/07/2012 º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºDesc.     ³ Funcao para chamar outra funcao de visualiza do            º±±
+±±º          ³ Historico das Operacoes Fiscais                            º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºUso       ³ MATA019                                                    º±±
+±±ÈÍÍÍÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+*/
+
+Function A019GrvHist(aHeader,aCols, aColsOld)
+Local aArea  := GetArea()
+Local nX     := 0
+
+If cPaisLoc == "BRA"
+	DbSelectArea("SS6")
+	DbSetOrder(1)
+	RecLock("SS6", .T.)					   
+	
+	For nX = 1 to Len(aHeader)
+	
+		If aHeader[nY][10] # "V"
+	    	cVar := "S6" + Substr(Trim(aHeader[nX][2]),3,8)    	
+	      Replace &cVar. With xValor
+	      
+	    Endif     
+	Next nX
+	MsUnLock("SS6")
+EndIf
+RestArea(aArea)
+Return
+
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÉÍÍÍÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍ»±±
+±±ºPrograma  ³MATA019   ºAutor  ³Wemerson Randolfo   º Data ³  06/07/2012 º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºDesc.     ³ Funcao para chamar outra funcao de visualiza do            º±±
+±±º          ³ Historico das Operacoes Fiscais                            º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºUso       ³ MATA019                                                    º±±
+±±ÈÍÍÍÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+*/
+Function A019Hist()
+Local lRet
+
+SB1->( MsSeek( xFilial( "SB1" )+SBZ->BZ_COD ) )
+cDescProd := SB1->B1_DESC 
+
+lRet := HistOperFis('SS6',SBZ->BZ_COD, cDescProd,'S6_COD', .F.)
+
+Return lRet
+
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Fun‡…o    ³A019Change³ Autor ³ Rafael Braga Cancian  ³ Data ³ 03/08/07 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ Muda filial corrente na mudanca de linha                   ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Sintaxe   ³ Void A019Change(ExpO1, ExpN2)                              ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Parametros³ ExpO1 = Getdados que contem a linha a ser validada         ³±±
+±±³          ³ ExpN2 = Numero da linha a validar                          ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³ Uso      ³ MATA019()                                                  ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+*/
+Function A019Change(oView)
+Local cFilSBZ := oView:GetModel():GetValue("SBZDETAIL", "BZ_FILIAL")
+	
+	If !Empty(cFilSBZ) 
+		cFilAnt := cFilSBZ
+	EndIf
+	       
+Return

@@ -1,0 +1,451 @@
+#include "tlpp-object.th"
+#INCLUDE 'FWMVCDEF.CH'
+
+/*/{Protheus.doc} LxSelecMod
+Selección del modelo de acuerdo al número de documento
+@author 	raul.medina
+@return		cName - nombre del modelo para el numero de documento
+@since 		03/2023
+@version	12.1.2210 / Superior
+Parametros
+    nNumDoc - numerico - número del documento.
+/*/
+Function LxSelecMod(nNumDoc as numeric)
+Local oJsonMod          As json
+Local cName             As character
+
+Default nNumDoc     := 0
+
+    oJsonMod := RetModJson()
+    If oJsonMod:HasProperty(AllTrim(STR(nNumDoc)))
+        cName := oJsonMod[AllTrim(STR(nNumDoc))]
+    EndIf    
+
+Return cName
+
+/*/{Protheus.doc} LoadMdData
+Función utilizada para realizar la carga de los datos al model seleccionado.
+@author 	raul.medina
+@since 		03/2023
+@version	12.1.2210 / Superior
+Parametros
+    nNumDoc - numerico - número del documento.
+    aCabHead - array - Campos del encabezado
+    aCab - array - Datos del encabezado
+    aColsHead - array - Campos de los items
+    aCols - array - Datos de los items.
+@Return 
+    oModel - object - Modelo con los datos recibos.
+/*/
+Function LoadMdData(nNumDoc as numeric, aCabHead as array, aCab as array, aColsHead as array, aCols as array, cEspecie as character, nBaseDup as numeric, cPais as character, aDup As array)
+Local oModel        := Nil
+Local cModel        := ""
+Local cModelHd      := ""
+Local cModelIt      := ""
+Local oCampos	    := Nil
+Local oStruCab      := Nil
+
+Default nNumDoc     := 0
+Default aCabHead    := {}
+Default aCab        := {}
+Default aColsHead   := {}
+Default aCols       := {}
+Default cEspecie    := ""
+Default nBaseDup    := 0
+Default cPais       := ""
+Default aDup        := {}
+
+    //Obetención del modelo para el documento recibido.
+    cModel := LxSelecMod(nNumDoc)
+    //Carga del modelo.
+    oModel := FwLoadModel(cModel)
+
+    If oModel:GetId() == "LOCXIN"
+        cModelHd      := "SF1_MASTER"
+        cModelIt      := "SD1_DETAIL"
+        oCampos := InputFields(cPais,.T., .F., .T., .T., .F., .F., cEspecie)
+    Else
+        cModelHd      := "SF2_MASTER"
+        cModelIt      := "SD2_DETAIL"
+        oCampos := OutputFields(cPais,.T., .F., .T., .T., .F., .F., cEspecie)
+    EndIf
+
+	oStruCab := oModel:GetModel(cModelHd):GetStruct()
+    
+    oCampos:SetModel(oStruCab)
+    oCampos:AddModelProperties(nNumDoc)
+    oStruCab := oCampos:getModel()
+    
+    oModel:GetModel(cModelHd):GetStruct() := oStruCab
+
+    //Se retiran listas de combos para recibir los valores provenientes de los documentos fiscales.
+    oModel:GetModel(cModelHd):GetStruct():SetProperty( '*'  , MODEL_FIELD_VALUES  , {})
+    oModel:GetModel(cModelIt):GetStruct():SetProperty( '*'  , MODEL_FIELD_VALUES  , {})
+
+    oModel:SetOperation(MODEL_OPERATION_INSERT)
+	oModel:Activate()
+
+
+    //Llenado del encabezado del documento.
+    MdFillSub(@oModel, cModelHd ,aCabHead, aCab)
+    oModel:GetModel(cModelHd):LoadValue("BASEDUP", nBaseDup)
+    //Llenado de los items.
+    MdFillItems(@oModel, cModelIt, aColsHead, aCols)
+    //Llenado de duplicatas
+    MdFillDup(@oModel, "DUP_DETAIL" ,{"DUP"}, aDup)
+
+Return oModel
+
+/*/{Protheus.doc} vldModel
+Función utilizada para realizar las validaciones de los datos del model recibido.
+@author 	raul.medina
+@since 		04/2023
+@version	12.1.2210 / Superior
+Parametros
+    oModel - object - Modelo con los datos recibos.
+@Return 
+    lRet - logico - retorno de las validaciones
+/*/
+Function vldModel(oModel)
+Local lRet      := .T.  as logical
+Local aError    := {}   as array
+
+Default oModel  := NIL
+
+    If !oModel:VldData()
+        aError := oModel:GetErrorMessage()
+        Help(" ", 1, aError[5], , aError[6], 2, 0,,,,,, {aError[7]})
+        lRet := .F.
+    EndIf
+
+Return lRet
+
+/*/{Protheus.doc} vlLndModel
+Función utilizada para realizar las validaciones de línea del modelo.
+@author 	raul.medina
+@since 		04/2023
+@version	12.1.2210 / Superior
+Parametros
+    oModel - object - Modelo con los datos recibos.
+@Return 
+    lRet - logico - retorno de las validaciones
+/*/
+Function VldModLn(oModel)
+Local lRet      := .T.  as logical
+Local aError    := {}   as array
+Local cSubModel := ""   as character
+
+Default oModel  := NIL
+
+    cSubModel := Iif(oModel:GetId() == "LOCXIN", "SD1_DETAIL", "SD2_DETAIL")
+
+    If !oModel:GetModel(cSubModel):VldLineData() //Validacion de linea
+        aError := oModel:GetErrorMessage()
+        Help(" ", 1, aError[5], , aError[6], 2, 0,,,,,, {aError[7]})
+        lRet := .F.
+    EndIf
+
+Return lRet
+
+/*/{Protheus.doc} MdFillSub
+Función utilizada para realizar la carga de los datos al submodelo recibido en la función
+@author 	raul.medina
+@since 		03/2023
+@version	12.1.2210 / Superior
+Parametros
+    oModel - object - modelo utilizado para la actualización de datos
+    cModel - caracter - nombre del submodelo que será actualizado
+    aHead - array - Campos del submodelo
+    aData - array - Datos del submodelo
+/*/
+Function MdFillSub(oModel, cModel as character, aHead as array, aData as array)
+Local nX        := 0
+Local oStruct   := NIL
+Local xValue    := ""
+Local cField    := ""
+
+Default cModel      := {}
+Default aHead       := {}
+Default aData       := {}
+
+    oStruct := oModel:GetModel(cModel):GetStruct()
+    For nX := 1 to Len(aHead)
+        cField := AllTrim(aHead[nX])
+        If oModel:GetModel(cModel):HasField(cField) .and. !Empty(aData[nX])
+            xValue := TypeData(oStruct, cField, aData[nX])
+            oModel:GetModel(cModel):LoadValue(cField, xValue)
+        EndIf
+    Next
+
+Return
+
+/*/{Protheus.doc} MdFillItems
+Función utilizada para realizar la carga de los datos al submodelo cuando se tiene un arreglo con varios items.
+@author 	raul.medina
+@since 		03/2023
+@version	12.1.2210 / Superior
+Parametros
+    oModel - object - modelo utilizado para la actualización de datos
+    cModelIt - caracter - nombre del submodelo que será actualizado
+    aColsHead - array - Campos del submodelo
+    aCols - array - con los items del submodelo
+/*/
+Function MdFillItems(oModel, cModelIt as character, aColsHead as array, aCols As array)
+Local nX        := 0
+Local nPosDel   := 0
+Local nItem     := 0
+
+Default cModelIt    := {}
+Default aColsHead   := {}
+Default aCols       := {}
+
+    nPosDel := Len(aColsHead) + 1
+    For nX := 1 to Len(aCols)
+        If !aCols[nX][nPosDel]
+            nItem += 1
+            If nItem > 1
+                oModel:GetModel(cModelIt):AddLine()
+            EndIf
+            MdFillSub(@oModel, cModelIt, aColsHead, aCols[nX])
+        EndIf
+    Next
+
+Return
+
+/*/{Protheus.doc} MdFillDup
+Función utilizada para realizar la carga de los datos al submodelo para los titulos.
+@author 	raul.medina
+@since 		04/2023
+@version	12.1.2210 / Superior
+Parametros
+    oModel - object - modelo utilizado para la actualización de datos
+    cModelIt - caracter - nombre del submodelo que será actualizado
+    aColsHead - array - Campos del submodelo
+    aCols - array - con los items del submodelo
+/*/
+Function MdFillDup(oModel, cModelIt as character, aColsHead as array, aCols As array)
+Local nX        :=  0
+
+Default cModelIt    := {}
+Default aColsHead   := {}
+Default aCols       := {}
+
+    For nX := 1 to Len(aCols)
+        If nX > 1
+            oModel:GetModel(cModelIt):AddLine()
+        EndIf
+        MdFillSub(@oModel, cModelIt, aColsHead, {aCols[nX]})
+    Next
+
+Return
+
+/*/{Protheus.doc} MdFillNat
+Función utilizada para realizar la carga de los datos al submodelo para las multinaturalezas.
+@author 	raul.medina
+@since 		04/2023
+@version	12.1.2210 / Superior
+Parametros
+    oModel - object - modelo utilizado para la actualización de datos
+    cModelIt - caracter - nombre del submodelo que será actualizado
+    aColsHead - array - Campos del submodelo
+    aCols - array - con los items del submodelo
+/*/
+Function MdFillNat(oModel, cModelIt as character, aColsHead as array, aCols As array)
+Local nX        :=  0
+Local aSEVAux   := {}
+Local nPosDel   := 0
+
+Default cModelIt    := {}
+Default aColsHead   := {}
+Default aCols       := {}
+
+    For nX := 1 to Len(aColsHead)
+        aAdd(aSEVAux, aColsHead[nX][2])
+    Next
+
+    nPosDel := Len(aSEVAux) + 1
+    For nX := 1 to Len(aCols)
+        If !aCols[nX][nPosDel]
+            If nX > 1
+                oModel:GetModel(cModelIt):AddLine()
+            EndIf
+            MdFillSub(@oModel, cModelIt, aSEVAux, aCols[nX])
+        EndIf
+    Next
+
+Return
+
+/*/{Protheus.doc} RetModJson
+Función utilizada para realizar la carga de los datos al submodelo cuando se tiene un arreglo con varios items.
+@author 	raul.medina
+@return		ojson con los numeros de documentos y sus modelos.
+@since 		03/2023
+@version	12.1.2210 / Superior
+Parametros
+
+/*/
+Function RetModJson()
+Local ojson             As json
+
+    ojson := JsonObject():new()
+    //Entradas
+    //Facturas
+    oJson['10'] := "LOCXNFE"
+    oJson['12'] := "LOCXNFE"
+    oJson['20'] := "LOCXNFE"
+    //Notas de crédito
+    oJson['4'] := "LOCXNCE"
+    oJson['8'] := "LOCXNCE"
+    //Notas de débito
+    oJson['5'] := "LOCXNDE"
+    oJson['9'] := "LOCXNDE"
+    //Remitos
+    oJson['64'] := "LOCXREN"
+    oJson['53'] := "LOCXREN"
+    oJson['51'] := "LOCXREN"
+    oJson['60'] := "LOCXREN"
+    oJson['64'] := "LOCXREN"
+    oJson['63'] := "LOCXREN"
+
+    //Salidas
+    //Facturas
+    oJson['1'] := "LOCXNFS"
+    oJson['11'] := "LOCXNFS"
+    oJson['17'] := "LOCXNFS"
+    oJson['19'] := "LOCXNFS"
+    oJson['21'] := "LOCXNFS"
+    //Notas de crédito
+    oJson['3'] := "LOCXNCS"
+    oJson['7'] := "LOCXNCS"
+    //Notas de débito
+    oJson['2'] := "LOCXNDS"
+    oJson['6'] := "LOCXNDS"
+    //Remitos
+    oJson['61'] := "LOCXRES"
+    oJson['50'] := "LOCXRES"
+    oJson['52'] := "LOCXRES"
+    oJson['54'] := "LOCXRES"
+
+Return oJson
+
+/*/{Protheus.doc} FindString
+Función utilizada para generar un obteto de comparación de valores.
+Si el dato está contenido dentro del arreglo retornará verdadero.
+@author 	raul.medina
+@return		lRet - logico - indica el dato está contenido.
+@since 		03/2023
+@version	12.1.2210 / Superior
+Parametros
+    cString - caracter - dato a ser comparado.
+    aStrings - array - arreglo con los datos contenidos para comparación.
+/*/
+Function FindString(cString as character, aStrings as array)
+Local lRet      := .F.  as logical
+Local nX        := 0    as numeric
+Local oJson             as json
+
+Default cString     := ''
+Default aStrings    := {}
+
+    oJson := JsonObject():new()
+
+    For nX := 1 To Len(aStrings)
+        oJson[aStrings[nX]] := aStrings[nX]
+    Next
+
+    lRet := oJson:HasProperty(cString)
+
+Return lRet
+
+/*/{Protheus.doc} TypeData
+Función utilizada para validar que el dato sea correcto de acuerdo al tipo de dato y tipo de campo.
+@author 	raul.medina
+@return		xValue -  - retorna el campo con el valor correcto.
+@since 		04/2023
+@version	12.1.2210 / Superior
+Parametros
+    oStruct - - estructura de campos de la tabla usada.
+    cField - caracter - nombre del campo.
+    xValue -  - valor de retorno.
+/*/
+Static Function TypeData(oStruct, cField as character, xValue as variant)
+Local cTipo     := ""
+
+Default cField  := ""
+Default xValue  := ""
+
+    cTipo := oStruct:GetProperty(cField, MODEL_FIELD_TIPO)
+    If cTipo <> ValType(xValue)
+        If cTipo == "C"
+            xValue := AllTrim(STR(xValue))
+        ElseIf cTipo == "N"
+            xValue := Val(xValue)
+        EndIf
+    EndIf
+    If cTipo == "C"
+        xValue := PadR(xValue, oStruct:GetProperty(cField, MODEL_FIELD_TAMANHO))
+    EndIf
+
+Return xValue
+
+/*/{Protheus.doc} ModUpdDoc
+Función utilizada para actualizar los valores del documento en los arreglos correspondientes y variable de memoria.
+@author 	raul.medina
+@since 		04/2023
+@version	12.1.2210 / Superior
+Parametros
+    oModel - - modelo utilizado para documentos de locxnf.
+    aCabNotaOri - array - arreglo de valores del encabezado de documentos.
+    aGetsTela - array - arreglo de valores del encabezado de documentos.
+/*/
+Function ModUpdDoc(oModel, aCabNotaOri as array, aGetsTela as array)
+Local cId           := oModel:GetId()
+Local cSubModelF    := ""
+Local cSubModelD    := ""
+Local cCampoDoc     := ""
+Local cModelDoc     := ""
+Local cCampoTpDoc   := ""
+Local nPosDoc       := 0
+Local oTipodoc      := TipoDoc():New()
+
+Default aCabNotaOri := {}
+Default aGetsTela   := {}
+
+    If cId == "LOCXIN"
+        cSubModelF := "SF1_MASTER"
+        cSubModelD := "SD1_DETAIL"
+        cCampoDoc  := "F1_DOC"
+        cCampoTpDoc:= "F1_TIPODOC"
+    Else
+        cSubModelF := "SF2_MASTER"
+        cSubModelD := "SD2_DETAIL"
+        cCampoDoc  := "F2_DOC"
+        cCampoTpDoc:= "F2_TIPODOC"
+    EndIf
+
+    oTipoDoc:SetTipoDoc(oModel:GetModel(cSubModelF):GetValue(cCampoTpDoc))
+
+    If oTipoDoc:UpdateNumberDoc()
+        cModelDoc  := oModel:GetModel(cSubModelF):GetValue(cCampoDoc)
+
+        If Len(aCabNotaOri) > 0
+            nPosDoc := aScan(aCabNotaOri[1], {|x| AllTrim(x) == cCampoDoc})
+            If nPosDoc > 0
+                If !(aCabNotaOri[2][nPosDoc] == cModelDoc)
+                    aCabNotaOri[2][nPosDoc] := cModelDoc
+                    &("M->"+cCampoDoc) := cModelDoc
+                EndIf
+            EndIf
+        EndIf
+
+        If Len(aGetsTela) > 0
+            nPosDoc := aScan(aGetsTela, {|x| AllTrim(x[1]) == cCampoDoc})
+            If nPosDoc > 0
+                If !(aGetsTela[nPosDoc][2] == cModelDoc)
+                    aGetsTela[nPosDoc][2] := cModelDoc
+                EndIf
+            EndIf
+        EndIf
+    EndIf
+
+Return

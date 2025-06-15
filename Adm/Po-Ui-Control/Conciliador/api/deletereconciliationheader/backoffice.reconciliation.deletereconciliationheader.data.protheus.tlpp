@@ -1,0 +1,173 @@
+#Include "BACKOFFICE.RECONCILIATION.DELETERECONCILIATIONHEADER.DATA.PROTHEUS.ch"
+#include "tlpp-core.th"
+
+namespace totvs.protheus.backoffice.reconciliation.DeleteReconciliationHeader
+using namespace totvs.protheus.backoffice.reconciliation.util
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} DeleteReconciliationHeaderProtheusData
+Classe responsavel pela consulta de dados
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+class DeleteReconciliationHeaderProtheusData
+Public  method new()    
+Public  method postByBody()
+Public  method getData() as Object
+Private method delHeaders()
+Private method execDelete()
+endclass
+
+/*/{Protheus.doc} DeleteReconciliationHeaderProtheusData
+Metodo construtor
+
+@author Totvs
+/*/
+method new() class DeleteReconciliationHeaderProtheusData
+return
+
+/*/{Protheus.doc} getData
+Metodo para chamada e validacao do tratamento de dados
+
+@author Totvs
+/*/
+method getData() class DeleteReconciliationHeaderProtheusData as Object
+static __oActiveData as Object
+
+If ValType(__oActiveData) == "U"
+    __oActiveData := DeleteReconciliationHeaderProtheusData():new()
+EndIf
+return __oActiveData
+
+/*/{Protheus.doc} postByBody
+Metodo responsavel pela busca e gravacao das delecoes de matches
+
+@author Totvs
+/*/
+method postByBody(jBody as Json) class DeleteReconciliationHeaderProtheusData 
+Local aResponse := {} as Array
+Local lContinue := .T. as Logical
+Local cError    := "" as Character
+
+lContinue := ::delHeaders(jBody,@cError) 
+
+If lContinue
+    aAdd(aResponse, lContinue)
+    aAdd(aResponse, '{}')
+Else
+    aAdd(aResponse, lContinue)
+    aAdd(aResponse, cError)
+EndIf
+
+return aResponse
+
+/*/{Protheus.doc} getMatches
+Metodo responsavel pela busca dos matches
+
+@author Totvs
+/*/
+method delHeaders(jBody as Json, cError as Character) class DeleteReconciliationHeaderProtheusData
+Local cCodCon    as Character
+Local cCodCfg    as Character
+Local aIDs      := {} as Array
+Local lContinue := .T. as Logical
+
+DEFAULT cError := ""
+
+If ValType(jBody["codcon"]) == "C" .And. ValType(jBody["codcfg"]) == "C"
+    cCodCon := jBody["codcon"]
+    cCodCfg := jBody["codcfg"]
+    aIDs    := jBody["msuidt"]
+    
+    lContinua := ::execDelete(cCodCon, cCodCfg, aIDs, @cError)        
+Else
+    cError := STR0001 //"Conteúdo do corpo inválido."
+    lContinue := .F.    
+EndIf
+
+return lContinue 
+
+/*/{Protheus.doc} DelMatches
+    Executa os updates nas tabelas de origem e destino para 
+    desmarcar os matches
+    @author user
+/*/
+Method execDelete(cCodCon as Character, cCodCfg as Character, aIDs as Array, cError as Character) class DeleteReconciliationHeaderProtheusData
+Local cQryUpd as Character
+Local lContinue := .T. as Logical
+Local cTabCT2   := RetSQLName("CT2")
+Local cNameDB    := Alltrim(TcGetDB()) as Character
+
+DEFAULT cError := ""
+
+If( CT2->(FieldPos("CT2_IDCONC")) > 0 )
+        
+    cQryIn := " SELECT QLD_IDITEM "
+    cQryIn += " FROM "+RetSQLName("QLD")+" QLD "
+    cQryIn += " WHERE QLD.QLD_FILIAL = "+cTabCT2+".CT2_FILIAL "
+    cQryIn += " AND QLD.QLD_CODCON = '"+cCodCon+"' "
+    cQryIn += " AND QLD.QLD_CODCFG = '"+cCodCfg+"' "
+    cQryIn += " AND QLD.D_E_L_E_T_ = ' ' "
+
+    cQryUpd :=  " UPDATE "+cTabCT2
+    cQryUpd +=  " SET CT2_IDCONC = ' ' "    
+    If cNameDB == "POSTGRES"
+        cQryUpd +=  " WHERE CAST(CT2_MSUIDT AS VARCHAR) IN( "+cQryIn+" ) "
+    Else
+        cQryUpd +=  " WHERE CT2_MSUIDT IN( "+cQryIn+" ) "
+    EndIf   
+    
+    If TcSqlExec(cQryUpd) <> 0
+        Conout(TCSqlError())
+        cError += STR0002+"CT2" //"Tabela: "
+        lContinue := .F.
+    EndIf
+EndIf
+
+If ValType(aIDs) == "A" .And. len(aIDs) > 0
+    cQryUpd := "UPDATE "+RetSQLName("QLD")+" SET D_E_L_E_T_ = '*', R_E_C_D_E_L_ = R_E_C_N_O_  "+;
+    " WHERE QLD_FILIAL = '"+xFilial("QLD")+"' AND QLD_CODCON = '"+cCodCon+"' AND QLD_CODCFG = '"+cCodCfg+"' "+;
+    " AND QLD_IDITEM IN "+FormatIn(ArrTokStr(aIDs,'/'),'/')+" "+;    
+    " AND D_E_L_E_T_ = ' ' "    
+Else
+    cQryUpd := "UPDATE "+RetSQLName("QLD")+" SET D_E_L_E_T_ = '*', R_E_C_D_E_L_ = R_E_C_N_O_  "+;
+    " WHERE QLD_FILIAL = '"+xFilial("QLD")+"' AND QLD_CODCON = '"+cCodCon+"' AND QLD_CODCFG = '"+cCodCfg+"' AND D_E_L_E_T_ = ' ' "
+EndIf
+
+If TcSqlExec(cQryUpd) <> 0
+    Conout(TCSqlError())
+    cError += STR0002+"QLD" //"Tabela: "
+    lContinue := .F.
+EndIf
+
+If lContinue 
+    // Marco como deletado os registros já conciliados na tabela QLC    
+    cQueryQLC :=  " UPDATE "+RetSQLName("QLC")+" " 
+    cQueryQLC +=  " SET D_E_L_E_T_ = '*' , " 
+    cQueryQLC +=  "     R_E_C_D_E_L_ = R_E_C_N_O_ " 
+    cQueryQLC +=  "     WHERE QLC_FILIAL = '" +xFilial("QLC")+ "' " 
+    cQueryQLC +=  "         AND QLC_CODCFG = '"+ cCodCfg+ "' " 
+    cQueryQLC +=  "         AND QLC_CODCON = '"+ cCodCon + "' "  
+    cQueryQLC +=  "         AND D_E_L_E_T_ = ' ' "  
+    cQueryQLC +=  "         AND ( "  
+    cQueryQLC +=  "         SELECT COUNT(*) AS COUNTITEMS FROM "+RetSQLName("QLD")+" "
+    cQueryQLC +=  "         WHERE QLD_FILIAL = '" +xFilial("QLD")+ "' "   
+    cQueryQLC +=  "             AND QLD_CODCON = '"+ cCodCon+ "' " 
+    cQueryQLC +=  "             AND QLD_CODCFG = '"+ cCodCfg + "' " 
+    cQueryQLC +=  "             AND D_E_L_E_T_ = ' ' " 
+    cQueryQLC +=  "         ) < 1 "
+    
+    If TcSqlExec(cQueryQLC) <> 0
+        Conout(TCSqlError())
+        cError += STR0002+"QLC" //"Tabela: "
+        lContinue := .F.
+    EndIf
+EndIf
+
+If !lContinue
+    cError += STR0003+" "+cCodCon+" "+STR0004  //""DeleteReconciliationHeader Erro: Nao foi possivel deletar a conciliação:"
+EndIf
+
+Return lContinue

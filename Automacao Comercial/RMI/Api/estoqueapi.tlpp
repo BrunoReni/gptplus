@@ -1,0 +1,22 @@
+#INCLUDE "TLPP-CORE.TH"
+#INCLUDE "TLPP-REST.TH"
+
+namespace totvs.protheus.retail.rmi.api.estoqueapi
+
+using namespace totvs.protheus.retail.rmi.api.estoqueobj
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc}
+    API para consulta de Estoque do Varejo
+/*/
+//-------------------------------------------------------------------
+
+/* ----------------------------------------- */
+@Post("api/retail/v1/estoque/lista")
+Function lista()
+
+    Local oEstoque := EstoqueObj():New(oRest, oRest:getQueryRequest(), oRest:getBodyRequest())
+
+    oEstoque:Get()
+    
+Return oRest:setResponse( oEstoque:getReturn() )

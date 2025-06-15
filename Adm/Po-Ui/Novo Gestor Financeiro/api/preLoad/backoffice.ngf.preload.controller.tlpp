@@ -1,0 +1,30 @@
+#Include 'tlpp-core.th'
+#Include 'tlpp-rest.th'
+Namespace backoffice.ngf.preload
+Using Namespace gfin.util
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getVersion
+EndPoint para obter as versões dos fontes
+
+@body
+	{
+		"portal.cliente.bills": Numeric - Versão do bills,
+		"portal.cliente.customer": Numeric - Versão do customer,
+		"portal.cliente.invoices": Numeric - Versão do invoices,
+		"portal.cliente.home": Numeric - Versão do home,
+	}
+
+@return Nil
+
+@author luiz.nai
+@since 29/03/2022
+/*/
+//-------------------------------------------------------------------
+@Get('/api/ngf/v1/preload')
+Function getPreload()
+	Local jResponse As Json
+
+	jResponse := NGFPreload()
+	AnswerRest( jResponse )
+Return

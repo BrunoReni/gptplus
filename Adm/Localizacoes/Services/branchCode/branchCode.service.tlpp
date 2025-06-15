@@ -1,0 +1,73 @@
+#include 'tlpp-core.th'
+
+
+namespace tr.BranchCode
+using namespace tr.util
+//-------------------------------------------------------------------
+/*/{Protheus.doc} totvsRecibos/BranchCode
+Class BranchCodeService
+
+@author José González
+@since 02/02/2022
+/*/
+//-------------------------------------------------------------------
+
+Class BranchCodeService
+	Public Method new()
+
+	Public Method BranchCodeServices()
+EndClass
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} totvsRecibos/BranchCode
+new Constructor de la clase
+
+@author José González
+@since 02/02/2022
+/*/
+//-------------------------------------------------------------------
+Method new() Class BranchCodeService
+Return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} totvsRecibos/BranchCode
+retorna las filiales
+
+@Return response As Jobject
+
+@author José González
+@since 02/02/2022
+/*/
+//-------------------------------------------------------------------
+
+Method BranchCodeServices(jParamsRequest) Class BranchCodeService
+Local oResponse As Object
+Local oBranchCode as Object
+Local cGrupo := ""
+Local aFil := {}
+Local aFiliales:= {}
+local i := 1
+oResponse := JsonObject():New()
+oBranchCode := JsonObject():New()
+
+If jParamsRequest != Nil .and. !(Empty(jParamsRequest['group']))
+	cGrupo := jParamsRequest['group'] 
+EndIf
+	
+aFil := FWLoadSM0( .T. , .T. ) 
+If len(afil) > 0
+	For i := 1 to len(afil)
+		If afil[i][1] == cGrupo .and. afil[i][11]
+			oFiliales 					:= JsonObject():New()
+			oFiliales['code'] 			:= afil[i][2]
+			oFiliales['description'] 	:= afil[i][7]
+			AAdd(aFiliales,oFiliales)
+		EndIF
+	Next
+EndIf
+
+oBranchCode:set(aFiliales)
+oResponse["result"] := .T.
+oResponse["response"] := oBranchCode
+
+Return oResponse

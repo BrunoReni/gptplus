@@ -1,0 +1,628 @@
+#include "tlpp-core.th"
+#include "backoffice.reconciliation.matchreconciliate.data.protheus.ch"
+
+namespace totvs.protheus.backoffice.reconciliation.matchreconciliate
+using namespace totvs.protheus.backoffice.reconciliation.util
+using namespace totvs.protheus.backoffice.reconciliation.userprofile
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} MatchReconciliateProtheusData
+Classe responsável pela consulta de dados
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+class MatchReconciliateProtheusData      
+    //Declaracao das Propriedades
+    private Data cTableOri as Character
+    private Data cTableDes as Character
+    private Data cAliasOri as Character
+    private Data cAliasDes as Character
+    private Data cIdOri    as Character
+    private Data cIdDes    as Character
+    private Data cCodCfg   as Character
+    
+    //Declaracao dos metodos
+    public  method new()       
+    public  method postReconciliate() as Character
+    private method tcSetReconciliate() as Character
+    private method tcCriaProcReconciliates()
+    private method tcDeleteItensReconciliate()
+    private method tcInsertItensReconciliate()
+    private method tcInsertReconciliate()
+    private method tcSetConfigurations()
+    private method tcClearConfigurations()
+    private method tcUpdateTemporyTable() as Character
+    private method tcDeleteReconciliate()
+    private method tcMatchesReconciliate() as Array
+endclass
+
+/*/{Protheus.doc} MatchReconciliateProtheusData
+Metodo construtor
+
+@author Totvs
+/*/
+method new() class MatchReconciliateProtheusData
+return
+
+/*/{Protheus.doc} postReconciliate
+Metodo responsável pelo post dos itens conciliados
+
+@author Totvs
+/*/
+method postReconciliate() class MatchReconciliateProtheusData
+return ::tcSetReconciliate()
+
+/*/{Protheus.doc} tcSetReconciliate
+Grava informacoes das conciliacoes QLC e QLD
+
+@author Totvs
+/*/
+Method tcSetReconciliate() class MatchReconciliateProtheusData
+Local cCodConc := "" As Character
+Local cReturn  := "" As Character
+Local cFiltQLC := "" As Character
+Local cIdMetric := "" As Character
+Local aMatches  := {} As Array
+Local lIncQLC  := .F. As Logical //Flag inclusao na QLC 
+Local lIncQLD  := .F. As Logical //Flag inclusao na QLD
+Local lFindQLD := .F. As Logical //Flag se encontrou itens na QLD
+
+::tcSetConfigurations()
+
+If !Empty(::cCodCfg)             
+    //Valida informacoes de configuracao
+    If !Empty(::cAliasOri) .And. !Empty(::cAliasDes) .And. !Empty(::cIdOri) .And. !Empty(::cIdDes)        
+        If tcValidTemporary(::cTableOri, ::cTableDes, 1) //Verifica se existem informacoes disponiveis nas temporarias
+            lIncQLD := tcValidTemporary(::cTableOri, ::cTableDes, 2) //Verifica se existem matchs disponiveis   
+
+            Begin Transaction //Inicia transacao
+                
+            //Remove itens de conciliacoes deletadas - QLD                                              
+            cReturn := ::tcDeleteItensReconciliate("1") //Tabela origem
+            If Empty(cReturn) 
+                cReturn := ::tcDeleteItensReconciliate("2") //Tabela destino
+            EndIf
+        
+            If Empty(cReturn) .And. lIncQLD            
+                //Verifica o Codigo de conciliacao, se usuario ja utilizou a configuracao na data 
+                cCodConc := tcGetUserSession(::cCodCfg)                                    
+                    
+                //Se nao encontrou sessao do usuario ou ocorreu alteracao no filtro do usuario, 
+                //gera novo Codigo de conciliacao
+                If tcGetFilterSession(::cCodCfg, @cFiltQLC) .Or. Empty(cCodConc)
+                    cCodConc := GetSx8Num("QLC", "QLC_CODCON",, 1) 
+                    lIncQLC := .T.
+                    conout(STR0010+" "+cCodConc) //"Inclusao de conciliacao:"
+                EndIf
+                                        
+                //Adiciona novos itens de conciliacoes - QLD
+                cReturn := ::tcInsertItensReconciliate("1", cCodConc) //Tabela origem
+                If Empty(cReturn)
+                    cReturn := ::tcInsertItensReconciliate("2", cCodConc) //Tabela destino
+                EndIf
+
+                If Empty(cReturn)
+                    cReturn := tcValidItens(cCodConc, ::cTableOri, ::cTableDes, @lFindQLD) //Valida se itens foram gravados                                                                    
+                    If Empty(cReturn)
+                        If lFindQLD //Se existem itens na conciliacao
+                            If lIncQLC
+                                ::tcInsertReconciliate(cCodConc, cFiltQLC) //Adiciona Cabecalho da conciliacao - QLC                                
+                            EndIf
+                        Else
+                            If lIncQLC //Se inclusao e nao existem itens na conciliacao, retorna sequencial
+                                QLC->(RollBackSx8()) 
+                                lIncQLC := .F.
+                            Else //Se alteracao e nao existem itens na conciliacao, deleta Cabecalho da conciliacao - QLC
+                                ::tcDeleteReconciliate(cCodConc)
+                            EndIf 
+                        EndIf
+                    EndIf
+                EndIf
+            EndIf
+        
+            If Empty(cReturn)
+                aMatches := ::tcMatchesReconciliate() //Armazena qtde de matches realizados (automatico e manual)
+                cReturn  := ::tcUpdateTemporyTable(cCodConc) //Atualiza matchs nas temporarias    
+            EndIf   
+
+            If Empty(cReturn)
+                //Se houve inclusao ou alteracao nos matches, alimenta telemetria
+                If lIncQLD
+                    //Telemetria por configuracao
+                    If Val(::cCodCfg) < 1000 //Considera apenas configuracoes do padrao
+                        cIdMetric := "contabilidade-gerencial-protheus_conciliador-regra-"+AllTrim(::cCodCfg)+"_total"
+                        ReconciliateMetrics("01", cIdMetric, AllTrim(ProcName()))
+                    EndIf
+
+                    //Telemetria por tipo de match                                
+                    If aMatches[1] > 0
+                        cIdMetric := "contabilidade-gerencial-protheus_conciliador-automatica_total" //Match automatico
+                        ReconciliateMetrics("01", cIdMetric, AllTrim(ProcName()), aMatches[1])
+                    EndIf
+
+                    If aMatches[2] > 0
+                        cIdMetric := "contabilidade-gerencial-protheus_conciliador-manual_total" //Match manual
+                        ReconciliateMetrics("01", cIdMetric, AllTrim(ProcName()), aMatches[2])
+                    EndIf
+                EndIf
+
+                If lIncQLC
+                    QLC->(ConfirmSX8()) //Confirma sequencial
+                EndIf
+            Else
+                If lIncQLC
+                    QLC->(RollBackSx8()) //Retorna sequencial
+                EndIf
+                DisarmTransaction()
+            EndIf
+
+            End Transaction //Finaliza transacao
+        Else
+            cReturn := STR0007+", "+STR0008 //#"Conciliação não realizada" ##"não existem informações para conciliação"
+        EndIf                 
+    Else            
+        cReturn := STR0001 //"Preencher os campos QLB_TABORI, QLB_TABDES, QLB_CIDORI ou QLB_CIDDES"  
+    EndIf       
+Else        
+    cReturn := STR0002 //"Codigo de configuracao nao informada"
+EndIf    
+
+::tcClearConfigurations()
+return cReturn
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} tcValidTemporary
+Validacoes das tabelas temporarias
+nOption = 1 - Se existem informações nas tabelas origem e destino
+nOption = 2 - se encontrou matches nas tabelas origem e destino
+@param lRet: Se existem informações ou matches disponiveis
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+Static Function tcValidTemporary(cTableOri as Character, cTableDes as Character, nOption as Numeric)
+Local cQuery    := "" As Character
+Local cAliasTmp := GetNextAlias() As Character
+Local lRet      := .F. As Logical
+
+//Consulta matchs na tabela de origem
+cQuery := "SELECT COUNT(1) COUNTMATCH"
+cQuery += " FROM " + cTableOri
+If nOption == 1
+    cQuery += " WHERE D_E_L_E_T_ = ' '"    
+Else
+    cQuery += " WHERE REGMATCH <> '"+Space(TamSx3("QLD_REGMAT")[1])+"'"
+    cQuery += " AND RECONCILED <> 'S'"
+    cQuery += " AND D_E_L_E_T_ = ' '"
+EndIf
+dbUseArea(.T., "TOPCONN", TcGenQry(,, cQuery), cAliasTmp, .T., .F.)
+
+If (cAliasTmp)->(!EOF()) .And. (cAliasTmp)->COUNTMATCH > 0
+    (cAliasTmp)->(dbCloseArea()) //Fecha temporario de origem
+    
+    //Consulta matchs na tabela de destino
+    cAliasTmp := GetNextAlias()
+    cQuery := "SELECT COUNT(1) COUNTMATCH"
+    cQuery += " FROM " + cTableDes
+    If nOption == 1
+        cQuery += " WHERE D_E_L_E_T_ = ' '"    
+    Else
+        cQuery += " WHERE REGMATCH <> '"+Space(TamSx3("QLD_REGMAT")[1])+"'"
+        cQuery += " AND RECONCILED <> 'S'"
+        cQuery += " AND D_E_L_E_T_ = ' '"
+    EndIf
+    dbUseArea(.T., "TOPCONN", TcGenQry(,, cQuery), cAliasTmp, .T., .F.)
+
+    If (cAliasTmp)->(!EOF()) .And. (cAliasTmp)->COUNTMATCH > 0
+        lRet := .T.
+    EndIf
+    (cAliasTmp)->(dbCloseArea()) //Fecha temporario de destino
+Else
+    (cAliasTmp)->(dbCloseArea()) //Fecha temporario de origem
+EndIf
+
+TcRefresh(cTableOri) // Resetar tempo de timeout
+TcRefresh(cTableDes) // Resetar tempo de timeout
+
+return lRet
+
+/*/{Protheus.doc} tcDeleteItensReconciliate
+Deleta itens das conciliacoes QLD
+
+@author Totvs
+/*/
+Method tcDeleteItensReconciliate(cTpItem as Character) class MatchReconciliateProtheusData
+Local cSQL    := "" as Character
+Local cTable  := If(cTpItem == "1", ::cTableOri, ::cTableDes) as Character
+Local cUUID   := If(cTpItem == "1", ::cIdOri, ::cIdDes) as Character
+Local cReturn := "" as Character
+
+cSQL := "UPDATE "+RetSQLName("QLD")
+cSQL += " SET D_E_L_E_T_ = '*', "
+cSQL += " R_E_C_D_E_L_ = R_E_C_N_O_ "
+cSQL += " WHERE RTRIM(QLD_IDITEM) IN (SELECT "+cUUID+" FROM "+cTable
+cSQL += " WHERE RECONCILED = 'N'" 
+cSQL += " AND (REGMATCH = '"+Space(TamSx3("QLD_REGMATCH")[1])+"'"
+cSQL += " OR IDDELETE <> '"+Space(TamSx3("QLD_REGMATCH")[1]+TamSx3("QLD_SEQMATCH")[1])+"')"
+cSQL += " AND D_E_L_E_T_ = ' ')"
+cSQL += " AND QLD_CODCFG = '"+::cCodCfg+"'"
+cSQL += " AND QLD_TPITEM = '"+cTpItem+"'"
+cSQL += " AND D_E_L_E_T_ = ' '"
+
+IIf(TCSQLExec(cSQL) <> 0,;
+    (Conout(TCSqlError()),;
+        cReturn := STR0003,;  //"matchReconciliate Error: Nao foi possivel deletar dados de destino na tabela QLD. "
+        cReturn += STR0004),; //"Para mais detalhes, verificar arquivo console.log"
+    cReturn := "") 
+return cReturn
+
+/*/{Protheus.doc} tcInsertItensReconciliate
+Insere itens das conciliacoes QLD
+
+@author Totvs
+/*/
+Method tcInsertItensReconciliate(cTpItem as Character, cCodConc as Character) class MatchReconciliateProtheusData
+Local cCpoInsert := "" as Character
+Local cCposTemp  := "" as Character
+Local cSQL       := "" as Character
+Local cTable     := If(cTpItem == "1", ::cTableOri, ::cTableDes) as Character
+Local cUUID      := If(cTpItem == "1", ::cIdOri, ::cIdDes) as Character
+Local cReturn    := "" as Character
+Local cNameDB    := Alltrim(TcGetDB()) as Character
+Local cConcat    := tcRetConcat()
+Local cQryIn     := ""
+Local cQryConc   := ""
+Local cTableCT2  := ""
+
+//Gravacao itens da conciliacao - QLD - via insert
+If(QLD->(FieldPos("QLD_UNION")) > 0 .And. QLD->(FieldPos("QLD_COMPAR")) > 0,; 
+    (cCpoInsert := "QLD_FILIAL, QLD_CODCON, QLD_IDITEM, QLD_TPITEM, QLD_REGMAT, QLD_DESMAT, QLD_SEQMAT, QLD_CODCFG, QLD_UNION, QLD_COMPAR",;
+     cCposTemp  := "'"+xFilial('QLD')+"','"+cCodConc+"',"+cUUID+",'"+cTpItem+"',REGMATCH,DESMATCH,SEQMATCH,'"+::cCodCfg+"',TABELA,COMPARISON"),;
+    (cCpoInsert := "QLD_FILIAL, QLD_CODCON, QLD_IDITEM, QLD_TPITEM, QLD_REGMAT, QLD_DESMAT, QLD_SEQMAT, QLD_CODCFG",;
+     cCposTemp  := "'"+xFilial('QLD')+"','"+cCodConc+"',"+cUUID+",'"+cTpItem+"',REGMATCH,DESMATCH,SEQMATCH,'"+::cCodCfg+"'");
+)
+
+cSQL := "INSERT INTO "+RetSQLName("QLD")
+cSQL += " ("+cCpoInsert+") "
+cSQL += " SELECT "+cCposTemp
+cSQL += " FROM "+cTable
+cSQL += " WHERE REGMATCH <> '"+Space(TamSx3("QLD_REGMAT")[1])+"'"            
+cSQL += " AND "+cUUID+" <> '"+Space(TamSx3(cUUID)[1])+"'"
+cSQL += " AND RECONCILED <> 'S'"
+cSQL += " AND D_E_L_E_T_ = ' '"
+
+IIf(TCSQLExec(cSQL) <> 0,;
+    (Conout(TCSqlError()),;
+        cReturn := STR0005,;  //"matchReconciliate Error: Nao foi possivel inserir dados na tabela QLD. "
+        cReturn += STR0004),; //"Para mais detalhes, verificar arquivo console.log"
+    cReturn := "")
+
+// gravo CT2_IDCONC
+If(cUUID =="CT2_MSUIDT" .and. CT2->(FieldPos("CT2_IDCONC")) > 0 )
+    cTableCT2 := RetSQLName("CT2")
+    
+    If cNameDB=="POSTGRES"
+        cQryIn := " SELECT CAST(CT2_MSUIDT AS VARCHAR) "
+    Else
+        cQryIn := " SELECT RTRIM(CT2_MSUIDT) "
+    EndIf
+
+    cQryIn += " FROM "+cTable+" TMP " 
+    cQryIn += " WHERE TMP.REGMATCH <> '"+Space(TamSx3("QLD_REGMAT")[1])+"'"            
+    cQryIn += " AND TMP.CT2_MSUIDT <> '"+Space(TamSx3(cUUID)[1])+"'"
+    cQryIn += " AND TMP.RECONCILED <> 'S'"
+    cQryIn += " AND TMP.D_E_L_E_T_ = ' ' "
+
+    cQryConc := " SELECT '"+cCodConc+"'"+cConcat+"REGMATCH"+cConcat+"SEQMATCH "
+    cQryConc += " FROM "+cTable+" TMP "
+    cQryConc += " WHERE TMP.CT2_FILIAL = "+cTableCT2+".CT2_FILIAL "
+
+    If cNameDB=="POSTGRES"
+        cQryConc += " AND TMP.CT2_MSUIDT = CAST("+cTableCT2+".CT2_MSUIDT AS VARCHAR) "
+    Else
+        cQryConc += " AND RTRIM(TMP.CT2_MSUIDT) = "+cTableCT2+".CT2_MSUIDT "
+    EndIf
+
+    cQryConc += " AND TMP.D_E_L_E_T_ = ' ' "
+
+    cSQL := " UPDATE "+cTableCT2
+    cSQL += " SET CT2_IDCONC = ("+cQryConc+")"    
+
+    If cNameDB=="POSTGRES"
+        cSQL += " WHERE CAST(CT2_MSUIDT AS VARCHAR) IN("+cQryIn+")"
+    Else
+        cSQL += " WHERE CT2_MSUIDT IN("+cQryIn+")"
+    EndIf
+   
+    IIf(TCSQLExec(cSQL) <> 0,;
+    (Conout(TCSqlError()),;
+        cReturn := STR0012,;  //"matchReconciliate Error: Nao foi possivel gravar campo CT2_IDCONC."
+        cReturn += STR0004),; //"Para mais detalhes, verificar arquivo console.log"
+    cReturn := "")
+EndIf
+
+return cReturn
+
+/*/{Protheus.doc} tcInsertReconciliate
+Insere conciliacoes QLC
+
+@author Totvs
+/*/
+Method tcInsertReconciliate(cCodConc as Character, cFilter as Character) class MatchReconciliateProtheusData   
+RecLock("QLC", .T.)
+QLC->QLC_FILIAL := xFilial("QLC")
+QLC->QLC_CODCON := cCodConc
+QLC->QLC_CODCFG := ::cCodCfg
+QLC->QLC_TABORI := ::cAliasOri
+QLC->QLC_TABDES := ::cAliasDes
+QLC->QLC_CODUSR := RetCodUsr()
+QLC->QLC_DATCON := dDataBase
+QLC->QLC_HORCON := Time()
+
+If QLC->(FieldPos("QLC_FILTER")) > 0
+    QLC->QLC_FILTER := cFilter
+EndIf
+
+QLC->(MsUnlock())
+Return
+
+/*/{Protheus.doc} tcSetConfigurations
+Carrega as propriedades da classe MatchReconciliateProtheusData
+
+@author Totvs
+/*/
+Method tcSetConfigurations() class MatchReconciliateProtheusData
+::cTableOri  := tcGetQryParams("tabori") 
+::cTableDes  := tcGetQryParams("tabdes") 
+::cCodCfg    := tcGetQryParams("codcfg") 
+
+If !Empty(::cCodCfg)
+    QLB->(dbSetOrder(1)) //QLB_FILIAL+QLB_CODCFG
+    QLB->(dbSeek(FWxFilial("QLB")+Padr(::cCodCfg, TamSx3("QLB_CODCFG")[1])))
+    
+    ::cAliasOri := AllTrim(QLB->QLB_TABORI)
+    ::cAliasDes := AllTrim(QLB->QLB_TABDES)
+    ::cIdOri    := AllTrim(QLB->QLB_CIDORI)
+    ::cIdDes    := AllTrim(QLB->QLB_CIDDES)
+EndIf
+return
+
+/*/{Protheus.doc} tcClearConfigurations
+Limpa as propriedades da classe MatchReconciliateProtheusData
+
+@author Totvs
+/*/
+Method tcClearConfigurations() class MatchReconciliateProtheusData
+::cTableOri := ""
+::cTableDes := ""
+::cCodCfg   := ""    
+::cAliasOri := ""
+::cAliasDes := ""
+::cIdOri    := ""
+::cIdDes    := ""
+return
+
+/*/{Protheus.doc} tcUpdateTemporyTable
+Atualiza as informacoes de match nas temporarias apos gravacao
+QLC e QLD
+
+@author Totvs
+/*/
+Method tcUpdateTemporyTable(cCodConc) class MatchReconciliateProtheusData
+Local cRet   := "" as Character
+Local cSQL   := "" as Character
+Local cTable := "" as Character
+Local nI     := 0  as Numeric
+
+For nI := 1 To 2
+    If Empty(cRet)
+        cTable := If(nI == 1, ::cTableOri, ::cTableDes)
+
+        //Cancelamento de matchs
+        cSQL := "UPDATE "+cTable            
+        cSQL += " SET CODCON = '"+Space(TamSx3("QLD_CODCON")[1])+"',"
+        cSQL += " IDDELETE = '"+Space(13)+"'"
+        cSQL += " WHERE CODCON <> '"+Space(TamSx3("QLD_CODCON")[1])+"'"
+        cSQL += " AND IDDELETE <> '"+Space(13)+"'"                 
+        cSQL += " AND D_E_L_E_T_ = ' '"
+        
+        IIf(TCSQLExec(cSQL) <> 0,;
+            (Conout(TCSqlError()),;
+                cRet := STR0006+cTable+". ",; //"matchReconciliate Error: Nao foi atualizar a tabela temporaria"
+                cRet += STR0004),;            //"Para mais detalhes, verificar arquivo console.log"
+            cRet := "")
+                        
+        If Empty(cRet)
+            //Novos matchs
+            cSQL := "UPDATE "+cTable
+            cSQL += " SET RECONCILED = 'S',"
+            cSQL += " CODCON = '"+cCodConc+"'"
+            cSQL += " WHERE RECONCILED = 'N'" 
+            cSQL += " AND REGMATCH <> '"+Space(TamSx3("QLD_REGMAT")[1])+"'"
+            cSQL += " AND D_E_L_E_T_ = ' '"
+
+            IIf(TCSQLExec(cSQL) <> 0,;
+                (Conout(TCSqlError()),;
+                    cRet := STR0006+cTable+". ",; //"matchReconciliate Error: Nao foi atualizar a tabela temporaria"
+                    cRet += STR0004),;            //"Para mais detalhes, verificar arquivo console.log"
+                cRet := "")             
+        EndIf        
+    EndIf
+Next
+return cRet
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} tcValidItens
+Retorna se encontrou conciliacoes para a configuracao na tabela QLD
+ou alteracoes na tabelas temporarias
+@param lRet: Se existem conciliacoes
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+Static Function tcValidItens(cCodConc as Character, cTableOri as Character, cTableDes as Character, lFindQLD as Logical)
+Local cQuery    := "" As Character
+Local cAliasTmp := GetNextAlias() As Character
+Local cReturn   := ""
+Local lAlter    := .F. As Logical
+
+//Consulta matchs na tabela de origem
+cQuery := "SELECT COUNT(1) COUNTITENS"
+cQuery += " FROM " + RetSQLName("QLD")
+cQuery += " WHERE QLD_FILIAL = '"+xFilial("QLD")+"'"
+cQuery += " AND QLD_CODCON = '"+cCodConc+"'"
+cQuery += " AND D_E_L_E_T_ = ' '"
+dbUseArea(.T., "TOPCONN", TcGenQry(,, cQuery), cAliasTmp, .T., .F.)
+
+If (cAliasTmp)->(!EOF()) .And. (cAliasTmp)->COUNTITENS > 0
+    lAlter    := .T.
+    lFindQLD := .T.        
+EndIf
+
+(cAliasTmp)->(dbCloseArea()) //Fecha temporario
+
+//Consulta atualizacoes na temporaria de origem
+If !lAlter
+    cAliasTmp := GetNextAlias()
+
+    cQuery := "SELECT COUNT(1) COUNTITENS"
+    cQuery += " FROM "+cTableOri
+    cQuery += " WHERE CODCON <> '"+Space(TamSx3("QLD_CODCON")[1])+"'"
+    cQuery += " AND IDDELETE <> '"+Space(13)+"'"          
+    cQuery += " AND D_E_L_E_T_ = ' '"
+    dbUseArea(.T., "TOPCONN", TcGenQry(,, cQuery), cAliasTmp, .T., .F.)
+
+    If (cAliasTmp)->(!EOF()) .And. (cAliasTmp)->COUNTITENS > 0
+        lAlter := .T.        
+    EndIf
+
+    (cAliasTmp)->(dbCloseArea()) //Fecha temporario 
+EndIf
+
+//Consulta atualizacoes na temporaria de destino
+If !lAlter
+    cAliasTmp := GetNextAlias()
+    
+    cQuery := "SELECT COUNT(1) COUNTITENS"
+    cQuery += " FROM "+cTableDes
+    cQuery += " WHERE CODCON <> '"+Space(TamSx3("QLD_CODCON")[1])+"'"
+    cQuery += " AND IDDELETE <> '"+Space(13)+"'"          
+    cQuery += " AND D_E_L_E_T_ = ' '"
+    dbUseArea(.T., "TOPCONN", TcGenQry(,, cQuery), cAliasTmp, .T., .F.)
+
+    If (cAliasTmp)->(!EOF()) .And. (cAliasTmp)->COUNTITENS > 0
+        lAlter := .T.
+    EndIf
+
+    (cAliasTmp)->(dbCloseArea()) //Fecha temporario 
+EndIf
+
+If !lAlter
+    cReturn := STR0007+", "+STR0009 //#"Conciliação não realizada," ##"Conciliação não realizada, não houveram alterações nos registros informados"
+EndIf
+
+return cReturn
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} tcGetUserSession
+Retorna se encontrou sessao para o usuario logado na tabela QLC
+Sessao = Filial + Configuracao + Usuario + Data
+@param cConciliation: Codigo da ultima configuracao do usuario no dia
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+Static Function tcGetUserSession(cCodCfg)
+Local cQuery        := "" As Character
+Local cConciliation := "" As Character
+Local cAliasQLC     := GetNextAlias() As Character
+
+//Consulta sessao do usuario na tabela QLC
+cQuery := "SELECT MAX(QLC_CODCON) CONCILIATION"
+cQuery += " FROM " + RetSQLName("QLC")
+cQuery += " WHERE QLC_FILIAL = '"+xFilial("QLC")+"'"
+cQuery += " AND QLC_CODCFG = '"+cCodCfg+"'"
+cQuery += " AND QLC_CODUSR = '"+__cUserId+"'"
+cQuery += " AND QLC_DATCON = '"+DToS(dDataBase)+"'"
+cQuery += " AND D_E_L_E_T_ = ' '"
+dbUseArea(.T., "TOPCONN", TcGenQry(,, cQuery), cAliasQLC, .T., .F.)
+
+If (cAliasQLC)->(!EOF()) .And. !Empty((cAliasQLC)->CONCILIATION)
+    cConciliation := (cAliasQLC)->CONCILIATION
+EndIf
+
+(cAliasQLC)->(dbCloseArea()) //Fecha temporario 
+Return cConciliation
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} tcGetFilterSession
+Retorna se existiu alguma alteracao no filtro do usuario para a configuracao
+Sera criado nova QLC para estes casos
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+Static Function tcGetFilterSession(cCodCfg as Character, cFilter as Character)
+Local oProfile := UserProfileProtheusData():new() as Object
+Local oFilter  := JsonObject():new() as Object
+Local aFilter  := oProfile:getProfile(cCodCfg) as Array
+Local lRet     := .F. as Logical
+Local uRet     := Nil
+
+If Len(aFilter) > 0 .And. aFilter[1]
+    uRet := oFilter:fromJson(aFilter[2][1])
+    If ValType(uRet) == "U" .And. AllTrim(Lower(oFilter:getJsonText("update"))) == "true"
+        oProfile:postProfileByBody(oFilter, aFilter[2][1], .T., {"update", "false"}) //Altera flag para alteracao de filtro do usuario       
+        lRet := .T.
+    EndIf
+    cFilter := aFilter[2][1]
+EndIf
+return lRet
+
+/*/{Protheus.doc} tcInsertReconciliate
+Deleta conciliacoes QLC
+
+@author Totvs
+/*/
+Method tcDeleteReconciliate(cCodConc as Character) class MatchReconciliateProtheusData   
+QLC->(dbSetOrder(1))
+If dbSeek(xFilial("QLC")+cCodConc+::cCodCfg)
+    RecLock("QLC", .F.)
+    QLC->(dbDelete())    
+    QLC->(MsUnlock())
+EndIf
+Return
+
+/*/{Protheus.doc} tcMatchesReconciliate
+Retorna a quantidade de matches automáticos e manuais
+
+@author Totvs
+/*/
+Method tcMatchesReconciliate() class MatchReconciliateProtheusData   
+Local cQuery    := "" as Character
+Local cAliasTmp := GetNextAlias() as Character
+Local aReturn   := {0, 0} as Array
+
+//Armazena quantidade de matches para telemetria
+cQuery := "SELECT"
+cQuery += " (CASE WHEN REGMATCH <> '999' THEN COUNT(TABELA) ELSE 0 END) MATCH_AUT,"
+cQuery += " (CASE WHEN REGMATCH = '999' THEN COUNT(TABELA) ELSE 0 END) MATCH_MAN"
+cQuery += " FROM "+::cTableOri
+cQuery += " WHERE REGMATCH <> '"+Space(TamSx3("QLD_REGMAT")[1])+"'" 
+cQuery += " AND "+::cIdOri+" <> '"+Space(TamSx3(::cIdOri)[1])+"'"
+cQuery += " AND RECONCILED <> 'S'"
+cQuery += " AND D_E_L_E_T_ = ' '"
+cQuery += " GROUP BY REGMATCH"    
+
+cQuery := ChangeQuery(cQuery)
+dbUseArea(.T., "TOPCONN", TcGenQry(,, cQuery), cAliasTmp, .T., .T.)
+
+While (cAliasTmp)->(!EOF())
+    aReturn[1] += (cAliasTmp)->MATCH_AUT
+    aReturn[2] += (cAliasTmp)->MATCH_MAN
+
+    (cAliasTmp)->(dbSkip())
+EndDo
+(cAliasTmp)->(dbCloseArea())
+Return aReturn

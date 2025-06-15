@@ -1,0 +1,22 @@
+#INCLUDE "TLPP-CORE.TH"
+#INCLUDE "TLPP-REST.TH"
+
+namespace totvs.protheus.retail.rmi.api.notaentradaapi
+
+using namespace totvs.protheus.retail.rmi.api.notaentradaobj
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc}
+    API para consulta de Notas Fiscais de Entrada do Varejo
+/*/
+//-------------------------------------------------------------------
+
+/* ----------------------------------------- */
+@Post("api/retail/v1/notaentrada/devolucao")
+Function devolucao()
+
+    Local oNotaEntrada := NotaEntradaObj():New(oRest, oRest:getQueryRequest(), oRest:getBodyRequest())
+
+    oNotaEntrada:Post()
+    
+Return oRest:setResponse( oNotaEntrada:getReturn() )

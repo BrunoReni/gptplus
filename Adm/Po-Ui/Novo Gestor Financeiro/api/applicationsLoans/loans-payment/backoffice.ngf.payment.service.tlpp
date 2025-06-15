@@ -1,0 +1,363 @@
+#include 'tlpp-core.th'
+#include 'backoffice.ngf.payment.service.ch'
+
+NAMESPACE totvs.protheus.backoffice.ngf.payment
+USING NAMESPACE totvs.protheus.backoffice.ngf.util
+USING NAMESPACE gfin.util
+USING NAMESPACE totvs.protheus.backoffice.ngf.template
+
+/*/{Protheus.doc} ValuePayment
+    Calculo do valor de pagamento de uma parcela
+    @type  Function
+    @author Vitor Duca
+    @since 19/01/2022
+    @version 1.0
+    @param jBodyRequest, Json, Body da requisição
+    @return jResponse, Json, Resposta da requisição
+  /*/
+Function ValuePayment(jBodyRequest As Json) As Json
+    Local jResponse As Json
+    Local jDados As Json
+    Local aA181Calc := {} As Array
+    Local cIndexE2 := "" As Character
+    Local cIndexEH := "" As Character
+    Local lTemplateOK := .F. as Logical
+	  Local oTemplate  as Object
+    Local jParcel As Json
+    Local jLoan As Json
+    Local nValorE2 := 0 As Numeric
+    Local nValJuros := 0 As Numeric
+    Local nValDeb := 0 As Numeric
+    Local dDataAnt := dDataBase As Date
+
+    jParcel := jBodyRequest['parcel']
+    jLoan := jBodyRequest['loan']
+
+    cIndexE2 := Padr(jParcel["e2_filial"],TamSx3("E2_FILIAL")[1]) + Padr(jParcel["e2_prefixo"],TamSx3("E2_PREFIXO")[1]) + ;
+                Padr(jParcel["e2_num"],TamSx3("E2_NUM")[1]) + Padr(jParcel["e2_parcela"],TamSx3("E2_PARCELA")[1])
+
+    cIndexEH := Padr(jLoan["eh_filial"], TamSx3("EH_FILIAL")[1]) + Padr(jLoan["eh_numero"], TamSx3("EH_NUMERO")[1]) + ;
+                Padr(jLoan["eh_revisao"], TamSx3("EH_REVISAO")[1])
+
+    jResponse := JsonObject():new()
+    jDados := JsonObject():new()
+
+    SE2->(dbSetOrder(1))
+    SEH->(dbSetOrder(1))
+    If SE2->(MsSeek(cIndexE2)) .and. SEH->(MsSeek(cIndexEH))
+
+      jDados["NA181VLMOED"] := RecMoeda(dDataBase,SEH->EH_MOEDA)
+
+      If SEH->EH_TIPO <> "TEM"
+        aA181Calc	:= Fa171Calc(dDataBase,SEH->EH_SALDO,.T.,jDados["NA181VLMOED"])
+      Else
+        oTemplate := totvs.protheus.backoffice.ngf.template.Template():new()
+        dDataAnt := getDataBaseParcel()
+        
+        If oTemplate:openTemplate(SEH->EH_FILIAL, SEH->EH_NUMERO, SEH->EH_REVISAO)
+          lTemplateOK := .T.
+          oTemplate:setValorBase(SEH->EH_SALDO)
+          oTemplate:setDateBase(dDataAnt)
+          oTemplate:setDateJur(SE2->E2_VENCTO) // Vencimento personalizado para calculo do Juros
+          oTemplate:setDateVenc(dDataBase)
+          oTemplate:setTaxaMoeda(jDados["NA181VLMOED"])
+          oTemplate:calcTemplate()
+          aA181Calc := oTemplate:getEmpLegado()
+        Else
+          lTemplateOK := .F.
+          jResponse := gfin.util.AnswerErrorFormat(403, 'Template', oTemplate:getError())
+        EndIf
+      EndIf
+
+      If SEH->EH_TIPO <> "TEM" .Or. (SEH->EH_TIPO == "TEM" .And. lTemplateOK)
+        jDados["NA181SPCP2"] := Round(SEH->EH_SALDO * SEH->EH_PERCPLP/100 , TamSX3("EH_SALDO")[2])
+        jDados["NA181SPLP2"] := SEH->EH_SALDO - jDados["NA181SPCP2"]
+        jDados["NA181SPCP1"] := Round(SEH->EH_VLCRUZ * SEH->EH_PERCPLP/100,TamSX3("EH_SALDO")[2])
+        jDados["NA181SPLP1"] := SEH->EH_VLCRUZ - jDados["NA181SPCP1"]
+        jDados["NA181SJUR2"] := aA181Calc[1,2]
+        jDados["NA181SJUR1"] := aA181Calc[2,2] * jDados["NA181VLMOED"]
+        jDados["NA181SVCLP"] := aA181Calc[2,3]
+        jDados["NA181SVCCP"] := aA181Calc[2,4]
+        jDados["NA181SVCJR"] := Iif(Empty(SEH->EH_FORMULA) .Or. SEH->EH_MOEDA > 1,aA181Calc[2,5],0)
+        jDados["NA181STOT1"] := jDados["NA181SPLP1"] + jDados["NA181SPCP1"] + jDados["NA181SJUR1"] + ;
+                                jDados["NA181SVCLP"] + jDados["NA181SVCCP"] + jDados["NA181SVCJR"]
+
+        jDados["NA181STOT2"] := jDados["NA181SPLP2"] + jDados["NA181SPCP2"] + jDados["NA181SJUR2"]
+        jDados["NA181VPCP1"] := jDados["NA181SPCP1"]
+        jDados["NA181VPCP2"] := jDados["NA181SPCP2"]
+        jDados["NA181VJUR2"] := jDados["NA181SJUR2"]
+        jDados["NA181VVCLP"] := jDados["NA181SVCLP"]
+        jDados["NA181VVCCP"] := jDados["NA181SVCCP"]
+        jDados["NA181VVCJR"] := jDados["NA181SVCJR"]
+
+        jDados["NA181VLMOED"] := If( jDados["NA181VLMOED"] == 0, 1, jDados["NA181VLMOED"] )
+        jDados["NA181VLDEB"] 		:= If( SuperGetMv("MV_L11033",,.F.), jDados["NA181VTOT1"], jDados["NA181VLDEB"]  )
+
+        If SEH->EH_TIPO == "TEM"
+          nValJuros := aA181Calc[2,2]
+          nValDeb   := nValorE2 + nValJuros
+        Else
+          nValJuros := SE2->E2_JUROS
+          nValDeb   := SE2->E2_VALOR
+        EndIf
+
+        nValorE2 := SE2->E2_VALOR - SE2->E2_JUROS
+
+        If SE2->E2_MOEDA > 1
+          jDados["NA181VPLP1"] := xMoeda(nValorE2,SE2->E2_MOEDA,1)
+          jDados["NA181VPLP2"] := nValorE2
+          jDados["NA181VLDEB"] := xMoeda(nValDeb,SE2->E2_MOEDA,1)
+          jDados["NA181VJUR1"] := xMoeda(nValJuros,SE2->E2_MOEDA,1)
+          jDados["NA181SJUR1"] := xMoeda(nValJuros,SE2->E2_MOEDA,1)
+        Else
+          jDados["NA181VPLP1"] := nValorE2
+          jDados["NA181VPLP2"] := nValorE2
+          jDados["NA181VLDEB"] := nValDeb
+          jDados["NA181VJUR1"] := nValJuros
+          jDados["NA181SJUR1"] := nValJuros
+        EndIf
+
+        jDados["NA181VJUR2"] := nValJuros
+        jDados["NA181SJUR2"] := nValJuros
+
+        jDados["NA181STOT1"] := jDados["NA181SPLP1"] + jDados["NA181VJUR1"]
+        jDados["NA181STOT2"] := jDados["NA181SPLP2"] + jDados["NA181VJUR2"]
+        jDados["DA181DTAPR"] := Dtos(SE2->E2_VENCREA)
+
+        jDados["NA181VTOT1"] := jDados["NA181VPLP1"] + jDados["NA181VPCP1"] + jDados["NA181VJUR1"] + ;
+                                    jDados["NA181VVCLP"] + jDados["NA181VVCCP"] + jDados["NA181VVCJR"]
+
+        jDados["NA181VTOT2"] := jDados["NA181VPLP2"]+jDados["NA181VPCP2"]+jDados["NA181VJUR2"]
+
+        jDados["N181VLIOF"] := 0
+        IF !EMPTY(SEH->EH_TAXAIOF)
+          jDados["N181VLIOF"] := FIN_IOF(SEH->EH_APLEMP,jDados["NA181VPLP1"],(dDataBase-SEH->EH_DATA),SEH->EH_TAXAIOF)
+        ENDIF
+
+        jResponse :=  {;
+                "statusCode": 200,;
+                "response": {;
+                  "code": '200',;
+                  "message": STR0001,;
+                  "variables": jDados;
+                };
+              }
+              
+        If lTemplateOk
+          jResponse['response']['template'] := oTemplate:getResults()
+          FreeObj(oTemplate)
+        EndIf
+      EndIf
+    Else
+      jResponse := answerFormat(.F., 400, STR0002, STR0003)
+    Endif
+
+Return jResponse
+
+/*/{Protheus.doc} CalculationPayment
+    Calculo do pagamento atraves da função Fa171Calc
+    @type  Function
+    @author Vitor Duca
+    @since 19/01/2022
+    @version 1.0
+    @param jData, Json, Body da requisição
+    @return return_var, return_type, return_description
+    @example
+    Descrição dos parametros da função:
+        Fa171Calc(param1 As Date, Data do saldo
+            param2 As Numeric, Saldo da aplicação ou emprestimo
+            param3 As Logical, Indica se é um resgate
+            param4 As Numeric, Valor na moeda do contrato)
+/*/
+Function CalculationPayment(jData As Json) As Json
+	Local jRetSEH            as Json
+	Local cFilSEH     := ""  as Character
+	Local cNumero     := ""  as Character
+	Local cRevisao    := ""  as Character
+	Local a171Calc    := {}  as Array
+	Local oParamsFunc        as Json
+	Local nCtrlSEH    := 0   as Numeric
+	Local nCtrl       := 0   as Numeric
+	Local oTemplate          as Object
+	Local lTemplateOk := .F. as Logical
+
+	oParamsFunc := JsonObject():New()
+	oParamsFunc := jData[ 'paramFunction' ]
+
+	cFilSEH  := Padr(jData['filial'], TamSx3("EH_FILIAL")[1])
+	cNumero  := Padr(jData['numero'], TamSx3("EH_NUMERO")[1])
+	cRevisao := Padr(jData['revisao'], TamSx3("EH_REVISAO")[1])
+
+	DbSelectArea("SEH")
+	SEH->(DbSetOrder(1))
+	SEH->(DbGoTop())
+
+	If SEH->(DbSeek(cFilSEH + cNumero + cRevisao))
+
+		If SEH->EH_TIPO <> "TEM" .And. !Empty(oParamsFunc:toJson())
+			a171Calc := Fa171Calc( Stod(oParamsFunc['param1']), oParamsFunc['param2'], &(oParamsFunc['param3']), oParamsFunc['param4'])
+		Else
+			oTemplate := totvs.protheus.backoffice.ngf.template.Template():new()
+			If oTemplate:openTemplate(cFilSEH, cNumero, cRevisao)
+				lTemplateOK := .T.
+				oTemplate:setValorBase(oParamsFunc['param2'])
+				oTemplate:setDateVenc(Stod(oParamsFunc['param1']))
+				oTemplate:calcTemplate()
+				a171Calc := oTemplate:getEmpLegado()
+			Else
+				lTemplateOK := .F.
+				jResponse := gfin.util.AnswerErrorFormat(403, 'Template', oTemplate:getError())
+			EndIf
+		EndIf
+
+		jRetSEH := JsonObject():New()
+		jRetSEH['dados'] := JsonObject():New()
+
+		For nCtrlSEH := 1 To Len(a171Calc)
+			aDados := {}
+			For nCtrl := 1 To Len(a171Calc[nCtrlSEH])
+				Aadd(aDados, a171Calc[nCtrlSEH][nCtrl])
+			Next nCtrl
+			jRetSEH['dados']['dados' + cValToChar(nCtrlSEH)] := aDados
+		Next nCtrlSEH
+
+		If lTemplateOk
+			jRetSEH['template'] := oTemplate:getResults()
+			FreeObj(oTemplate)
+		EndIf
+	Endif
+
+	FreeObj(oParamsFunc)
+Return jRetSEH
+
+/*/{Protheus.doc} getSequenceParcelService
+    Serviço para obter a sequência referente ao pagemento da parcela (SEI)
+    @type  Function
+    @author Vinicius Prado
+    @since 28/01/2022
+    @version 1.0
+    @param oQueryRequest, Json, parametros da requisição
+    @return jResponse, Json, Resposta da requisição contendo a sequencia
+  /*/
+Function getSequenceParcelService(oQueryRequest As Json) As Json
+  Local cNumber := "" As Character
+  Local cBranch := "" As Character
+  Local cRevision := "" As Character
+  Local cParcel := "" As Character
+  Local cSequence := "" As Character
+  Local jResponse as json
+
+  jResponse := JsonObject():New()
+  cBranch   := oQueryRequest["branch"]
+  cNumber   := oQueryRequest["number"]
+  cRevision := oQueryRequest["revision"]
+  cParcel   := oQueryRequest["parcel"]
+
+  cSequence := getSequenceParcels(cNumber, cRevision, cParcel, cBranch)
+
+  If Empty(cSequence)
+    jResponse := answerErrorFormat(400 , 'Bad Request')
+  Else
+    jResponse["result"] := .T.
+    jResponse["response"]	:= JsonObject():new()
+    jResponse["response"]	:= { "sequence": cSequence }
+    jResponse["statusCode"] := 200
+  Endif
+
+Return jResponse
+
+/*/{Protheus.doc} ValueAmortization
+    Calculo do valor de amortização de um emprestimo
+    @type  Function
+    @author Vitor Duca
+    @since 28/01/2022
+    @version 1.0
+    @param jBodyRequest, Json, Body da requisição
+    @return jResponse, Json, Resposta da requisição
+  /*/
+Function ValueAmortization(jBodyRequest As Json) As Json
+	Local cFilSEH       := ""                           as Character
+	Local cNumero       := ""                           as Character
+	Local cRevisao      := ""                           as Character
+	Local nTaxaMoeda    := 1                            as Numeric
+	Local nSaldoDecimal := TamSX3("EH_SALDO")[2]        as Numeric
+	Local aA181Calc     := {}                           as Array
+	Local jResponse     := JsonObject():New()           as Json
+	Local jDados        := JsonObject():New()           as Json
+	Local jLoan         := jBodyRequest[ 'loan' ]       as Json
+	Local lL11033       := SuperGetMv("MV_L11033",,.F.) as Logical
+	Local lTemplateOK   := .F. as Logical
+	Local oTemplate                                     as Object
+
+	cFilSEH  := Padr(jLoan["eh_filial"] , TamSx3("EH_FILIAL")[1])
+	cNumero  := Padr(jLoan["eh_numero"] , TamSx3("EH_NUMERO")[1])
+	cRevisao := Padr(jLoan["eh_revisao"], TamSx3("EH_REVISAO")[1])
+
+	DbSelectArea('SEH')
+	SEH->(dbSetOrder(1))
+	If SEH->(DbSeek(cFilSEH + cNumero + cRevisao))
+		If SEH->EH_MOEDA > 1
+			nTaxaMoeda := RecMoeda(dDataBase, SEH->EH_MOEDA)
+		EndIf
+
+		If SEH->EH_TIPO <> "TEM"
+			aA181Calc := Fa171Calc(dDataBase, SEH->EH_SALDO, .T., nTaxaMoeda)
+		Else
+			oTemplate := totvs.protheus.backoffice.ngf.template.Template():new()
+			If oTemplate:openTemplate(cFilSEH, cNumero, cRevisao)
+				lTemplateOK := .T.
+				oTemplate:setValorBase(SEH->EH_SALDO)
+				oTemplate:setDateVenc(dDataBase)
+				oTemplate:setTaxaMoeda(nTaxaMoeda)
+				oTemplate:calcTemplate()
+				aA181Calc := oTemplate:getEmpLegado()
+			Else
+				lTemplateOK := .F.
+				jResponse := gfin.util.AnswerErrorFormat(403, 'Template', oTemplate:getError())
+			EndIf
+		EndIf
+
+		If SEH->EH_TIPO <> "TEM" .Or. (SEH->EH_TIPO == "TEM" .And. lTemplateOK)
+			jDados["NA181SJUR1"]  := aA181Calc[2,2] * nTaxaMoeda
+			jDados["NA181SJUR2"]  := aA181Calc[1,2]
+			jDados["NA181SVCLP"]  := aA181Calc[2,3]
+			jDados["NA181SVCCP"]  := aA181Calc[2,4]
+			jDados["NA181SVCJR"]  := Iif(Empty(SEH->EH_FORMULA) .Or. SEH->EH_MOEDA > 1,aA181Calc[2,5],0)
+			jDados["NA181SPCP2"]  := Round( SEH->EH_SALDO * SEH->EH_PERCPLP/100 , nSaldoDecimal)
+			jDados["NA181VLMOED"] := nTaxaMoeda
+			jDados["NA181SPLP2"]  := SEH->EH_SALDO - jDados["NA181SPCP2"]
+			jDados["NA181SPCP1"]  := Round(SEH->EH_VLCRUZ * SEH->EH_PERCPLP/100, nSaldoDecimal)
+			jDados["NA181SPLP1"]  := SEH->EH_VLCRUZ - jDados["NA181SPCP1"]
+			jDados["NA181STOT1"]  := jDados["NA181SPLP1"] + jDados["NA181SPCP1"] + jDados["NA181SJUR1"] + jDados["NA181SVCLP"] + jDados["NA181SVCCP"] + jDados["NA181SVCJR"]
+			jDados["NA181STOT2"]  := jDados["NA181SPLP2"] + jDados["NA181SPCP2"] + jDados["NA181SJUR2"]
+			jDados["NA181VPLP1"]  := jDados["NA181SPLP1"]
+			jDados["NA181VPCP1"]  := jDados["NA181SPCP1"]
+			jDados["NA181VPLP2"]  := jDados["NA181SPLP2"]
+			jDados["NA181VPCP2"]  := jDados["NA181SPCP2"]
+			jDados["NA181VJUR1"]  := jDados["NA181SJUR1"]
+			jDados["NA181VJUR2"]  := jDados["NA181SJUR2"]
+			jDados["NA181VVCLP"]  := jDados["NA181SVCLP"]
+			jDados["NA181VVCCP"]  := jDados["NA181SVCCP"]
+			jDados["NA181VVCJR"]  := jDados["NA181SVCJR"]
+			jDados["NA181VTOT1"]  := jDados["NA181STOT1"]
+			jDados["NA181VTOT2"]  := jDados["NA181STOT2"]
+			jDados["NA181VLDEB"]  := If( lL11033, jDados["NA181VTOT1"] - jDados["NA181VLIRF"], jDados["NA181VTOT1"])
+			// Calcula o IOF conforme a tabela cadastrada no SX5, ou a taxa de IOF cadastrada na aplicacao
+			jDados["N181VLIOF"] := FIN_IOF(SEH->EH_APLEMP, jDados["NA181VPLP1"], dDataBase - SEH->EH_DATA, SEH->EH_TAXAIOF)
+
+			jResponse :=  {;
+						"statusCode": 200,;
+						"response": {;
+						"code": '200',;
+						"message": "Calculo da amortização efetuado com sucesso",;
+						"variables": jDados;
+						};
+					}
+			If lTemplateOk
+				jResponse['response']['template'] := oTemplate:getResults()
+				FreeObj(oTemplate)
+			EndIf
+		EndIf
+	Endif
+
+Return jResponse

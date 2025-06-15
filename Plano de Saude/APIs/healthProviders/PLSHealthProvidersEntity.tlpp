@@ -1,0 +1,84 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+#DEFINE _tgLoc 'attendanceLocation'
+#DEFINE _tgEsp 'specialities'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSHealthProvidersEntity
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSHealthProvidersEntity from PLSEntAux
+
+    public method new()
+    public method montaRda(oDao)
+    public method montaLocEsp(oDao)
+
+endClass
+
+method new() class PLSHealthProvidersEntity
+    _Super:New()
+Return self
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Metodos de montagem do json
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+Method montaRda(oDao) class PLSHealthProvidersEntity
+
+    Local cAli    := oDao:getAliasTemp()
+
+    self:oResult["healthProviderId"]  := self:maskField( (cAli)->BAU_CODIGO )
+    self:oResult["name"]              := self:maskField( (cAli)->BAU_NOME )
+
+Return
+
+
+method montaLocEsp(oDao) class PLSHealthProvidersEntity
+
+    Local cAli := oDao:getAliasTemp()
+    Local nX      := 0
+    Local nLoc    := 0
+    Local nEsp    := 0
+    Local cLocKey := ""
+
+    self:oResult[_tgLoc] := {}
+    while !oDao:isEof()
+
+        //Se realizar troca de Local de Atendimento, gera novo no
+        if cLocKey <> (cAli)->(BB8_CODINT+BB8_CODIGO+BB8_CODLOC+BB8_LOCAL)
+            cLocKey := (cAli)->(BB8_CODINT+BB8_CODIGO+BB8_CODLOC+BB8_LOCAL)
+
+            nLoc ++ //Adiciona novo local
+            aAdd(self:oResult[_tgLoc], JsonObject():new())
+            nEsp := 0 //Reseta contador de especialidades
+
+            //Dados prestador
+            self:oResult[_tgLoc][nLoc][_tgEsp] := {}
+            self:oResult[_tgLoc][nLoc]['address'] := self:maskField( (cAli)->BB8_END)
+            self:oResult[_tgLoc][nLoc]['locationCode'] := self:maskField( (cAli)->BB8_CODLOC)
+            self:oResult[_tgLoc][nLoc]['localDescription'] := self:maskField( (cAli)->BB8_DESLOC)   
+        endIf
+
+        if !Empty((cAli)->(BAX_CODESP))
+            nEsp ++
+            aAdd(self:oResult[_tgLoc][nLoc][_tgEsp], JsonObject():new())
+
+            //Dados Especialidade
+            self:oResult[_tgLoc][nLoc][_tgEsp][nEsp]['specialtyCode'] := self:maskField( (cAli)->BAX_CODESP)
+            self:oResult[_tgLoc][nLoc][_tgEsp][nEsp]['specialtyDescription'] := self:maskField( (cAli)->BAQ_DESCRI)
+        endif
+
+        nX ++
+        oDao:dbSkip()
+    endDo
+
+return

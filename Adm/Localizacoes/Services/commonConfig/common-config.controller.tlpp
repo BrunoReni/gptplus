@@ -1,0 +1,120 @@
+#include 'tlpp-core.th'
+#include 'tlpp-rest.th'
+
+namespace tr.commonConfig
+using namespace tr.util
+
+/*/{Protheus.doc} commonConfigVisible
+EndPoint para obtener
+	La configuracion del Factoraje para MEX
+	Verifica si el pais es Mexico para los estaus del Documento
+@type function
+@version  1
+@author jose.gonzalez
+@since 23/03/2021
+@return Object, {
+    				"documentStatus": true,
+    				"factoring": true
+				}
+/*/
+@GET('/api/v1/totvsRecibos/commonConfig')
+Function commonConfigVisible()
+	Local oResponse As Object
+	Local oCommonConfigService As Object
+
+	oCommonConfigService := commonConfigService():getInstance()
+	oResponse := oCommonConfigService:getcommonConfig(oRest:getPathParamsRequest())
+	AnswerRest(oResponse)
+Return
+
+/*/{Protheus.doc} commonConfigSE1
+EndPoint que retorna los tamaños registrados en la SX3 de los campos de la tabla SE1
+@type function
+@version  1
+@author luis.aboytes
+@since 6/4/2021
+@return Object, [
+    			{
+        			"size": 0,
+        			"name": "nombre_json"
+    			}
+			 ]
+/*/
+@GET('/api/v1/totvsRecibos/commonConfig/SE1')
+Function commonConfigSE1()
+	Local oResponse As Object
+	Local oCommonConfigService As Object
+
+	oCommonConfigService := commonConfigService():getInstance()
+	oResponse := oCommonConfigService:getConfigSE1Service(oRest:getPathParamsRequest())
+	AnswerRest(oResponse)
+Return
+
+
+/*/{Protheus.doc} commonConfigSEL
+EndPoint que retorna los tamaños registrados en la SX3 de los campos de la tabla SEl
+@type function
+@version  1
+@author luis.aboytes
+@since 7/4/2021
+@return Object, [
+    			{
+        			"size": 0,
+        			"name": "nombre_json"
+    			}
+			 ]
+/*/
+@GET('/api/v1/totvsRecibos/commonConfig/SEL')
+Function commonConfigSEL()
+	Local oResponse As Object
+	Local oCommonConfigService As Object
+
+	oCommonConfigService := commonConfigService():getInstance()
+	oResponse := oCommonConfigService:getConfigSELService(oRest:getPathParamsRequest())
+	AnswerRest(oResponse)
+Return
+
+/*/{Protheus.doc} commonConfTamValor
+EndPoint que retorna los tamaños registrados en la SX3 de los campos del campo E1_valor
+@type function
+@version  1
+@author jose Gonzalez
+@since 11/08/2021
+@return Object, [
+    			{
+        			"thousandMaxLength ":13,
+        			"decimalsLength ": "2"
+    			}
+			 ]
+/*/
+@GET('/api/v1/totvsRecibos/commonConfig/TamValor')
+Function commonConfTamValor()
+	Local oResponse As Object
+	Local oCommonConfigService As Object
+
+	oCommonConfigService := commonConfigService():getInstance()
+	oResponse := oCommonConfigService:getConfigTAMService()
+	AnswerRest(oResponse)
+Return
+
+/*/{Protheus.doc} commonConfConfigcBox
+EndPoint que retorna las opciones del campo EL_TIPAGRO
+@type function
+@version  1
+@author jose Gonzalez
+@since 22/02/2022
+
+/*/
+
+
+@GET('/api/v1/totvsRecibos/commonConfig/cancelationReasson') 
+Function commonConfConfigcBox()
+	Local oResponse As Object
+	Local oCommonConfigService As Object
+
+	oCommonConfigService := commonConfigService():getInstance()
+	oResponse := oCommonConfigService:getConfigcBox()
+	AnswerRest(oResponse)
+Return
+
+

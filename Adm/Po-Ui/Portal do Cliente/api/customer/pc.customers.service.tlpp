@@ -1,0 +1,141 @@
+#Include 'tlpp-core.th'
+#include 'pc.customers.service.CH'
+
+Namespace portal.cliente.customer
+using namespace gfin.util
+Using Namespace portal.cliente.util
+
+Static __instance	 As Object
+Static __oActiveData As Object
+
+
+Class CustomerService
+	Public Method New()
+	Static Method getInstance() As Object
+	Static Method getProtheusInstance() As Object
+	Public Method serviceCustomer() As Json
+	Public Method servicePasswordCustomer() As Json
+EndClass
+
+
+Method New() Class CustomerService
+Return 
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getInstance
+Retorna a instância ativa, senão exitir será criada uma nova.
+
+@author luiz.nai
+@since 07/04/2021
+/*/
+//-------------------------------------------------------------------
+Method getInstance() Class CustomerService
+	If (__instance == nil)
+		__instance := CustomerService():New()
+	EndIf
+Return	__instance
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getProtheusInstance
+Retorna a instância ativa de acesso aos dados do Protheus.
+*implementar no futuro a factory se existir mais provedores de dados.
+
+@author luiz.nai
+@since 07/04/2021
+/*/
+//-------------------------------------------------------------------
+Method getProtheusInstance() Class CustomerService
+	If (__oActiveData == nil)
+		__oActiveData := CustomerDataProtheus():New()
+	EndIf
+Return __oActiveData
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} serviceCustomer
+Função para validar o usuário e senha e retornar a resposta.
+
+@param
+{
+	"username": Character,
+	"password": Character,
+}
+
+@return 
+{
+	access_token: JWTToken,
+	token_type: 'Bearer',
+	expires_in: '3600',
+}
+
+@author luiz.nai
+@since 07/04/2021
+/*/
+//-------------------------------------------------------------------
+Method serviceCustomer(request As Json) as Json Class CustomerService
+	Local dataObj   As Object
+	Local response  As Json
+	Local username  As Character
+	Local password  As Character
+
+	If (Empty(request["login"]) .OR. Empty(request["password"]))
+		response := AnswerErrorFormat(400, STR0002, STR0002)
+	Else
+		username := request["login"]
+		password := request["password"]
+
+		If (Empty(username) .Or. Empty(password))
+			response := AnswerErrorFormat(400, STR0002, STR0002)
+		Else
+			dataObj := CustomerService():getProtheusInstance()
+			response := dataObj:getDataCustomer(username, password)
+		EndIf
+	EndIf
+Return response
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} servicePasswordCustomer
+Função para alterar senha do usuário e retornar a resposta.
+
+@param
+request: {
+	"login": Character,
+	"current_password": Character,
+	"updated_password": Character
+}
+
+@return 
+"loginDetails": {
+	"internUser": Character,
+	"username": Character,
+	"email": Character
+}
+
+@author vinicius.prado
+@since 17/10/2022
+/*/
+//-------------------------------------------------------------------
+Method servicePasswordCustomer(jRequest As Json) As Json Class CustomerService
+	Local oDataObj   	As Object
+	Local jResponse  	As Json
+	Local cUsername 	As Character
+	Local cOldPassword  As Character
+	Local cNewPassword  As Character
+
+	If (!jRequest:hasProperty('login') .OR. !jRequest:hasProperty('current_password') .OR. !jRequest:hasProperty('updated_password'))
+		jResponse := answerErrorFormat(400, STR0002, STR0002) // Usuário ou senha inválido. Tente novamente.
+	Else
+		cUsername := jRequest["login"]
+		cOldPassword := jRequest["current_password"]
+		cNewPassword := jRequest["updated_password"]
+
+		If (Empty(cUsername) .Or. Empty(cOldPassword) .Or. Empty(cNewPassword))
+			jResponse := answerErrorFormat(400, STR0002, STR0002) // Usuário ou senha inválido. Tente novamente.
+		Else
+			oDataObj := CustomerService():getProtheusInstance()
+			jResponse := oDataObj:putCustomerPassword(cUsername, cOldPassword, cNewPassword)
+		EndIf
+	EndIf
+Return jResponse

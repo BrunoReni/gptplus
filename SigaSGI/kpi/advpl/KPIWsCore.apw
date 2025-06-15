@@ -1,0 +1,608 @@
+// ######################################################################################
+// Projeto: KPI 
+// Modulo : WebService
+// Fonte  : KPIWSCORE - WebServices de integração
+// ---------+-------------------+--------------------------------------------------------
+// Data     | Autor             | Descricao
+// ---------+-------------------+--------------------------------------------------------
+// 	07/05/12| Gilmar P. Santos	|
+// 	07/05/12| Tiago Tudisco		|
+// --------------------------------------------------------------------------------------
+
+#Include "APWEBSRV.CH"
+#Include "BIDefs.ch"
+#Include "KPIDefs.ch" 
+#Include "KPIWSCORE.CH"
+
+#Define TK_PWS	1
+#Define TK_DATE	2
+#Define TK_USER	3
+
+static __errMsg := ""
+
+WSService SIGASGI DESCRIPTION STR0001 NAMESPACE "http://webservices.totvs.com.br/sigasgi.apws" //"WebService de integracao com o SGI - Sistema de Gestão de Indicadores"
+
+	WSData UserLogin	As String
+	WSData Password		As String
+	WSData Token		As String
+	WSData NewId		As String
+	WSData Indic		As KPIIndic
+
+	WSMethod login			DESCRIPTION STR0002 //"Valida usuário e senha e gera token de autenticação"
+	WSMethod insertIndic	DESCRIPTION STR0003 //"Efetua a inclusão de um indicador"
+
+EndWSService
+
+
+WSStruct KPIIndic
+
+	WSData name			as String	//Nome do Indicador
+	WSData description	as String	//Descrição do Indicador
+	WSData verific		as String	//Método de Verificação
+	WSData document		as String	//Documento Relacionado
+	WSData frequency	as Integer	//Frequência
+	WSData acumType		as Integer	//Tipo do Acumulado
+	WSData actuType		as Integer	//Tipo de atualização
+	WSData tolerance	as Integer	//Tolerância
+	WSData surpass		as Integer	//Supera em
+	WSData weight		as Integer	//Peso
+	WSData decimal		as Integer	//Decimais
+	WSData limitDay		as Integer	//Dia Limite para preenchimento da planilha de valores
+	WSData isParent		as Boolean	//Indicador Pai
+	WSData isStrategic	as Boolean	//Indicador Estratégico
+	WSData isConsolid	as Boolean	//Indicador Consolidador
+	WSData isVisible	as Boolean	//Indicador Visível
+	WSData isAscendant	as Boolean	//Ascendente (maior melhor)
+	WSData indRespType	as String	//Tipo de Responsável Pelo Indicador
+	WSData indRespId	as String	//Código Usuário/Grupo Responsável Pelo Indicador
+	WSData colRespType	as String	//Tipo de Responsável Pela Coleta
+	WSData colRespId	as String	//Código Usuário/Grupo Responsável Pela Coleta
+	WSData unitId		as String	//Código Unidade de Medida
+	WSData parentId		as String	//Código Indicador Pai
+	WSData groupId		as String	//Código do Grupo do Indicador
+	WSData ImportCode	as String	//Código de importação
+	WSData EntityId		as String	//Código da Entidade associada (Objetivo/Scorecard)
+
+EndWsStruct
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} login
+Efetua login e retorna um SecurityToken
+
+@param UserLogin string com o login do usuário
+@param Password string com a senha do usuário
+@Return Token SecurityToken gerado
+/*/
+//-------------------------------------------------------------------
+WSMethod login WSReceive UserLogin, Password WSSend Token WSService SIGASGI
+
+	Local lOk := .T.
+
+	lOk := sgiLogin(::UserLogin, ::Password)
+
+	If !lOk
+		SetSOAPFault("SIGASGI:Login", STR0004) //"Usuário ou senha incorretos"
+	EndIf
+
+	::Token := genSecToken(::UserLogin, ::Password)
+
+Return lOk
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} insertIndic
+Insere indicador
+
+@param UserLogin string com o login do usuário
+@param Password string com a senha do usuário
+@Return Token SecurityToken gerado
+/*/
+//-------------------------------------------------------------------
+WSMethod insertIndic WSReceive Token, Indic WSSend NewId WSService SIGASGI
+
+	Local lOk			:= .T.
+	Local aUserInfo		:= {}
+	Local oSco			:= nil       
+	Local oPar 			:= nil
+	Local cModoAnalise	:= nil
+	Local cId			:= ""
+
+	//Verifica token recebido
+	aUserInfo := infoSecToken(::Token)	
+
+	lOk := ( len(aUserInfo) >= 3 )
+	lOk := lOk .and. vldSecToken(aUserInfo[TK_USER], aUserInfo[TK_PWS], ::Token)
+
+	If !lOk
+		setMsgError(STR0005) //"Token inválido"
+	EndIf
+
+	//Verifica Login
+	If lOk
+		lOk := sgiLogin(aUserInfo[TK_USER], aUserInfo[TK_PWS])
+
+		If !lOk
+			setMsgError(STR0006) //"Usuário Inválido"
+		EndIf
+	EndIf
+
+	//Verifica existência da entidade
+	If lOk	
+
+		If Empty(::indic:entityId)
+			lOk := .F.		
+		Else         
+			oSco := oKPICore:oGetTable("SCORECARD")
+			lOk := oSco:lSeek(1, {::indic:entityId} )
+		EndIf
+
+		If !lOk
+			setMsgError(STR0007) //"Código de Entidade (EntityId) inválido"
+		EndIf
+
+	EndIf
+
+	//Verifica o modo de analise
+	If lOk
+
+		oPar := oKPICore:oGetTable("PARAMETRO")
+		cModoAnalise := oPar:getValue("MODO_ANALISE")
+		If cModoAnalise == ANALISE_BSC
+
+			lOk := oSco:cValue("TIPOSCORE") == CAD_OBJETIVO
+
+		EndIf
+
+		If !lOk
+			setMsgError(STR0010) //"A entidade informada não é um Objetivo"
+		EndIf
+
+	EndIf
+
+	//Verifica permissão para a entidade
+	If lOk
+		lOk := lOk .and. oSco:lChkAccess()
+		If !lOk
+			setMsgError(STR0008) //"Usuário sem permissão para acessar a Entidade (EntityId) informada"
+		EndIf
+	EndIf
+
+	//Verifica se o usuário tem permissão para incluir indicadores
+	If lOk
+		lOk := lOk .and. oKPICore:foSecurity:lHasAccess("INDICADOR", "0", "MANUTENCAO")
+
+		If !lOk
+			setMsgError(STR0009) //"Usuário sem permissão para incluir indicadores"
+		EndIf
+	EndIf
+
+	//Valida valores de entrada
+	If lOk
+		lOk := validInd(::Indic)
+	EndIf
+
+	//Inclui registro
+    If lOk
+    	cId := insertInd(::Indic)
+		lOk := !Empty(cId)
+	EndIf
+
+	If !lOk
+		SetSOAPFault("SIGASGI:InsertIndic", getMsgError())
+	EndIf
+
+	::NewId := cId
+
+Return lOk
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} sgiLogin
+Inicializa JOB do SGI e efetua login com o usuário informado
+
+@protected
+@param acUserLogin string com o login do usuário
+@param acPassword string com a senha do usuário
+@Return  booleano confirmando se o envio foi com sucesso
+/*/
+//-------------------------------------------------------------------
+Static Function sgiLogin(acuUserName, acPassword)
+
+	Public oKPICore
+
+	If valtype(oKPICore) == "U"
+		oKPICore := TKPICore():New("")
+	    oKPICore:nDBOpen()
+	EndIf
+	
+  	lOk := ( oKPICore:nLogin(acuUserName, acPassword) > 0 )
+    
+Return lOk
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} genSecToken
+Gera um SecurityToken a partir de um usuário e senha
+
+@protected
+@param acUserLogin string com o login do usuário
+@param acPassword string com a senha do usuário
+@Return  booleano confirmando se o envio foi com sucesso
+/*/
+//-------------------------------------------------------------------
+Static Function genSecToken(acUserLogin, acPassword)
+	
+Return DwEncodeParm("", DWConcatWSep("!", { acPassword, Date(), acUserLogin }))
+                         
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} infoSecToken
+Recupera informações de um SecurityToken, como usuário, senha etc.
+
+@protected
+@param acSecurityToken string contendo o Security Token de onde serão extraídas as informações 
+@Return  Array de String contendo os valores nos índices: [0]=EmpFil, [1]=Password, [2]=DateGeração, [3]=acUserLogin
+/*/
+//-------------------------------------------------------------------
+Static Function infoSecToken(acSecurityToken)
+	
+Return DwToken(DwDecodeParm(acSecurityToken), "!", .F.)
+     
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} vldSecToken
+Realiza a validação de um SecurityToken
+
+@protected
+@param acUserLogin string com o login do usuário a ser validado
+@param acPassword string com a senha do usuário a ser validado
+@param acTokenToValided string contendo o Security Token que será validado
+@Return booleano sendo .T. caso seja um Security Token válido e .F. caso contrário
+/*/
+//-------------------------------------------------------------------
+Static Function vldSecToken(acUserLogin, acPassword, acTokenToValided)
+	Local lValid := .F.
+	
+	If acTokenToValided == genSecToken(acUserLogin, acPassword)
+		lValid := .T.
+	EndIf
+	
+Return lValid
+ 
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} validInd
+Valida valores do Indicador
+
+@protected
+@param oIndic objeto representando um novo indicador
+@Return lOk status da validação
+/*/
+//-------------------------------------------------------------------
+Static Function validInd(oIndic)
+
+	Local lOk	:= .T.
+	Local cMsg	:= ""
+	//TODO: Validar dados de entrada
+
+	oIndic:name := substr(oIndic:name,1,255)
+	If Empty(Alltrim(oIndic:name))
+		lOk  := .F.  
+		cMsg := STR0012 + "(name)" //"Nome do Indicador"
+	EndIf        
+
+	If lOk .And. !validRange(oIndic:frequency,1,9)
+		lOk  := .F.  
+		cMsg := STR0013 + "(frequency)" //Frequencia
+	EndIf
+
+	If lOk .And. !validRange(oIndic:acumType,0,3)
+		lOk  := .F.
+		cMsg := STR0014 + "(acumType)" //"Tipo do Acumulado"
+	EndIf
+
+	If lOk .And. !validRange(oIndic:actuType,1,3)
+		lOk  := .F.
+		cMsg := STR0015 + "(actuType)" //"Tipo de Atualização"
+	EndIf
+
+	If lOk .And. !validRange(oIndic:tolerance,0,100)
+		lOk  := .F.
+		cMsg := STR0016 + "(tolerance)" //"Tolerância"
+	EndIf
+
+	If lOk .And. !validRange(oIndic:surpass,0,100)
+		lOk  := .F.
+		cMsg := STR0017 + "(surpass)" //"Supera em"
+	EndIf	
+
+	If lOk .And. !validRange(oIndic:weight,1,999)
+		lOk  := .F.
+		cMsg := STR0018 + "(weight)" //Peso
+	EndIf
+
+	If lOk .And. !validRange(oIndic:decimal,0,10)
+		lOk  := .F.
+		cMsg := STR0019 + "(decimal)" //Decimais
+	EndIf
+
+	If lOk .And. !validRange(oIndic:limitDay,0,31)
+		lOk  := .F.
+		cMsg := STR0020 + "(limitDay)" //Dia Limite
+	EndIf
+
+	If lOk .And. !(("_" + Alltrim(Left(oIndic:indRespType,1)) + "_") $ "__U_G_")
+		lOk  := .F.
+		cMsg := STR0021 + "(indRespType)" //"Tipo de Responsável Pelo Indicador"
+	EndIf
+
+	If lOk .And. oIndic:indRespType == TIPO_USUARIO
+
+		If Empty(oIndic:indRespId) .Or. !validRelation("USUARIO",{oIndic:indRespId},1)
+			lOk  := .F.
+			cMsg := STR0022 + "(indRespId)" //"Código Usuário/Grupo Responsável Pelo Indicador"
+		EndIf
+
+	EndIf
+
+	If lOk .And. oIndic:indRespType == TIPO_GRUPO
+
+		If Empty(oIndic:indRespId) .Or. !validRelation("GRUPO",{oIndic:indRespId},1)
+			lOk  := .F.
+			cMsg := STR0022 + "(indRespId)" //"Código Usuário/Grupo Responsável Pelo Indicador"
+		EndIf
+
+	EndIf
+
+	If lOk .And. Empty(oIndic:indRespType)
+
+		If !Empty(oIndic:indRespId)
+			lOk  := .F.
+			cMsg := STR0021 + "(indRespType)" //"Tipo de Responsável Pelo Indicador"
+		EndIf
+
+	EndIf
+
+	If lOk .And. !(("_" + Alltrim(Left(oIndic:colRespType,1)) + "_") $ "__U_G_")
+		lOk  := .F.
+		cMsg := STR0023 + "(colRespType)" //"Tipo de Responsável Pela Coleta"
+	EndIf	
+
+	If lOk .And. oIndic:colRespType == TIPO_USUARIO
+
+		If Empty(oIndic:colRespId) .Or. !validRelation("USUARIO",{oIndic:colRespId},1)
+			lOk  := .F.
+			cMsg := STR0024 + "(colRespId)" //"Código Usuário/Grupo Responsável Pela Coleta"
+		EndIf
+
+	EndIf
+
+	If lOk .And. oIndic:colRespType == TIPO_GRUPO
+
+		If Empty(oIndic:colRespId) .Or. !validRelation("GRUPO",{oIndic:colRespId},1)
+			lOk  := .F.
+			cMsg := STR0024 + "(colRespId)" //"Código Usuário/Grupo Responsável Pela Coleta"
+		EndIf
+	
+	EndIf
+
+	If lOk .And. Empty(oIndic:colRespType)
+
+		If !Empty(oIndic:colRespId)
+			lOk  := .F.
+			cMsg := STR0023 + "(colRespType)" //"Tipo de Responsável Pela Coleta"
+		EndIf
+	
+	EndIf
+
+	If lOk .And. !validRelation("UNIDADE",{oIndic:unitId},1)
+		lOk  := .F.
+		cMsg := STR0025 + "(unitId)" //"Código Unidade de Medida"
+	EndIf
+
+	If lOk .And. !validRelation("INDICADOR",{oIndic:parentId},1,{{"ISOWNER","T"}})
+		lOk  := .F.
+		cMsg := STR0026 + "(parentId)" //"Código Indicador Pai"
+	EndIf
+
+	If lOk .And. !validRelation("GRUPO_IND",{oIndic:groupId},1)
+		lOk  := .F.
+		cMsg := STR0027 + "(groupId)" //"Código Grupo"
+	EndIf
+
+	If !lOk
+	    setMsgError(STR0011 + " "+cMsg) //"Não foi possível incluir o indicador. Verifique o campo:"
+	EndIf
+
+Return lOk
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} insertInd
+Inclui Indicador
+
+@protected
+@param oStruIndic objeto representando um novo indicador
+@Return cId Id Gerado (vazio = erro durante inclusão)
+/*/
+//-------------------------------------------------------------------
+Static Function insertInd(oStruIndic)
+
+	Local lOk		:= .T.
+	Local oIndic	:= oKPICore:oGetTable("INDICADOR")
+	Local oXml		:= nil
+	local cId		:= ""
+
+	oXml := prepareXml(oStruIndic)
+	
+	lOk := (oIndic:nInsFromXml(oXml,"_INDICADOR") == KPI_ST_OK)
+
+	If lOk
+		cId := oIndic:cValue("ID")
+	Else
+		setMsgError(oIndic:cMsg())
+	EndIf
+
+Return cId
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} prepareXml
+Converte a estrutura do indicador (WS) na estrutura padrão de XML do SGI
+
+@protected
+@param oStruIndic objeto representando um novo indicador
+@Return oXml objeto no formato padrão do SGI
+/*/
+//-------------------------------------------------------------------
+Static Function prepareXml(oStruIndic)
+
+	Local oXml		:= nil
+	Local cXml		:= ""
+	Local cError	:= ""
+	Local cWarning	:= ""
+
+	cXml := "<INDICADOR>"
+	cXml += "<NOME>" + allTrim(KPIEncode(oStruIndic:name)) + "</NOME>"
+	cXml += "<DESCRICAO>" + allTrim(KPIEncode(oStruIndic:description)) + "</DESCRICAO>"
+	cXml += "<ID_SCOREC>" + KPIEncode(oStruIndic:EntityId) + "</ID_SCOREC>"
+	cXml += "<ID_GRUPO>" + KPIEncode(oStruIndic:groupId) + "</ID_GRUPO>"
+	cXml += "<ID_INDICA>" + KPIEncode(oStruIndic:parentId) + "</ID_INDICA>"
+	cXml += "<ID_CODCLI>" + KPIEncode(oStruIndic:ImportCode) + "</ID_CODCLI>"
+	cXml += "<TP_RESP>" + KPIEncode(oStruIndic:indRespType) + "</TP_RESP>"
+	cXml += "<ID_RESP>" + KPIEncode(oStruIndic:indRespId) + "</ID_RESP>"
+	cXml += "<TP_RESPCOL>" + KPIEncode(oStruIndic:colRespType) + "</TP_RESPCOL>"
+	cXml += "<ID_RESPCOL>" + KPIEncode(oStruIndic:colRespId) + "</ID_RESPCOL>"
+	cXml += "<UNIDADE>" + KPIEncode(oStruIndic:unitId) + "</UNIDADE>"
+	cXml += "<LINK>" + KPIEncode(oStruIndic:document) + "</LINK>"
+	cXml += "<VERIFICA>" + KPIEncode(oStruIndic:verific) + "</VERIFICA>"
+	cXml += "<TIPO_ATU>" + xBiConvTo("C", oStruIndic:actuType) + "</TIPO_ATU>"
+	cXml += "<DECIMAIS>" + xBiConvTo("C", oStruIndic:decimal) + "</DECIMAIS>"
+	cXml += "<FREQ>" + xBiConvTo("C", oStruIndic:frequency) + "</FREQ>"
+	cXml += "<ACUM_TIPO>" + xBiConvTo("C", oStruIndic:acumType) + "</ACUM_TIPO>"
+	cXml += "<SUPERA>" + xBiConvTo("C", oStruIndic:surpass) + "</SUPERA>"
+	cXml += "<TOLERAN>" + xBiConvTo("C", oStruIndic:tolerance) + "</TOLERAN>"
+	cXml += "<PESO>" + xBiConvTo("C", oStruIndic:weight) + "</PESO>"
+	cXml += "<DIA_LIMITE>" + xBiConvTo("C", oStruIndic:limitDay) + "</DIA_LIMITE>"
+	cXml += "<ASCEND>" + xBiConvTo("C", oStruIndic:isAscendant) + "</ASCEND>"
+	cXml += "<ISOWNER>" + xBiConvTo("C", oStruIndic:isParent) + "</ISOWNER>"
+	cXml += "<ISCONSOLID>" + xBiConvTo("C", oStruIndic:isConsolid) + "</ISCONSOLID>"
+	cXml += "<VISIVEL>" + xBiConvTo("C", oStruIndic:isVisible) + "</VISIVEL>"
+	cXml += "<IND_ESTRAT>" + xBiConvTo("C", oStruIndic:isStrategic) + "</IND_ESTRAT>"
+	cXml += "<ALVO1>0</ALVO1>"
+	cXml += "<ALVO2>0</ALVO2>"
+	cXml += "<ALVO3>0</ALVO3>"
+	cXml += "<ORDEM>0</ORDEM>"
+	cXml += "<ISPRIVATE>F</ISPRIVATE>"
+	cXml += "<ITENS_CAL></ITENS_CAL>"
+	cXml += "<DESCFORMU></DESCFORMU>"
+	cXml += "<FORMULA></FORMULA>"
+	cXml += "<GRAPH_DO>040000</GRAPH_DO>"
+	cXml += "<GRAPH_UP>010001</GRAPH_UP>"    
+	cXml += "<METAS_IND></METAS_IND>
+	cXml += "<PLANILHAS></PLANILHAS>"
+	cXml += "<DWCONSULTAS></DWCONSULTAS>"
+	cXml += "</INDICADOR>"
+
+	oXml := XmlParser( cXML, '_', @cError, @cWarning )
+
+Return oXml
+                                                                     
+     
+//-------------------------------------------------------------------
+/*/{Protheus.doc} validRange
+Valida se um valor esta dentro de uma faixa de valores
+
+@protected
+@param	nValor 		- Valor a ser verificado
+@param	nVlrMenor	- Valor da faixa inferior
+@param	nVlrMaior	- Valor da faixa superior
+@Return lOk			- Resultado da validacao
+/*/
+//-------------------------------------------------------------------
+Static Function validRange(nValor,nVlrMenor,nVlrMaior)
+
+	Local lOk	:= .T.
+
+	If nValor < nVlrMenor .Or. nValor > nVlrMaior
+
+		lOk := .F.     
+
+	EndIf
+
+Return lOk                                                           
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} validRelation
+Valida o relacionamento com a entidade informada
+
+@protected
+@param	cTable		- Tabela relacionada
+@param	aChave 		- array com as chaves
+@param	nIndice		- indice para verificacao do relacionamento
+@Return lOk			- Resultado da validacao
+/*/
+//-------------------------------------------------------------------        
+Static Function validRelation(cTable,aChave,nIndice,aField)
+
+	Local lOk		:= .F.
+    Local oTable	:= oKPICore:oGetTable(cTable)
+	Local lEmpty	:= .T.
+	Local nI                                              
+
+	default aField	:= {}
+	
+	For nI := 1 To Len(aChave)
+
+		If !Empty(aChave[nI])
+			lEmpty := .F.
+			exit
+		EndIf
+
+	Next
+
+	If lEmpty .Or. oTable:lSeek(nIndice,aChave)
+		lOk := .T.
+	EndIf
+
+	If lOk .And. !lEmpty
+
+		For nI := 1 To Len (aField)
+
+			If !(oTable:cValue(aField[nI][1]) == aField[nI][2])
+				lOk := .F.                   
+				exit
+			EndIf
+
+		Next
+
+	EndIf
+
+Return lOk
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getMsgError
+Retorna a última mensagem de Erro
+
+@protected
+@Return cMsg Mensagem de Erro
+/*/
+//-------------------------------------------------------------------
+Static Function getMsgError()
+
+Return __errMsg
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} setMsgError
+Define a mensagem de erro
+
+@protected
+@param cMsg Menssagem de Erro
+/*/
+//-------------------------------------------------------------------
+Static Function setMsgError(cMsg)
+	__errMsg := cMsg
+Return

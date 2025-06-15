@@ -1,0 +1,266 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSAuthorizationsSvc
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSAuthorizationsSvc
+
+    Data oError as Object
+    Data cGuia as Character
+    Data cCabAlias as Character
+    Data oJsonReq as Object
+    
+    public method new()
+
+    public method setJsonReq(oJsonReq)
+    public method vldExiGuia(cTipGui)
+    public method bscGuiaReenvio()
+    public method vldReenvioHAT()
+    public method getError()
+    public method getJsonGuia()
+    public method setError(nStatus, cCode, cMessage, cDetailedMessage)
+    public method getGuia()
+    public method setAliCab(cTipGuiHAT)
+    private method getGuiasDia(oDao,lRet)
+
+endClass
+
+method new(cGuia) class PLSAuthorizationsSvc
+
+    self:oError := JsonObject():new()
+    self:cGuia  := cGuia
+
+Return self
+
+method setJsonReq(oJsonReq) class PLSAuthorizationsSvc
+    self:oJsonReq := oJsonReq
+return
+
+method vldExiGuia(cTipGui) class PLSAuthorizationsSvc
+
+    Local lRet := .F.
+    Local oBEA := NIL
+    Local oB4Q := NIL
+    Local oBEC := NIL
+    Local oB4A := NIL
+
+    self:setAliCab(cTipGui)
+
+    Do Case
+        Case self:cCabAlias == "BEA" //Pesquisa guia de SADT/Consulta/Internacao    
+            oBEA := PLSAuthorizationsDaoBEA():new(self:cGuia)
+            lRet := oBEA:buscaGuia()
+            oBEA:closeQuery()
+            oBEA := NIL
+
+        Case self:cCabAlias == "B4Q" //Pesquisa guia de Prorrogacao na B4Q
+            oB4Q := PLSAuthorizationsDaoB4Q():new(self:cGuia)
+            lRet := oB4Q:buscaGuia()
+            oB4Q:closeQuery()
+            oB4Q := NIL
+        
+        Case self:cCabAlias == "BEC" //Pesquisa guia de Situacao Inicial
+            oBEC := PLSAuthorizationsDaoBEC():new(self:cGuia)
+            lRet := oBEC:buscaGuia()
+            oBEC:closeQuery()
+            oBEC := NIL
+
+        Case self:cCabAlias == "B4A" //Pesquisa guia de anexos clinicos
+            oB4A := PLSAuthorizationsDaoB4A():new(self:cGuia)
+            lRet := oB4A:buscaGuia()
+            oB4A:closeQuery()
+            oB4A := NIL
+    EndCase
+
+    if !lRet
+        self:setError(400,"0003","Guia informada nao encontrada","Entre em contato com o Suporte")
+    endIf
+
+Return lRet
+
+method bscGuiaReenvio() class PLSAuthorizationsSvc
+
+    Local lRet   := .F.
+    Local oBEA   := NIL
+    Local oB4Q   := NIL
+    Local cMatric := self:oJsonReq["subscriberId"]
+    Local cCodRda := self:oJsonReq["healthProviderCode"]
+    Local cLotGui := self:oJsonReq["tissBatch"]
+
+    Do Case
+        Case self:cCabAlias == "BEA" //Pesquisa guia de SADT/Consulta/Internacao    
+            oBEA := PLSAuthorizationsDaoBEA():new()
+            if oBEA:bscGuiaPrestadorReenvio(cMatric, cCodRda, cLotGui)
+                self:cGuia := (oBEA:getAliasTemp())->(BEA_OPEMOV+BEA_ANOAUT+BEA_MESAUT+BEA_NUMAUT)
+                lRet := .T.
+            endIf
+            oBEA:closeQuery()
+            oBEA := NIL
+
+        Case self:cCabAlias == "B4Q" //Pesquisa guia de Prorrogacao na B4Q
+            oB4Q := PLSAuthorizationsDaoB4Q():new()
+            if oB4Q:bscGuiaPrestadorReenvio(cMatric, cCodRda, cLotGui)
+                self:cGuia := (oB4Q:getAliasTemp())->(B4Q_OPEMOV+B4Q_ANOAUT+B4Q_MESAUT+B4Q_NUMAUT)
+                lRet := .T.
+            endIf
+            oB4Q:closeQuery()
+            oB4Q := NIL
+    EndCase
+
+Return lRet
+
+method vldReenvioHAT() class PLSAuthorizationsSvc
+
+    Local cGuias := ""
+    Local lRet   := .F.
+    Local oBEA   := NIL
+    Local oB4Q   := NIL
+    Local cMatric := self:oJsonReq["subscriberId"]
+    Local cCodRda := self:oJsonReq["healthProviderCode"]
+
+    Do Case
+        Case self:cCabAlias == "BEA" //Pesquisa guia de SADT/Consulta/Internacao    
+            oBEA := PLSAuthorizationsDaoBEA():new()
+            lRet := oBEA:vldReenvioHAT(cMatric, cCodRda)
+            cGuias := self:getGuiasDia(oBEA,lRet)
+            oBEA:closeQuery()
+            oBEA := NIL
+
+        Case self:cCabAlias == "B4Q" //Pesquisa guia de Prorrogacao na B4Q
+            oB4Q := PLSAuthorizationsDaoB4Q():new()
+            lRet := oB4Q:vldReenvioHAT(cMatric, cCodRda)
+            cGuias := self:getGuiasDia(oB4Q,lRet)
+            oB4Q:closeQuery()
+            oB4Q := NIL
+        
+    EndCase
+
+    if !lRet
+         self:setError(400,"0003","Nao e possivel realizar o reenvio","Ja foi encontrada uma guia no seu sistema de gestao para o beneficiario e prestador na data de hoje. Guia(s) encontrada(s): "+cGuias)
+    endIf
+
+Return lRet
+
+method getGuiasDia(oDao,lRet) class PLSAuthorizationsSvc
+
+    local cRet := ''
+    local nX   := 0
+    local lVirgula := .F.
+    local aGuias := oDao:getGuiasPrest()
+
+    if !lRet
+        for nX := 1 to len(aGuias)
+            cRet += iif(lVirgula,", ","")
+            cRet += aGuias[nX]
+            lVirgula := .T.
+        next
+    endIf
+
+return cRet
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Metodos auxiliares
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+method setError(nStatus, cCode, cMessage, cDetailedMessage) class PLSAuthorizationsSvc
+
+    Default nStatus  := 400
+    Default cCode    := '0002'
+    Default cMessage := 'Bad Request'
+    Default cDetailedMessage := 'O servidor nao foi capaz de entender a solicitacao'
+
+    self:oError['status'] := nStatus
+    self:oError['code'] := cCode
+    self:oError['message'] := cMessage
+    self:oError['detailedMessage'] := cDetailedMessage
+
+return
+
+method getError() class PLSAuthorizationsSvc
+return self:oError
+
+
+//-------------------------------------------------------------------
+ /*/  Padrao da API e usar BEA, adicionar novos alias conforme necessidade 
+
+    Tipos do HAT:
+    ATENDIMENTO 0
+    CONSULTA 1
+    EXAME 2
+    EXEC 3
+    INTERNACAO 4
+    RESUMO_INTERNACAO 5
+    HONORARIO 6
+    PRORROGACAO 8
+    TRATODONTO 9
+    PRONTOSOCORRO 10
+    TRATSERIADO 11
+    OPME 12
+    QUIMIOTERAPIA 13
+    RADIOTERAPIA 14
+    PTU_00600 15
+    SITUACAO INICIAL 17
+/*/
+//------------------------------------------------------------------- 
+method setAliCab(cTipGuiHAT) class PLSAuthorizationsSvc
+
+    Do Case
+        Case cTipGuiHAT == '8'
+            self:cCabAlias := 'B4Q'
+        Case cTipGuiHAT == '17'
+            self:cCabAlias := 'BEC'
+        Case cTipGuiHAT == '12' .or. cTipGuiHAT == '13' .or. cTipGuiHAT == '14'
+            self:cCabAlias := 'B4A'
+        Otherwise
+            self:cCabAlias := 'BEA'
+    EndCase
+
+Return
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Metodos que montam o json de resposta
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+method getJsonGuia() class PLSAuthorizationsSvc
+    
+    Local oEntity := NIL
+    Local aRet := {}
+
+    Do Case
+        Case self:cCabAlias == "BEA"
+            oEntity := PLSAuthorizationsEntityStandard():new(self:cGuia)
+        Case self:cCabAlias == "B4Q"
+            oEntity := PLSAuthorizationsEntityTreatment():new(self:cGuia)
+        Case self:cCabAlias == "BEC"
+            oEntity := PLSAuthorizationsEntityInitialSituation():new(self:cGuia)
+        Case self:cCabAlias == "B4A"
+            oEntity := PLSAuthorizationsEntityClinicalAttachment():new(self:cGuia)
+    EndCase
+    
+  oEntity:montaCab()
+  oEntity:montaEve()
+
+    aadd(aRet,oEntity:getResult())
+    aadd(aRet,oEntity:getStatusCode())
+
+    oEntity := NIL
+
+return aRet
+
+method getGuia() class PLSAuthorizationsSvc
+return self:cGuia

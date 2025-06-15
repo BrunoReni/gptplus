@@ -1,0 +1,178 @@
+#Include 'tlpp-core.th'
+
+#Define STR0001 "erro de parametrização"
+
+namespace portal.cliente.invoices
+using namespace gfin.util
+using namespace portal.cliente.util
+
+Static __instance	 As Object
+Static __oActiveData As Object
+
+Class InvoicesService
+
+	Data limit	As Numeric
+	Data page	As Numeric
+
+	Public Method New()
+	Public Method getInvoices()
+	Public Method getCustomerInvoiceProducts()
+	Public Method setLimit()
+	Public Method setPage()
+	Static Method getInstance() As Object
+	Static Method getProtheusInstance() As Object
+EndClass
+
+Method New() Class InvoicesService
+	Self:limit	:= 0
+	Self:page 	:= 0
+Return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc }getInstance
+retorna a o instância ativa, se não exitir será criada uma nova.
+
+@author Renato Ito
+@since 19/08/2020
+/*/
+//-------------------------------------------------------------------
+Method getInstance() Class InvoicesService
+	If (__instance == nil)
+		__instance := InvoicesService():new()
+	EndIf
+Return	__instance
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc }getProtheusInstance
+Retorna a isntancia ativa de acesso aos dados do Protheus
+
+*implementar no futuro a factory se existir mais provedores de dados
+@author Renato Ito
+@since 19/08/2020
+/*/
+//-------------------------------------------------------------------
+Method getProtheusInstance() Class InvoicesService
+	If (__oActiveData == nil)
+		__oActiveData := InvoicesDataProtheus():new()
+	EndIf
+Return __oActiveData
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} setLimit
+congIfura o limite de registros para retorno
+
+@author Renato Ito
+@since 19/08/2020
+/*/
+//-------------------------------------------------------------------
+Method setLimit(value As Numeric) Class InvoicesService
+	self:limit := value
+Return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} setPage
+congifura a pagina atual para cálculo do registro inicial da query
+
+@author Renato Ito
+@since 19/08/2020
+/*/
+//-------------------------------------------------------------------
+Method setPage(value As Numeric) Class InvoicesService
+	self:page := value
+Return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getInvoices
+Regra de negócio para as notas fiscais.
+
+@param	json com os atributos
+		{
+			customerId: Character,
+			storeId: Character,
+			branchId: Array,
+			filter: Array [atributo, operador, valor]
+		}
+
+@return json com os tributos
+		{
+			"result" : true ou false 
+			"response" : json de resposta
+			"statusCode": código http de resposta quando necessário
+		}
+@author Renato Ito
+@since 19/08/2020
+/*/
+//-------------------------------------------------------------------
+Method getInvoices(request As Json) Class InvoicesService
+	Local dataObj 			As Object
+	Local response 			As Json
+	Local customers			As Array
+
+	customers := request['customers']
+
+	// avalia se a parametrização obrigatório foi encaminhada
+	If (!validCustomers(customers))
+		response := answerErrorFormat(412, STR0001, "Parametrização obrigatória não foi encaminhada no body")
+	Else
+		dataObj := InvoicesService():getProtheusInstance()
+		response := dataObj:getDataInvoices(customers, request['filter'], request['order'], self:limit, self:page)
+	EndIf
+Return response
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getCustomerInvoiceProducts
+Retorna os produtos da nota fiscal.
+
+@param JSON
+{
+	invoiceBranch: string - filial da nota
+	invoiceNumber: string - número da nota
+	serie: string - série da nota
+	branchId: string - filial da AI3
+	customerId: string - A1_COD
+	storeId: string - A1_LOJA
+}
+
+@return JSON
+response["fiscalCode"]: string - D2_CF,
+response["response"]: array
+[
+	{
+		productItem: string
+		productAmount: string
+		productTotal: number
+		productUnit: number
+		productDescription: string
+	}
+]
+
+@author richard.lopes
+@since 19/08/2020
+/*/
+//-------------------------------------------------------------------
+Method getCustomerInvoiceProducts(request As Json) Class InvoicesService
+	Local response 		As Json
+	Local dataObj 		As Object
+	Local branchId		As Character
+	Local invoiceNumber As Character
+	Local serie			As Character
+	Local customerId 	As Character
+	Local storeId		As Character
+
+	invoiceBranch := request['invoiceBranch']
+	invoiceNumber := request['invoiceNumber']
+	serie		  := request['serie']
+	branchId	  := request['branchId']
+	customerId 	  := request['customerId']
+	storeId	 	  := request['storeId']
+	
+	// avalia se a parametrização obrigatório foi encaminhada
+	If (Empty(invoiceBranch) .Or. Empty(invoiceNumber) .Or. Empty(serie) .Or. !validCustomers({request}))
+		response := answerErrorFormat(400, STR0001, "Parametrização obrigatória não foi encaminhada no body")
+	Else
+		dataObj := InvoicesService():getProtheusInstance()
+		response := dataObj:getDataInvoiceProducts(invoiceBranch, invoiceNumber, serie, customerId, storeId)
+	EndIf
+Return response
+

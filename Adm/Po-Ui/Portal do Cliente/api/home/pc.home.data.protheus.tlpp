@@ -1,0 +1,266 @@
+#include 'tlpp-core.th'
+
+namespace portal.cliente.home
+using namespace gfin.util
+using namespace portal.cliente.util
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc } HomeDataProtheus
+Classe para acesso aos dados do Protheus
+
+@method getDataMovements Retorna os valores dos saldos em aberto de um cliente aglutinados em meses. 
+
+@author Renato Ito
+@since 03/08/2020
+/*/
+//-------------------------------------------------------------------
+class HomeDataProtheus
+
+	Data docTypesNotIn as array // tipos de títulos que serão removidos da query
+
+	public method new()
+	public method getDataMovements() As Json
+	public method getDataBalances() As Json
+
+endclass
+
+method new() class HomeDataProtheus
+
+	Self:docTypesNotIn := separa(MVABATIM +"|"+MVFUABT+"|"+ MVRECANT+"|"+ MV_CRNEG +"|"+MVPROVIS,'|')
+
+return Self
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getDataMovements
+Retorna os valores dos saldos em aberto de um cliente aglutinados em meses.
+
+@param	customerId, character, código do cliente
+		storeId, character, loja do cliente
+		branches, array, filiais do sistema
+		nPeriodos, numeric, períodos (meses)
+		dateRef, date,	data base para filtro
+
+@return json com os tributos
+		{
+			"result" : true ou false 
+			"response" : {
+				"items:{
+					"period": character,
+					"value": numeric
+				}
+			}
+		}
+@author Renato Ito
+@since 03/08/2020
+/*/
+//-------------------------------------------------------------------
+method getDataMovements(customers as array, nPeriodos as numeric, dateRef as date) as Json class HomeDataProtheus 
+	local statement 	as object
+	local aliasMov 		as character
+	local retValues 	as array
+	local response		as Json
+	Local cTableTemporary := "" As Character
+
+	retValues := {}
+	response := JsonObject():New()
+
+	cTableTemporary := CreateTemporaryCustomers(customers, "SE1")
+
+	statement := createPrepareMovements(customers, cTableTemporary)
+
+	statement:SetString(1, DtoS(FirstDate(dateRef)))							// considera o mês corrente
+	statement:SetString(2, DtoS(LastDate(MonthSum(dateRef, nPeriodos-1))))	// adicioda meses para a data limite
+	statement:SetIn(3, Self:docTypesNotIn)
+
+	aliasMov := MpSysOpenQuery(statement:GetFixQuery())
+
+	while ((aliasMov)->(!eof()))
+		AAdd(retValues, {{"period", (aliasMov)->PERIOD}, {"value", (aliasMov)->VALUE}})
+		(aliasMov)->(DbSkip())
+	enddo
+	(aliasMov)->(DBCloseArea())
+	
+	response["result"]	:= .T.
+	response["response"] := arrayToAPI(retValues, .F.)
+
+	DestroyTemporaryCustomers()
+
+return response
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getDataBalances
+Retorna os saldos de um cliente, separado os atrasados, em aberto e vencendo nos próximos 7 dias.
+
+@param	customerId, character, código do cliente
+		storeId, character, loja do cliente
+		branches, array, filiais do sistema
+		dateRef, date,	data base para filtro
+
+@return json com os tributos
+		{
+			"result" : true ou false 
+			"response" : {
+					totalBalance: number;
+					weekBalance: number;
+					overdueBalance: number;
+				}
+			}
+		}
+@author Renato Ito
+@since 03/08/2020
+/*/
+//-------------------------------------------------------------------
+
+method getDataBalances(aCustomers as array, dDateRef as date) as Json class HomeDataProtheus 
+	local oStatementPeriod as object
+	local oStatementOpen   as object
+	local oStatementOver   as object
+	local cCustomers := "" as character
+	local jOpen            as Json
+	local jOverdue         as Json
+	local jTotais          as Json
+	local jResponse        as Json
+	Local cTableTemporary := "" As Character
+
+	jOpen     := JsonObject():New()
+	jOverdue  := JsonObject():New()
+	jTotais   := JsonObject():New()
+	jResponse := JsonObject():New()
+
+	cTableTemporary := CreateTemporaryCustomers(aCustomers, "SE1")
+
+	//Saldo em aberto - 0-7
+	oStatementPeriod := createPrepareBalances("period", cCustomers, cTableTemporary)
+	oStatementPeriod:SetIn(1, Self:docTypesNotIn)
+	oStatementPeriod:SetDate(2, dDateRef) //data de
+	oStatementPeriod:SetDate(3, DaySum(dDateRef, 7)) //data ate
+	jOpen[ '0To7' ]   := MpSysExecScalar(oStatementPeriod:GetFixQuery(), "AMOUNT")
+	//Saldo em aberto - 8-15
+	oStatementPeriod:SetDate(2, DaySum(dDateRef, 8)) //data de
+	oStatementPeriod:SetDate(3, DaySum(dDateRef, 15)) //data ate
+	jOpen[ '8To15' ]  := MpSysExecScalar(oStatementPeriod:GetFixQuery(), "AMOUNT")
+	//Saldo em aberto - 16-30
+	oStatementPeriod:SetDate(2, DaySum(dDateRef, 16)) //data de
+	oStatementPeriod:SetDate(3, DaySum(dDateRef, 30)) //data ate
+	jOpen[ '16To30' ]  := MpSysExecScalar(oStatementPeriod:GetFixQuery(), "AMOUNT")
+	//Saldo em aberto - >30
+	oStatementOpen := createPrepareBalances("open", cCustomers, cTableTemporary)
+	oStatementOpen:SetIn(1, Self:docTypesNotIn)
+	oStatementOpen:SetDate(2, DaySum(dDateRef, 31)) //data de
+	jOpen[ 'biggerThan30' ]  := MpSysExecScalar(oStatementOpen:GetFixQuery(), "AMOUNT")
+	
+	//Saldo atrasado - 1-7
+	oStatementPeriod:SetDate(2, DaySub(dDateRef, 7)) // venct >=
+	oStatementPeriod:SetDate(3, DaySub(dDateRef, 1)) // venct <=
+	jOverdue[ '1To7' ]  := MpSysExecScalar(oStatementPeriod:GetFixQuery(), "AMOUNT")
+	//Saldo atrasado - 8-15
+	oStatementPeriod:SetDate(2, DaySub(dDateRef, 15)) // venct >=
+	oStatementPeriod:SetDate(3, DaySub(dDateRef, 8)) // venct <=
+	jOverdue[ '8To15' ]  := MpSysExecScalar(oStatementPeriod:GetFixQuery(), "AMOUNT")
+	//Saldo atrasado - 16-30
+	oStatementPeriod:SetDate(2, DaySub(dDateRef, 30)) // venct >=
+	oStatementPeriod:SetDate(3, DaySub(dDateRef, 16)) // venct <=
+	jOverdue[ '16To30' ]  := MpSysExecScalar(oStatementPeriod:GetFixQuery(), "AMOUNT")
+	//Saldo atrasado - >30
+	oStatementOver    := createPrepareBalances("over", cCustomers, cTableTemporary)
+	oStatementOver:SetIn(1, Self:docTypesNotIn)
+	oStatementOver:SetDate(2, DaySub(dDateRef, 30)) // venct <
+	jOverdue[ 'biggerThan30' ] := MpSysExecScalar(oStatementOver:GetFixQuery(), "AMOUNT")
+
+	//Totais
+	oStatementOpen:SetDate(2, dDateRef) //data de
+	jTotais[ 'open' ]    := MpSysExecScalar(oStatementOpen:GetFixQuery(), "AMOUNT")
+	oStatementOver:SetDate(2, dDateRef) // venct <
+	jTotais[ 'overdue' ] := MpSysExecScalar(oStatementOver:GetFixQuery(), "AMOUNT")
+	jTotais[ 'amount' ]  := jTotais[ 'open' ] + jTotais[ 'overdue' ]
+
+	jResponse[ 'result' ]                := .T.
+	jResponse[ 'response' ]              := JsonObject():New()
+	jResponse[ 'response' ][ 'open' ]    := jOpen
+	jResponse[ 'response' ][ 'overdue' ] := jOverdue
+	jResponse[ 'response' ][ 'total' ]   := jTotais
+
+	oStatementOver:Destroy()
+	oStatementPeriod:Destroy()
+	oStatementOpen:Destroy()
+	DestroyTemporaryCustomers()
+	
+return jResponse
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc } createPrepareMovements
+Cria o cache da query de movimentos
+
+@author Renato Ito
+@since 03/08/2020
+/*/
+//-------------------------------------------------------------------
+static function createPrepareMovements(customers As Array, cTableTemporary As Character) As Object
+	local statement as object
+	local cQuery as character
+
+	cQuery := "SELECT SUM(E1_SALDO) VALUE, SUBSTRING(E1_VENCREA, 1,6) PERIOD FROM " + RetSqlName('SE1') + " SE1, " + cTableTemporary + " TMP "
+	cQuery += " WHERE "
+	cQuery += " SE1." + BranchesToCustomerForTable("SE1")
+	cQuery += " AND SE1.E1_CLIENTE = TMP.CLIENTE "
+	cQuery += " AND SE1.E1_LOJA = TMP.LOJA "
+	cQuery += " AND SE1.E1_VENCREA >= ?"
+	cQuery += " AND SE1.E1_VENCREA <= ?"
+	cQuery += " AND SE1.E1_TIPO NOT IN (?)"
+	cQuery += " AND SE1.E1_SALDO > 0"
+	cQuery += " AND TMP.D_E_L_E_T_ = ' '"
+	cQuery += " AND SE1.D_E_L_E_T_ = ' '"
+	cQuery += " GROUP BY SUBSTRING(SE1.E1_VENCREA, 1,6)"
+
+	cQuery := ChangeQuery(cQuery)
+
+	statement := FwPreparedStatement():New(cQuery)
+return statement
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc } createPrepareBalances
+Cria o cache da query de saldos
+
+@author Renato Ito
+@since 03/08/2020
+/*/
+//-------------------------------------------------------------------
+static function createPrepareBalances(type As Character, customers As Character, cTableTemporary As Character) As Object
+	local statement	as object
+	local query		as character
+	local queryDefault  as character
+
+	queryDefault := "SELECT SUM(SE1.E1_SALDO + SE1.E1_SDACRES - SE1.E1_SDDECRE) AMOUNT FROM " +  RetSqlName('SE1') + " SE1, " + cTableTemporary + " TMP "
+	queryDefault += " WHERE "
+	queryDefault += " SE1." + BranchesToCustomerForTable("SE1")
+	queryDefault += " AND SE1.E1_CLIENTE = TMP.CLIENTE "
+	queryDefault += " AND SE1.E1_LOJA = TMP.LOJA "
+	queryDefault += " AND TMP.D_E_L_E_T_ = ' '"
+	queryDefault += " AND SE1.E1_TIPO NOT IN (?)"
+
+	Do Case
+		Case type == "open"
+			query := queryDefault
+			query += " AND SE1.E1_SALDO > 0"
+			query += " AND SE1.E1_VENCREA >= ?"
+			query += " AND SE1.D_E_L_E_T_ = ' '"
+		
+		Case type == "over"
+			query := queryDefault
+			query += " AND SE1.E1_SALDO > 0"
+			query += " AND SE1.E1_VENCREA < ?"
+			query += " AND SE1.D_E_L_E_T_ = ' '"
+
+		Case type == "period"
+			query := queryDefault
+			query += " AND SE1.E1_SALDO > 0"
+			query += " AND SE1.E1_VENCREA >= ?"
+			query += " AND SE1.E1_VENCREA <= ?"
+			query += " AND SE1.D_E_L_E_T_ = ' '"
+	EndCase
+
+	query := ChangeQuery(query)
+	statement := FwPreparedStatement():New(query)
+return statement 

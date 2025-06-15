@@ -1,0 +1,133 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLProfessionalsSvc
+Realiza a manutencao de profissinais de saude - Request - Servico
+
+@author  sakai
+@version P12
+@since   08/02/2023
+/*/
+//------------------------------------------------------------------- 
+class PLProfessionalsSvc from CenRequest 
+
+    Data nTotGuias as Integer
+    Data nStatus as Integer
+    Data oError as Object
+    Data oResult as Object
+    Data oObjRequest as Object
+
+    Public Method New()
+    Public Method vldJson()
+    Public Method procPost()    
+    Public Method setObjRequest(oObjRequest)
+    Public Method getError()
+    Public Method getResult()
+    Public Method getStatusCode()
+
+    Private Method setError(nStatus, cCode, cMessage, cDetailedMessage)
+    Private Method setResult()
+    
+endClass
+
+Method New() class PLProfessionalsSvc
+
+    self:oError    := JsonObject():new()
+    self:oResult   := JsonObject():new()
+    self:nTotGuias := 0
+    self:nStatus   := 200
+
+Return self
+
+Method vldJson() class PLProfessionalsSvc
+
+    local lRet := .T.
+
+    Do Case 
+        Case Empty(self:oObjRequest['professionalCouncil'])
+            lRet := .F.
+            self:setError(400,'0001',nil,"Atributo 'professionalCouncil' nao informado")
+
+        Case Empty(self:oObjRequest['professionalCouncilNumber'])
+            lRet := .F.
+            self:setError(400,'0001',nil,"Atributo 'professionalCouncilNumber' nao informado")
+
+        Case Empty(self:oObjRequest['name'])
+            lRet := .F.
+            self:setError(400,'0001',nil,"Atributo 'name' nao informado")
+
+        Case Empty(self:oObjRequest['stateAbbreviation'])
+            lRet := .F.
+            self:setError(400,'0001',nil,"Atributo 'stateAbbreviation' nao informado")
+
+    EndCase
+
+Return lRet
+
+Method procPost() class PLProfessionalsSvc
+
+    local aRetGrv    := {}
+    local lFindBB0   := .F.
+    local bBlocCdOri := {}
+    local cNome      := self:oObjRequest['name']
+    local cSigla     := self:oObjRequest['professionalCouncil']
+    local cNumero    := self:oObjRequest['professionalCouncilNumber']
+    local cEstado    := self:oObjRequest['stateAbbreviation']
+    
+    cEstado := upper(padr(cEstado,TamSX3("BB0_ESTADO")[1]))
+	cNumero := upper(padr(cNumero,TamSX3("BB0_NUMCR")[1]))
+	cSigla  := upper(padr(cSigla,TamSX3("BB0_CODSIG")[1]))
+
+    B00->(DbSetOrder(4)) //BB0_FILIAL+BB0_ESTADO+BB0_NUMCR+BB0_CODSIG+BB0_CODOPE
+    lFindBB0 := BB0->(DbSeek(xFilial("BB0")+cEstado+cNumero+cSigla))
+    
+    if !lFindBB0
+        bBlocCdOri := {|| FwFldGet("BB0_CODOPE") + FwFldGet("BB0_CODIGO") + Modulo11( FwFldGet("BB0_CODOPE") + FwFldGet("BB0_NUMCR") ) }
+	    aRetGrv := PlSveProfAll(cNome, cSigla, cEstado, cNumero, PlsIntPaD(), '', '2', bBlocCdOri, {})
+        lFindBB0 := aRetGrv[1]
+    endIf
+
+    iif(lFindBB0, self:setResult(), self:setError(400,'0001',nil,'Nao foi possivel processar a solicitacao'))
+   
+Return lFindBB0
+
+method setObjRequest(oObjRequest) class PLProfessionalsSvc
+    self:oObjRequest := oObjRequest
+return
+
+method getError() class PLProfessionalsSvc
+return self:oError
+
+method getResult() class PLProfessionalsSvc
+return self:oResult:toJson()
+
+method getStatusCode() class PLProfessionalsSvc
+return self:nStatus
+
+method setError(nStatus, cCode, cMessage, cDetailedMessage) class PLProfessionalsSvc
+
+    Default nStatus  := 400
+    Default cCode    := '0002'
+    Default cMessage := 'Bad Request'
+    Default cDetailedMessage := 'O servidor nao foi capaz de entender a solicitacao'
+
+    self:oError['status'] := nStatus
+    self:oError['code'] := cCode
+    self:oError['message'] := cMessage
+    self:oError['detailedMessage'] := cDetailedMessage
+    self:nStatus  := nStatus
+    self:lSuccess := .F.
+
+return
+
+method setResult() class PLProfessionalsSvc
+
+    self:oResult['healthInsurerId']           := Alltrim(BB0->BB0_CODOPE)
+    self:oResult['idOnHealthInsurer']         := Alltrim(BB0->BB0_CODIGO)
+    self:oResult['name']                      := Alltrim(BB0->BB0_NOME)
+    self:oResult['professionalCouncil']       := Alltrim(BB0->BB0_CODSIG)
+    self:oResult['professionalCouncilNumber'] := Alltrim(BB0->BB0_NUMCR)
+    self:oResult['stateAbbreviation']         := Alltrim(BB0->BB0_ESTADO)
+
+return

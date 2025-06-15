@@ -1,0 +1,193 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSAuthorizationsRequest
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSAuthorizationsRequest from CenRequest 
+
+    Data oRest as Object
+    Data oService as Object
+    
+    Public Method New()
+    Public Method valida(cTipGui)
+    Public Method getError()
+    Public Method procReenvioHAT(cCodRda, cTipGui)
+    Public Method authorization()
+    Public Method checkBodyResend()
+    Public Method faultPostOption()
+
+endClass
+
+Method New(oRest) class PLSAuthorizationsRequest
+
+    _Super:New(oRest)
+    self:oService  := PLSAuthorizationsSvc():New(oRest:idHealthIns)
+
+Return self
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Valida se pode gerar o json de resposta
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+Method valida(cTipGui) class PLSAuthorizationsRequest
+    
+    self:lSuccess := self:oService:vldExiGuia(cTipGui)
+    
+    if !self:lSuccess
+        self:getError()
+    endIf
+
+Return self:lSuccess
+
+Method getError() class PLSAuthorizationsRequest
+    
+    Local oErrorAux   := self:oService:getError()
+
+    self:lSuccess     := .F.
+    self:nFault       := oErrorAux['status']
+    self:nStatus      := oErrorAux['status']
+    self:cFaultDesc   := oErrorAux['message']
+    self:cFaultDetail := oErrorAux['detailedMessage']
+
+Return self:lSuccess
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Valida se pode realizar o 
+    reenvio de guia TISS pelo HAT
+
+@author  sakai
+@version P12
+@since   02/05/2023
+/*/
+//------------------------------------------------------------------- 
+Method procReenvioHAT() class PLSAuthorizationsRequest
+    
+    Local aRet := {}
+    Local oResponse := nil
+
+    if self:lSuccess
+
+        oResponse := JsonObject():new()
+        self:oService:setJsonReq(self:jRequest)        
+        self:oService:setAliCab(self:jRequest["authorizationType"])
+
+        //Primeiro valida se ja existe a guia para rodar a contigencia
+        if self:oService:bscGuiaReenvio()
+            aRet := self:oService:getJsonGuia()
+            oResponse["code"] := "0001"
+            oResponse["message"] := "Guia informada encontrada, apta para realizar a contingencia"
+            oResponse["idOnHealthInsurer"] := self:oService:getGuia()
+            oResponse["authorization"] := aRet[1]
+        else
+            if self:oService:vldReenvioHAT()
+                oResponse["code"] := "0002"
+                oResponse["message"] := "Nao foi encontrada guia, e possivel realizar o reenvio"
+            else
+                self:getError()
+            endIf
+        endIf
+
+        if self:lSuccess
+            self:cResponse := oResponse:toJson()
+        endIf
+    endif
+
+Return
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Monta json com a guia
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+Method authorization() class PLSAuthorizationsRequest
+
+    Local aRet := self:oService:getJsonGuia()
+   
+    self:cResponse := aRet[1]:toJson()
+    self:nStatus   := aRet[2]
+
+Return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} checkBody
+
+@author    Sakai
+@version   V12
+@since     03/05/2023
+/*/
+//------------------------------------------------------------------- 
+method checkBodyResend() class PLSAuthorizationsRequest
+    
+    local lRet := _Super:checkBody()
+    Local lVirgula := .F.
+    Local cMsg := ""
+
+    if empty(self:jRequest['tissBatch'])
+        cMsg := " tissBatch "
+        lRet := .F.
+        lVirgula := .T.
+    endif
+
+    if empty(self:jRequest['subscriberId'])
+        cMsg += iif(lVirgula,",","")
+        cMsg += " subscriberId "
+        lRet := .F.
+        lVirgula := .T.
+    endif
+
+    if empty(self:jRequest['healthProviderCode'])
+        cMsg += iif(lVirgula,",","")
+        cMsg += " healthProviderCode "
+        lRet := .F.
+        lVirgula := .T.
+    endif
+
+    if empty(self:jRequest['authorizationType'])
+        cMsg += iif(lVirgula,",","")
+        cMsg += " authorizationType "
+        lRet := .F.
+        lVirgula := .T.
+    endif
+
+    if !lRet 
+        self:lSuccess     := .F.
+        self:nFault       := 400
+        self:nStatus      := 400
+        self:cFaultDesc   := "Atributos obrigatorios nao informados"
+        self:cFaultDetail := cMsg
+    endif
+
+return self:lSuccess
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} faultPostOption
+Marca falha no POST por nao ter acao selecionada
+
+@author    Sakai
+@version   V12
+@since     03/05/2023
+/*/
+//------------------------------------------------------------------- 
+method faultPostOption() class PLSAuthorizationsRequest
+
+    self:lSuccess     := .F.
+    self:nFault       := 400
+    self:nStatus      := 400
+    self:cFaultDesc   := "Acao de Post nao informada"
+    self:cFaultDetail := "E necessario passar um Queryparam com a acao desejada"
+
+return

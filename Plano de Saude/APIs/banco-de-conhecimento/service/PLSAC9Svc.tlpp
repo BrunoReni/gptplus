@@ -1,0 +1,123 @@
+#include 'Protheus.ch'
+#include "Fileio.ch"
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSAC9Svc
+
+@author    Lucas Nonato
+@version   V12
+@since     10/02/2021
+/*/
+class PLSAC9Svc
+
+public method new() constructor
+public method grava()
+public method get()
+public method post()
+
+public data oRest as object
+endclass
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} new
+
+@author    Lucas Nonato
+@version   V12
+@since     23/02/2021
+/*/
+method new(oRest) class PLSAC9Svc
+::oRest := oRest
+return self
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} get
+
+@author    Lucas Nonato
+@version   V12
+@since     23/02/2021
+/*/
+method get() class PLSAC9Svc
+local cBlob     := ""
+local cDirDocs  := ""
+local aSizes    := {}
+local aFiles    := {}
+local nHandle   := 0
+//Acha o caminho do banco de conhecimento
+If MsMultDir()
+	cDirDocs := MsRetPath()
+Else
+	cDirDocs := MsDocPath()
+Endif
+
+//Verifica o tamanho do arquivo, parâmetro exigido na FRead.
+if aDir(cDirDocs + "\" + upper(self:oRest:fileName) , aFiles, aSizes) > 0
+	nHandle := fopen(cDirDocs + "\" + upper(self:oRest:fileName) , FO_READWRITE + FO_SHARED )
+	cString := ""
+	fRead( nHandle, cString, aSizes[1] ) //Carrega na variável cString, a string ASCII do arquivo.
+
+	cBlob := Encode64(cString) //Converte o arquivo para BASE64
+
+	fclose(nHandle)
+endif
+
+return cBlob
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} post
+
+@author    Lucas Nonato
+@version   V12
+@since     23/02/2021
+/*/
+method post() class PLSAC9Svc
+local cDirDocs  := ""
+local cDescri  	:= ""
+local cExtArq  	:= ""
+local cFileName := ::oRest:fileName
+local nH  		:= 0
+
+//Pega a extensão do arquivo
+cExtArq	:= subStr(cFileName, RAT(".", cFileName)+1)
+
+//Monta nome
+cDescri 	:= cFileName
+cFileName 	:= upper(left(substr(cFileName, 1, RAT(".", cFileName)-1) + strtran(Time(), ":", "_"), len( ACB->ACB_OBJETO )-5)  + "." + cExtArq)
+
+ACB->(dbSetOrder(1))
+AC9->(dbSetOrder(1))
+
+if MsMultDir()
+	cDirDocs := MsRetPath()
+else
+	cDirDocs := MsDocPath()
+endif
+
+nH := fCreate(cDirDocs + "\" + cFileName)
+fWrite(nH, self:oRest:file)
+fClose(nH)
+
+cObj := ACB->(getSXENum( "ACB", "ACB_CODOBJ" ))
+ACB->(confirmSX8())
+
+while ACB->( msSeek( xFilial("ACB") + cObj ) )
+	cObj := ACB->(getSXENum( "ACB", "ACB_CODOBJ" ))
+	ACB->(confirmSX8())
+endDo
+
+ACB->( RecLock( "ACB", .T. ) )
+ACB->ACB_FILIAL  := xFilial( "ACB" )
+ACB->ACB_CODOBJ := cObj
+ACB->ACB_OBJETO := cFileName
+ACB->ACB_DESCRI := cDescri
+ACB->( MsUnlock() )
+
+AC9->(RecLock( "AC9", .T. ))
+AC9->AC9_FILIAL := xFilial( "AC9" )
+AC9->AC9_FILENT := xFilial( ::oRest:alias )
+AC9->AC9_ENTIDA := ::oRest:alias
+AC9->AC9_CODENT := xFilial( ::oRest:alias ) + ::oRest:attachmentsKey
+AC9->AC9_CODOBJ := cObj
+AC9->( MsUnlock() )
+
+return cFileName

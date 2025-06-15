@@ -1,0 +1,654 @@
+#include 'tlpp-core.th'
+#include "FWMVCDEF.CH"
+namespace tr.paymentForm
+
+/*/{Protheus.doc} paymentFormService
+Class paymentFormService
+@type class
+@version  1
+@author José González
+@since 18/03/2021
+/*/
+Class paymentFormService
+	Public Method new()
+	Public Method getpaymentForm()
+	Public Method checkReaderService()
+	Public Method serviceGetCGC()
+	Public Method getpostValidCpo()
+EndClass
+
+/*/{Protheus.doc} paymentFormService::new
+Constructor de la clase
+@type method
+@version  1
+@author José González
+@since 18/03/2021
+/*/
+Method new() Class paymentFormService
+Return
+
+/*/{Protheus.doc} paymentFormService::getpaymentForm
+Obtiene el contenido de los campos de la tabla SEL Usados
+@type method
+@version  1
+@author José González
+@since 18/03/2021
+/*/
+Method getpaymentForm () Class paymentFormService
+	Local oStruSEL1	:= FWFormStruct( 2, 'SEL' ,,.F.) //2-View
+	Local oResponse := JsonObject():New()
+	Local oPaymentForm := JsonObject():new()
+	Local aOptions := {} As Array
+	Local aJson := {} As Array
+	Local aArray1 := {} As Array
+	Local aCposNo :={} As Array
+	Local nItens := 1	As Numeric
+	Local nI := 1	As Numeric
+	Local nJ := 1	As Numeric
+	Local nOrden := 1 As Numeric
+	Local nOptions := 0 As Numeric
+	Local cValid := ''	As Character
+	Local cValidUser := '' As Character
+	Local cCampo := ''	As Character
+	Local cTipo := ''	As Character
+	local cTamanho := ''
+	Local cCposNo := ''	As Character
+	Local cTitulo := '' As Character
+	Local aCamExtra := {} As Array
+	Local cSegOfi := ''	As Character
+	Local cFormatd := ""
+	Local cFordat := GetPvProfString(GetEnvServer(), "DateFormat", "undefined", GetAdv97())
+
+	SetFunName("FINA998")
+
+	cSegOfi	:= SuperGetMv("MV_SEGOFI",.T.,0) //Indica el tipo de control secuencial y único que se utilizará en la contabilidad.
+
+	//Campos del encabezado que No estan en el grid
+	AAdd(aCposNo,"EL_FILIAL")
+	AAdd(aCposNo,"EL_SERIE")
+	AAdd(aCposNo,"EL_RECIBO")
+	AAdd(aCposNo,"EL_DTDIGIT")
+	AAdd(aCposNo,"EL_CANCEL")
+	AAdd(aCposNo,"EL_PREREC")
+	AAdd(aCposNo,"EL_CLIENTE")
+	AAdd(aCposNo,"EL_LOJA")
+	AAdd(aCposNo,"EL_VLMOED1")
+	AAdd(aCposNo,"EL_COBRAD")
+	AAdd(aCposNo,"EL_RECPROV")
+	AAdd(aCposNo,"EL_CLIORIG")
+	AAdd(aCposNo,"EL_LOJORIG")
+	If Alltrim(GetSX3Cache("EL_TIPO","X3_RELACAO")) == ''
+		AAdd(aCposNo,"EL_TIPO")
+	EndIf
+	AAdd(aCposNo,"EL_TIPAGRO")
+	AAdd(aCposNo,"EL_RETGAN")
+	AAdd(aCposNo,"EL_SERSUS")
+	AAdd(aCposNo,"EL_RECSUS")
+	AAdd(aCposNo,"EL_FACTOR")
+	AAdd(aCposNo,"EL_HORA")
+
+	//Campos Exclusivos para ARG, se agrega el campo y el numero que hara referencia al orden en la propiedad 'order' del json
+	IF cPaisloc == "ARG"
+		Aadd(aCamExtra,{"FE_ALIQ",7})
+		Aadd(aCamExtra,{"FE_VALBASE",8})
+	ENDIF
+
+	nItens := Len(oStruSEL1:AFIELDS)
+
+	FOR nI := 1 to nItens
+		cValid		:=''
+		cValidUser	:=''
+		cTipo		:=''
+		cTamanho	:=''
+		cTitulo 	:= ''
+		cMask		:= ""
+		aOptions 	:={}
+		aArray1 	:= {}
+		cCampo 		:= oStruSEL1:AFIELDS[nI][1]
+		nOptions 	:= 0
+		cFormatd	:=""
+
+		//Si el campo esta como no usado no continua y pasa al siguiente
+		If !X3Uso(GetSx3Cache(cCampo,"X3_USADO"))
+			LOOP
+		EndIf
+		If cCampo =="EL_BANCO" //--bancos
+			Aadd(aJson,JsonObject():new())
+			nPos := Len(aJson)
+			aJson[nPos]['trigger'] := .T.
+			aJson[nPos]['optionsService'] :="/api/v1/totvsRecibos/catalogs/SA6"
+			aJson[nPos]['searchService'] :=""
+			aJson[nPos]['maxLength'] :=GetSx3Cache("EL_BANCO","X3_TAMANHO")+GetSx3Cache("EL_AGENCIA","X3_TAMANHO")+GetSx3Cache("EL_CONTA","X3_TAMANHO")+2
+			aJson[nPos]['decimalsLength'] :=0
+			aJson[nPos]['thousandMaxlength'] :=GetSx3Cache("EL_BANCO","X3_TAMANHO")+GetSx3Cache("EL_AGENCIA","X3_TAMANHO")+GetSx3Cache("EL_CONTA","X3_TAMANHO")+2
+			aJson[nPos]['label'] :="Busc. Bancos"
+			aJson[nPos]['valid'] :=""
+			aJson[nPos]['campo'] :="EL_BANCOS"
+			aJson[nPos]['property'] :="bancos"
+			aJson[nPos]['required'] :=.F.
+			aJson[nPos]['gridColumns'] :=7
+			aJson[nPos]['options'] := {}
+			aJson[nPos]['value'] :=""
+			aJson[nPos]['mask'] :=""
+			aJson[nPos]['order'] :=nOrden
+			nOrden++
+			aJson[nPos]['type'] :="string"
+			aJson[nPos]['disabled']:= .F.
+			aJson[nPos]['visible'] :=.T.
+
+		EndIf
+		If cCampo =="EL_BCOCHQ" //--bancos
+			Aadd(aJson,JsonObject():new())
+			nPos := Len(aJson)
+			aJson[nPos]['trigger'] := .T.
+			aJson[nPos]['optionsService'] :=""
+			aJson[nPos]['searchService']  :=""
+			IF cPaisloc $ "ARG|PAR" .and. validTamTable(cCampo)
+				aJson[nPos]['searchService' ]  := "/api/v1/totvsRecibos/catconpag/" +Alltrim(Getsx3Cache( cCampo,'X3_F3' ))
+			ELSE
+				aJson[nPos]['optionsService' ]  := "/api/v1/totvsRecibos/catalogs/" +Alltrim(Getsx3Cache( cCampo,'X3_F3' ))
+			ENDIF
+			aJson[nPos]['maxLength'] :=GetSx3Cache("EL_BCOCHQ","X3_TAMANHO")+GetSx3Cache("EL_AGECHQ","X3_TAMANHO")+GetSx3Cache("EL_CTACHQ","X3_TAMANHO")+2
+			aJson[nPos]['decimalsLength'] :=0
+			aJson[nPos]['thousandMaxlength'] :=GetSx3Cache("EL_BCOCHQ","X3_TAMANHO")+GetSx3Cache("EL_AGECHQ","X3_TAMANHO")+GetSx3Cache("EL_CTACHQ","X3_TAMANHO")+2
+			aJson[nPos]['label'] :="Busc Bco Ch"
+			aJson[nPos]['valid'] :=""
+			aJson[nPos]['campo'] :="EL_BCOCHQS"
+			aJson[nPos]['property'] :="bcochqs"
+			aJson[nPos]['required'] :=.F.
+			aJson[nPos]['gridColumns'] :=7
+			aJson[nPos]['options'] := {}
+			aJson[nPos]['value'] :=""
+			aJson[nPos]['mask'] :=""
+			aJson[nPos]['order'] :=nOrden
+			nOrden++
+			aJson[nPos]['type'] :="string"
+			aJson[nPos]['disabled']:= .F.
+			aJson[nPos]['visible'] :=.T.
+
+		EndIf
+		Aadd(aJson,JsonObject():new())
+		nPos := Len(aJson)
+
+		//Se obtiene el tipo y tamaño del campo
+		If Getsx3Cache( cCampo,'X3_TIPO' ) == 'C'
+			cTipo 		:= 'string'
+			cTamanho 	:= Getsx3Cache( cCampo,'X3_TAMANHO' )
+		ElseIf Getsx3Cache( cCampo,'X3_TIPO' ) == 'D'
+			cTipo 		:= 'date'
+			IF cFordat == "AMERICAN"
+				cFormatd := 'mm/dd/yyyy' 
+			EndIF
+			IF cFordat == "DEFAULT"
+				cFormatd := 'dd/mm/yyyy'
+			EndIF
+		ElseIf Getsx3Cache( cCampo,'X3_TIPO' ) == 'N'
+			cTipo 		:= 'currency'
+			cTamanho 	:= IIF(Getsx3Cache( cCampo,"X3_DECIMAL") != 0,Getsx3Cache( cCampo,"X3_TAMANHO" ) - (Getsx3Cache( cCampo,"X3_DECIMAL") +1),Getsx3Cache( cCampo,"X3_TAMANHO" )) 
+		ElseIf Getsx3Cache( cCampo,'X3_TIPO' ) == 'M'
+			cTipo 		:= 'string'
+			cTamanho 	:= 80
+		EndIf
+
+		//Validaciones y titulo
+		cTitulo := Alltrim(FWX3Titulo( cCampo ))
+		cValid := Alltrim(Getsx3Cache( cCampo,'X3_VALID' ))
+		cValidUser := Alltrim(GetSX3Cache(cCampo,"X3_VLDUSER"))
+
+		IF AllTrim(cCampo) == 'EL_CGC'
+			DO CASE 
+				CASE Substr(Alltrim(GetSX3Cache(cCampo,"X3_PICTURE")),1,2) == '@R'
+					cMask := Substr(Alltrim(Replace(GetSX3Cache(cCampo,"X3_PICTURE")," ","")),3)
+				OTHERWISE
+					cMask := ""
+			ENDCASE
+		ENDIF
+
+		//Validaciones del usuario
+		If !Empty(cValidUser)
+			cValid += IIf( Empty(cValid), "", ".And.") + cValidUser
+		EndIf
+
+		//Si el campo tiene diferentes opciones
+		nOptions := len(oStruSEL1:AFIELDS[nI][13])
+
+		If nOptions > 1
+			For nJ:=1 to nOptions
+				Aadd(aOptions,JsonObject():new())
+				If Alltrim(oStruSEL1:AFIELDS[nI][13][nJ])<>''
+					aadd( aArray1 ,separa(oStruSEL1:AFIELDS[nI][13][nJ], "=") )
+					aOptions[nJ]['value'] :=  Alltrim(aArray1[nJ][1])
+					aOptions[nJ]['label']  := aArray1[nJ][2]
+				EndIf
+			Next
+		EndIf
+		aJson[nPos]['trigger' ]  :=  ExistTrigger(cCampo) 
+		//Se construye el json de respuest asignando todos los valores obtenidos
+		aJson[nPos]['optionsService' ]      :=  ''
+		aJson[nPos]['searchService' ]       :=  ''
+		aJson[nPos]['maxLength' ] 			:= 	cTamanho
+		aJson[nPos]['decimalsLength' ] 		:= 	Getsx3Cache( cCampo,"X3_DECIMAL" )
+		aJson[nPos]['thousandMaxlength' ] 	:= 	cTamanho
+		aJson[nPos]['label' ] 				:=	cTitulo
+		aJson[nPos]['valid' ] 				:=  cValid
+		aJson[nPos]['campo' ] 				:=  cCampo
+		aJson[nPos]['property' ] 			:=	lower(Alltrim(substr(cCampo,at("_",cCampo)+1)))
+		aJson[nPos]['required' ] 			:=	X3Obrigat(cCampo)
+		aJson[nPos]['gridColumns' ] 		:= 7
+		aJson[nPos]['options' ]				:=  aOptions
+		aJson[nPos]['value' ] 				:= ''
+		aJson[nPos]['mask' ] 				:= cMask
+		aJson[nPos]['format' ] 			 	:= cFormatd
+
+		//EL_SERRET es campo exclusivo de Perú
+		IF(cCampo=="EL_SERRET")
+			IF !VAZIO(SuperGetMv('MV_CRSERIE'))
+				aJson[nPos]['value' ] := SuperGetMv('MV_CRSERIE')
+			ENDIF
+		END
+
+		WHILE (cPaisloc == "ARG" .AND. (nOrden==7 .OR. nOrden==8))
+			nOrden++
+		ENDDO
+
+		aJson[nPos]['order' ] := nOrden
+		nOrden++
+
+		If oStruSEL1:AFIELDS[nI][6] == "COMBO"
+			aJson[nPos]['value' ] 	:= alltrim(IIF(VAZIO(GetSX3Cache(cCampo,"X3_RELACAO")),"",InitPad(GetSX3Cache(cCampo,"X3_RELACAO"))))
+		Else
+			aJson[nPos]['type' ] 	:= cTipo
+		EndiF
+
+		If Alltrim(GetSX3Cache(cCampo,"X3_RELACAO")) <> '' .and. oStruSEL1:AFIELDS[nI][6] <> "COMBO"
+			If cTipo == 'date'
+				aJson[nPos]['value'] := dtos(InitPad(GetSX3Cache(cCampo,"X3_RELACAO")))
+			Else
+				IF !(cCampo $ "EL_RECIBO|EL_DIACTB")
+					aJson[nPos]['value'] := Alltrim(InitPad(GetSX3Cache(cCampo,"X3_RELACAO")))
+				EndIf
+				IF cCampo == "EL_TIPO"
+					aJson[nPos]['value'] := ""
+				EndIf
+			EndIf
+		EndIf
+
+		//URL de catalogos
+		If Alltrim(Getsx3Cache( cCampo,'X3_F3' )) <> ''
+			IF cPaisloc $ "ARG|PAR" .AND. cCampo$("EL_CFO|EL_BCOCHQ") .AND. validTamTable(cCampo)
+				aJson[nPos]['searchService' ]  := "/api/v1/totvsRecibos/catconpag/" +Alltrim(Getsx3Cache( cCampo,'X3_F3' ))
+			ELSE
+				aJson[nPos]['optionsService' ]  := "/api/v1/totvsRecibos/catalogs/" +Alltrim(Getsx3Cache( cCampo,'X3_F3' ))
+			ENDIF
+		End
+		If cCampo $ ("EL_BANCO|EL_BCOCHQ")
+			aJson[nPos]['searchService' ]  := ""
+			aJson[nPos]['optionsService' ]  := ""
+		EndIf
+		If Alltrim(Getsx3Cache( cCampo,"X3_VISUAL" ) ) == "V" .OR. cCampo$(cCposNo)
+			aJson[nPos]['disabled' ]:= 	.T.
+		Else
+			aJson[nPos]['disabled' ]:= 	.F.
+		EndIF
+
+		IF  AScan(aCposNo,Alltrim(cCampo)) == 0
+			aJson[nPos]['visible' ] := .T.
+		Else
+			aJson[nPos]['visible' ] := .F.
+		EndIf
+		
+		IF cCampo == "EL_DIACTB"
+			IF ( cSegOfi$("5|8")  ) .Or. (cSegOfi == "7" .And. cPaisloc == "PER" ) 
+				aJson[nPos]['disabled' ]:= 	.F.
+			Else 
+				aJson[nPos]['disabled' ]:= 	.T.
+			End
+		End
+	Next
+
+	//Campos extra en la forma de pago
+	IF !VAZIO(aCamExtra)
+		FOR nI := 1 to LEN(aCamExtra)
+			cValid:=''
+			cValidUser:=''
+			cTipo:=''
+			cTamanho:=''
+			cTitulo := ''
+			aOptions :={}
+			aArray1 := {}
+			cCampo := aCamExtra[nI][1]
+			nOptions := 0
+
+			Aadd(aJson,JsonObject():new())
+			nPos := Len(aJson)
+
+			//Se obtiene el tipo y tamaño del campo
+			If Getsx3Cache( cCampo,'X3_TIPO' ) == 'C'
+				cTipo 		:= 'string'
+				cTamanho 	:= Getsx3Cache( cCampo,'X3_TAMANHO' )
+			ElseIf Getsx3Cache( cCampo,'X3_TIPO' ) == 'D'
+				cTipo 		:= 'date'
+			ElseIf Getsx3Cache( cCampo,'X3_TIPO' ) == 'N'
+				cTipo 		:= 'currency'
+				cTamanho 	:= Getsx3Cache( cCampo,"X3_TAMANHO" ) - ( Getsx3Cache( cCampo,"X3_DECIMAL" ) +1)
+			ElseIf Getsx3Cache( cCampo,'X3_TIPO' ) == 'M'
+				cTipo 		:= 'string'
+				cTamanho 	:= 80
+			EndIf
+
+			//Validaciones y titulo
+			cTitulo := Alltrim(FWX3Titulo( cCampo ))
+			cValid := Alltrim(Getsx3Cache( cCampo,'X3_VALID' ))
+			cValidUser := Alltrim(GetSX3Cache(cCampo,"X3_VLDUSER"))
+
+			//Validaciones del usuario
+			If !Empty(cValidUser)
+				cValid += IIf( Empty(cValid), "", ".And.") + cValidUser
+			EndIf
+			
+			//Se construye el json de respuest asignando todos los valores obtenidos
+			aJson[nPos]['optionsService' ]      :=  ''
+			aJson[nPos]['searchService' ]      :=  ''
+			aJson[nPos]['maxLength' ] 			:= 	cTamanho
+			aJson[nPos]['decimalsLength' ] 		:= 	Getsx3Cache( cCampo,"X3_DECIMAL" )
+			aJson[nPos]['thousandMaxlength' ] 	:= 	cTamanho
+			aJson[nPos]['label' ] 				:=	cTitulo
+			aJson[nPos]['valid' ] 				:=  cValid
+			aJson[nPos]['campo' ] 				:=  cCampo
+			aJson[nPos]['property' ] 			:=	lower(Alltrim(substr(cCampo,at("_",cCampo)+1)))
+			aJson[nPos]['required' ] 			:=	.F.
+			aJson[nPos]['gridColumns' ] 		:= 7
+			aJson[nPos]['options' ]				:=  aOptions
+			aJson[nPos]['value' ] 				:= ''
+			aJson[nPos]['type' ] 				:= cTipo
+			aJson[nPos]['order' ] 				:= aCamExtra[nI][2]
+
+			//URL de catalogos
+			If Alltrim(Getsx3Cache( cCampo,'X3_F3' )) <> ''
+				aJson[nPos]['optionsService' ]  := "/api/v1/totvsRecibos/catalogs/" +Alltrim(Getsx3Cache( cCampo,'X3_F3' ))
+			EndIF
+			
+		If Alltrim(GetSX3Cache(cCampo,"X3_RELACAO")) <> '' 
+			aJson[nPos]['value'] := Alltrim(InitPad(GetSX3Cache(cCampo,"X3_RELACAO")))	
+		EndIf
+
+
+			If Alltrim(Getsx3Cache( cCampo,"X3_VISUAL" ) ) == "V" .OR. cCampo$(cCposNo)
+				aJson[nPos]['disabled' ]				:= 	.T.
+			Else
+				aJson[nPos]['disabled' ]				:= 	.F.
+			EndIF
+
+			IF  AScan(aCposNo,Alltrim(cCampo)) == 0
+				aJson[nPos]['visible' ] := .T.
+			Else
+				aJson[nPos]['visible' ] := .F.
+			EndIf
+		Next
+	ENDIF
+	oPaymentForm:set(aJson)
+	oResponse['result'] := .T.
+	oResponse[ 'response' ] := oPaymentForm
+Return oResponse
+
+/*/{Protheus.doc} paymentFormService::checkReaderService
+Metodo encargado para la lectora de cheques
+@type method
+@version  1
+@author luis.aboytes
+@since 22/7/2022
+/*/
+Method checkReaderService() Class paymentFormService
+Local aCheque 	As Array
+Local jResponse As Object
+Local nPos 		As Numeric
+Local oResponse As Object
+
+oResponse := JsonObject():New()
+jResponse:=JsonObject():new()
+nPos := 0
+aCheque := FinCmc7Tc()
+
+	If Len(aCheque) > 0
+		//Verifica e cadastra as entidades bancárias se for ao caso
+		FINEntBc(aCheque[1],aCheque[2],aCheque[3])
+
+		jResponse['bcochq' ] 	:= aCheque[1]
+		jResponse['agechq' ] 	:= aCheque[2]
+		jResponse['postal' ] 	:= aCheque[3]
+		jResponse['numero' ] 	:= aCheque[4]
+		jResponse['ctachq' ] 	:= aCheque[5]
+	EndIf
+
+	oResponse['result'] := .T.
+	oResponse['response'] := jResponse	
+
+Return oResponse
+
+/*/{Protheus.doc} validTamTable
+Valida el tamaño de la tabla a consultar para regresar paginado
+@type Function
+@version  1
+@author José González
+@since 03/06/2022
+/*/
+Function validTamTable(cCampo)
+
+Local cQuery 
+Local cAlias
+Local lRet := .F.
+	
+If cCampo == "EL_BCOCHQ"
+	
+	cAlias := GetNextAlias()
+	cQuery := " SELECT  COUNT(FJN_COD) AS TOTALES"
+	cQuery += " FROM " + RetSqlName("FJN")
+	cQuery += " Where D_E_L_E_T_ = ' ' "
+	cQuery := ChangeQuery(cQuery)
+	MPSysOpenQuery(cQuery, cAlias)
+ 	
+	IF (cAlias)->(!EOF())
+		If (cAlias)->TOTALES > 100			
+			lRet	:= .T.
+		EndIF
+	EndIf
+	(cAlias)->(DbCloseArea())
+
+EndIf
+If cCampo == "EL_CFO"
+
+	cAlias := GetNextAlias()
+	cQuery := " SELECT  COUNT(X5_TABELA) AS TOTALES"
+	cQuery += " FROM " + RetSqlName("SX5")
+	cQuery += " Where D_E_L_E_T_ = ' ' and X5_TABELA='13' "
+	cQuery := ChangeQuery(cQuery)
+	MPSysOpenQuery(cQuery, cAlias)
+ 	
+	IF (cAlias)->(!EOF())
+		If (cAlias)->TOTALES > 100			
+			lRet	:= .T.
+		EndIF
+	EndIf
+	(cAlias)->(DbCloseArea())
+
+EndIf
+
+Return lRet
+
+/*/{Protheus.doc} paymentFormService::serviceGetCGC
+Servicio encargado de llamar al data para obtener el CGC del cliente seleccionado en el encabezado de nuevo recibo
+@type method
+@author luis.aboytes
+@since 7/9/2022
+/*/
+Method serviceGetCGC(jBody) Class paymentFormService
+Local jResponse := JsonObject():New()	As Object
+Local oResponse := JsonObject():New()   As Object
+Local cCGC	:= '' As Character 
+Local oPaymentFormData 	:= paymentFormAdapter():new('GET') As Object
+
+	cCGC := oPaymentFormData:dataGetCGC(jBody)
+
+	IIf(!Empty(cCGC),jResponse['cgc']:=cCGC,jResponse['cgc']:="")	
+
+	oResponse['result'] := .T.
+	oResponse['response'] := jResponse	
+
+Return oResponse
+
+
+/*/{Protheus.doc} getpostValidCpo
+Metodo que ejecuta la funcion que retorna el campo a editar y su contenido
+@type Function
+@version  1
+@author José González
+@since 01/10/2022
+/*/
+Method getpostValidCpo(oJParams)  Class paymentFormService
+Local jResponse := JsonObject():New() 
+Local oResponse := JsonObject():New() 
+Local cCampo
+Local cConten 
+local aresp :={}
+local i:= 1
+local oMdlTab  := FwLoadModel("FINA887")   
+local aTriger := {}
+local cValue := ""
+local arec :={}
+local aError := {}
+Local aPay := {}
+Local aHeader := {}
+
+cCampo := oJParams['property']
+If oJParams:hasproperty('value')
+	cValue := oJParams['value']
+EndIf
+
+If alltrim(cCampo) <> ""
+	oMdlTab:SetOperation(MODEL_OPERATION_INSERT)
+	oMdlTab:Activate()
+
+	For i := 1 to len(oJParams['coins'])
+		If len(oJParams['coins']) > 1 .and. i > 1
+			oMdlTab:GetModel('MOE_DETAIL' ):AddLine()
+		EndIF
+		oMdlTab:SetValue('MOE_DETAIL',"MOEDA" 		, alltrim(str(oJParams['coins'][i]['moneda'] )))
+		oMdlTab:SetValue('MOE_DETAIL',"TASA" 		, oJParams['coins'][i]['tasa'] )
+		oMdlTab:SetValue('MOE_DETAIL',"RECIBIDO"	, oJParams['coins'][i]['received'] )
+		oMdlTab:SetValue('MOE_DETAIL',"SALDO" 		, oJParams['coins'][i]['balance'] )
+	Next
+
+	aHeader := oJParams['header']:GetNames()
+	FOR i := 1 to len(aHeader)
+		If oMdlTab:GetModel('FJT_MASTER'):GETSTRUCT():GetProperty("FJT_"+UPPER(aHeader[i]),MODEL_FIELD_TIPO ) == 'D'
+            oMdlTab:loadValue('FJT_MASTER', "FJT_"+UPPER(aHeader[i]),STOD(StrTran(oJParams['header'][aHeader[i]],"-","")))
+        Else
+    		oMdlTab:loadValue('FJT_MASTER', "FJT_"+UPPER(aHeader[i]),oJParams['header'][aHeader[i]])	
+		EndIf
+    NEXT
+	//Forma de pago
+    //Obtenemos las propiedades de la forma de pago de oJParams['form']
+   	aPay := oJParams['form']:GetNames() 
+    FOR i := 1 to len(aPay)
+        If oMdlTab:GetModel('SEL_DETAIL'):hasfield("EL_"+UPPER(aPay[i]))
+            IF !VAZIO(oJParams['form'][aPay[i]]) .and. !(cCampo == "EL_"+UPPER(aPay[i]))
+                If oMdlTab:GetModel('SEL_DETAIL'):GETSTRUCT():GetProperty("EL_"+UPPER(aPay[i]),MODEL_FIELD_TIPO ) == 'D'
+                    oMdlTab:loadValue('SEL_DETAIL', "EL_"+UPPER(aPay[i]),STOD(StrTran(oJParams['form'][aPay[i]],"-","")))
+                Else
+                    oMdlTab:loadValue('SEL_DETAIL', "EL_"+UPPER(aPay[i]),oJParams['form'][aPay[i]])
+                EndIf
+            ENDIF
+        EndIf
+    NEXT
+	aTriger := oMdlTab:GETmodel('SEL_DETAIL'):OFORMMODELSTRUCT:ATRIGGERS
+	IF cCampo == "EL_BANCOS" .and. cValue == ""
+		oMdlTab:LoadValue('SEL_DETAIL',"EL_BANCO"  , "") 
+		oMdlTab:LoadValue('SEL_DETAIL',"EL_AGENCIA", "")
+		oMdlTab:LoadValue('SEL_DETAIL',"EL_CONTA"  , "") 
+	ENDiF 
+	IF cCampo == "EL_BCOCHQS" .and. cValue == ""
+		oMdlTab:LoadValue('SEL_DETAIL',"EL_BCOCHQ"  , "") 
+		oMdlTab:LoadValue('SEL_DETAIL',"EL_AGECHQ", "")
+		IF oMdlTab:GetModel('SEL_DETAIL'):hasfield("EL_POSTAL")
+			oMdlTab:LoadValue('SEL_DETAIL',"EL_POSTAL"  , "")
+		Else
+			oMdlTab:LoadValue('SEL_DETAIL',"EL_CTACHQ"  , "")
+		EndIf
+	ENDiF 
+	jResponse["values"] := JsonObject():New() 
+	If oMdlTab:GetModel('SEL_DETAIL'):GETSTRUCT():GetProperty(cCampo,MODEL_FIELD_TIPO ) == 'D'
+		cValue := STOD(StrTran(cValue,"-",""))
+	EndIf
+	If oMdlTab:SetValue('SEL_DETAIL',cCampo, cValue)
+		for i :=1 to len(aTriger)
+			if !(aTriger[i][2] == cCampo) 
+				cdestino := lower( subst(aTriger[i][2],4))
+				cConten :=	oMdlTab:GETValue('SEL_DETAIL', aTriger[i][2])
+				Aadd(aresp,{cdestino,cConten,aTriger[i][2],aTriger[i][1]})
+			EndIf
+		Next
+			for i:=1 to len(aresp)
+				IF oMdlTab:Getmodel('SEL_DETAIL'):IsFieldUpdated(aresp[i][3]) .or. (cCampo == aresp[i][4] .and. !Empty(aresp[i][2]))
+					If ValType(aresp[i][2]) == "D"
+						aresp[i][2] := StrZero(Year(aresp[i][2]),4) + "-" + StrZero(Month(aresp[i][2]),2)  + "-" + StrZero(Day(aresp[i][2]),2)
+					EndIf
+					jResponse["values"][ aresp[i][1] ] := aresp[i][2] 
+				EndIf
+			Next 
+	Endif
+	aError := oMdlTab:GetErrorMessage()
+	jResponse["hasError"] := IIF (Empty(aError[6]),.F.,.T.)
+	jResponse["message"] := IIF (Empty(aError[7]),aError[6],aError[7]) 
+
+EndIf
+
+oMdlTab:DeActivate()
+oResponse['result'] := .T.
+oResponse['response'] := jResponse	
+
+Return oResponse
+
+/*/{Protheus.doc} TriggerFormData
+Funcion que ejecuta la regla de la tabla SX7
+@type Function
+@version  1
+@author José González
+@since 01/10/2022
+/*/
+Function TriggerFormData(cCampo,cValor)
+
+Local cdestino
+local cConten
+Local aTrigg :={}	
+local aChave :={}
+local lService := .T.
+
+DbSelectArea("SX7")
+If MSSeek(cCampo)
+While SX7->(!EOF()) .And. Alltrim(SX7->X7_CAMPO) == Alltrim(cCampo)
+	
+
+	aChave:= Separa(SX7->X7_CDOMIN,"_")
+	cdestino := lower(Alltrim(aChave[2]))
+	IF ALLTRIM(SX7->X7_CONDIC) == "LSERVICE" .and. &(SX7->X7_CONDIC)
+		
+		If SX7->X7_Tipo ==	"P"
+		
+			cConten := &(SX7->X7_REGRA) 
+			Aadd(aTrigg,{cdestino,cConten})
+			
+		ElseIf SX7->X7_TIPO == "X"
+
+			DbSelectArea(SX7->X7_ALIAS)
+			DbSetOrder(SX7->X7_ORDEM)
+			DbSeek(&(SX7->X7_CHAVE))
+			cConten := &(SX7->X7_REGRA) 
+			Aadd(aTrigg,{cdestino,cConten})
+
+		EndIf
+	EndIf
+
+	SX7->(DbSkip())
+End
+EndIF
+Return aTrigg

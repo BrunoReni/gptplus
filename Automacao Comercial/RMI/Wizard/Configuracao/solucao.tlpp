@@ -1,0 +1,141 @@
+#INCLUDE "TLPP-CORE.TH"
+#INCLUDE "PROTHEUS.CH"
+#INCLUDE "SHPWIZ.CH"
+
+#DEFINE CRLF CHR(13)+CHR(10)
+
+namespace totvs.protheus.retail.rmi.wizard.configuracao.solucao
+//-------------------------------------------------------------------
+/*/{Protheus.doc} TelaSolucao
+    Construtor de tela de solução do Wizard
+/*/
+//-------------------------------------------------------------------
+Function TelaSolucao(oPanel,oConfigWiz) as Variant
+
+    Local oCombo1   as Object
+    Local oSay1     as Object
+    Local oSay2     as Object
+    Local oSay3     as Object
+    Local oSay4     as Object
+    Local oSay5     as Object
+    Local oSay6     as Object
+    Local oSayMsg   as Object
+
+    //TFont():New( [ cName ], [ uPar2 ], [ nHeight ], [ uPar4 ], [ lBold ], [ uPar6 ], [ uPar7 ], [ uPar8 ], [ uPar9 ], [ lUnderline ], [ lItalic ] )
+    oSay1:= TSay():New(10,20,{||STR0001},oPanel,,oConfigWiz['oTBold'],,,,.T.,,,200,20) //'Configuração de Solução'
+    oSay2:= TSay():New(40,20,{||STR0006},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//"Qual produto TOTVS vamos nos conectar?"
+
+    oCombo1 := TComboBox():New(50,20,{|u|if(PCount()>0,oConfigWiz['cComboProd']:=u,oConfigWiz['cComboProd'])},oConfigWiz['aProdutos'],200,20,oPanel,,{|| },,,,.T.,,,,,,,,,"oConfigWiz['cComboProd']")
+
+    oSay3	:= TSay():New(70,20,{||Iif(Len(oConfigWiz['cComboProd']) > 0, I18n(STR0022,{oConfigWiz['cComboProd']}), "")},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20) //"Para conhecer mais sobre o #1 , Acesse : "
+    oSay4	:= TSay():New(80,20,{||oConfigWiz['aLinks'][AScan(oConfigWiz['aProdutos'],oConfigWiz['cComboProd'])]},oPanel,,oConfigWiz['oTSubl'],,,,.T.,CLR_CYAN,,200,20)
+    oSay4:bLClicked := {|| ShellExecute("open",oConfigWiz['aLinks'][AScan(oConfigWiz['aProdutos'],oConfigWiz['cComboProd'])],"","",1) }
+
+    oConfigWiz["mensagem"] := ""
+    oSayMsg := TSay():New(142,20,{||oConfigWiz["mensagem"]},oPanel,,oConfigWiz['oTFont'],,,,.T.,CLR_HRED,,270,20)
+
+    oSay5:= TSay():New(180,20,{||STR0007},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20) //"Em caso de dúvidas acesse a documentação:"
+    oSay6:= TSay():New(190,20,{||'https://tdn.totvs.com/pages/releaseview.action?pageId=516633428'},oPanel,,oConfigWiz['oTSubl'],,,,.T.,CLR_CYAN,,200,20)
+    oSay6:bLClicked := {|| ShellExecute("open","https://tdn.totvs.com/pages/releaseview.action?pageId=516633428","","",1) }
+
+Return Nil
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} ValidaSolucao
+    Função de validação da tela de solução do Wizard
+/*/
+//-------------------------------------------------------------------
+Function ValidaSolucao(oConfigWiz)
+
+Local oGitArq   := Nil
+Local cAssin    := oConfigWiz['aAssinante'][AScan(oConfigWiz['aProdutos'],oConfigWiz['cComboProd'])]
+Local lExiste   := .F.
+Local lReturn   := .T.
+
+
+If !Empty(cAssin)
+
+    If cAssin == "VENDA DIGITAL"
+        oConfigWiz['oTstAssi'] := RmiEnvVendaDigitalObj():New("WIZARD")
+        If oConfigWiz['oTstAssi']:lSucesso
+            lExiste := .T.
+            oConfigWiz['cUser'] := Padr(oConfigWiz['oTstAssi']:oConfAssin["usuario"],50)
+            oConfigWiz['cSenha']:= Padr(oConfigWiz['oTstAssi']:oConfAssin["senha"],50)
+        EndIf
+    EndIf
+    If !lExiste //se não existe o assinante configurado, procura o mesmo no GITHUB
+        oConfigWiz['arquivosGit'] := RmiGetLayObj():New("https://api.github.com/repos/totvs/protheus-smart-hub-layouts/contents/"+Alltrim(Lower(cAssin)))
+
+        oConfigWiz['arquivosGit']:GetArq("configuracao_assinante")
+        If oConfigWiz['arquivosGit']:lSucesso
+
+            oGitArq := JsonObject():New()
+            oGitArq:FromJson(oConfigWiz['arquivosGit']:cList)
+            oConfigWiz['oTstAssi']:cAssinante   := cAssin 
+            oConfigWiz['oTstAssi']:oConfAssin   := JsonObject():New()
+            oConfigWiz['oTstAssi']:oConfAssin:FromJson(HttpGet(oGitArq[1]['download_url']))
+
+        Else
+            LjGrvLog(" SHPGetLay ","Falha na carga da lista dos arquivos de Layout"+" : "+oConfigWiz['arquivosGit']:cRetorno) //"Falha na carga da lista dos arquivos de Layout"
+            If oConfigWiz['arquivosGit']:ogit:oresponseh:cStatuscode == "403"
+                oConfigWiz["mensagem"] := STR0032                                   //"Limite de solicitações excedido. Tente novamente dentro de 1 hora"
+            Else
+                oConfigWiz["mensagem"] := STR0033 + CRLF + I18n(STR0034, {"TDN"})   //"Falha na carga da lista dos arquivos de Layout!"     //"Verifique se o Assinante digitado está correto ou na lista de inclusão automática no #1."
+            EndIf    
+            lReturn := .F.      
+        EndIf
+
+    EndIf
+Else
+    oConfigWiz["mensagem"] := STR0035   //"Por favor, selecione um produto especificado na lista."
+    lReturn := .F.   
+EndIf
+
+//Cria o campo S_T_A_M_P_ nas tabelas de integração
+If lReturn
+    Processa( {|| lReturn := validaStamp(oConfigWiz)}, STR0040, STR0028) //"Criando os campos S_T_A_M_P_ nas tabelas de integração", "Aguarde. . ." 
+EndIf
+
+Return lReturn
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} validaStamp
+Cria o campo S_T_A_M_P_ nas tabelas de integração
+
+@author  Rafael Tenorio da Costa
+@since   30/03/2023
+@version 1.0
+/*/
+//-------------------------------------------------------------------
+Function validaStamp(oConfigWiz,aTabelas) as Logical
+
+    Local lRetorno  := .T.  as Logical
+    Local nCont     := 0    as Numeric
+    Local cErro     := ""   as Character
+    Local cTabelas  := ""   as Character
+
+    Default aTabelas := StrTokArr("ACU|ACV|CLK|DA0|DA1|F0G|MEN|MEU|MEV|MIH|MIL|SA1|SA2|SA6|SAE|SAH|SB1|SB2|SB5|SB7|SBV|SD1|SD2|SE5|SF1|SF2|SL1|SL2|SL4|SLK|SYD", "|")
+
+    If ExistFunc("FwEnableStamp")
+        
+        For nCont:=1 To Len(aTabelas)
+            IncProc()
+            If !FwEnableStamp( aTabelas[nCont] )
+                cTabelas += aTabelas[nCont] + ","
+            EndIf
+        Next nCont
+
+        cTabelas := SubStr(cTabelas, 1, Len(cTabelas) - 1)
+        cErro    := IIF( Empty(cTabelas), "",  I18n(STR0030 + CRLF + STR0036, {"S_T_A_M_P_", cTabelas}) )   //"Não foi possível criar o campo #1 nas tabelas: #2."  "Execute a rotina novamente com acesso exclusivo!"
+    Else
+
+        cErro := I18n(STR0031, {"FwEnableStamp", "LIB"})    //"Ops, função #1 não existe, efetue a atualização da #2 para prosseguir!"
+    EndIf
+
+    If !Empty(cErro)
+        lRetorno               := .F.
+        oConfigWiz["mensagem"] := cErro
+    EndIf
+
+
+Return lRetorno

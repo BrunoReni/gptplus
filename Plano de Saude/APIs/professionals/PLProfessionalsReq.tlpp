@@ -1,0 +1,79 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLProfessionalsReq
+Realiza a manutencao de profissinais de saude - Request
+
+@author  sakai
+@version P12
+@since   08/02/2023
+/*/
+//------------------------------------------------------------------- 
+class PLProfessionalsReq from CenRequest 
+
+    Data oSvc as Object 
+
+    Public Method New()
+    Public Method valida()
+    Public Method procPost()
+    
+endClass
+
+Method New(oRest) class PLProfessionalsReq
+
+    _Super:New(oRest)
+    self:oSvc := PLProfessionalsSvc():new()
+    self:oSvc:setObjRequest(self:jRequest)
+
+Return self
+
+Method valida() class PLProfessionalsReq
+
+    Local lValid := .T.
+    _Super:checkBody()
+    
+    if self:lSuccess
+        lValid := self:oSvc:vldJson()
+        if lValid 
+            self:lSuccess  := .T.
+            self:cResponse := self:oSvc:getResult()
+            self:nStatus   := self:oSvc:getStatusCode()
+        else
+            oErrorAux         := self:oSvc:getError()
+            self:lSuccess     := .F.
+            self:nFault       := oErrorAux['status']
+            self:nStatus      := oErrorAux['status']
+            self:cFaultDesc   := oErrorAux['message']
+            self:cFaultDetail := oErrorAux['detailedMessage']
+        endIf
+       
+    else
+        self:lSuccess   := .F.
+        self:nFault     := 400
+        self:nStatus    := 400
+        self:cFaultDesc := "Requisição invalida."
+    endif
+
+Return self:lSuccess
+
+Method procPost() class PLProfessionalsReq
+
+    if self:lSuccess
+        
+        if self:oSvc:procPost()
+            self:lSuccess  := .T.
+            self:cResponse := self:oSvc:getResult()
+            self:nStatus   := self:oSvc:getStatusCode()
+        else
+            oErrorAux         := self:oSvc:getError()
+            self:lSuccess     := .F.
+            self:nFault       := oErrorAux['status']
+            self:nStatus      := oErrorAux['status']
+            self:cFaultDesc   := oErrorAux['message']
+            self:cFaultDetail := oErrorAux['detailedMessage']
+        endIf
+
+    endIf
+
+Return

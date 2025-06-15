@@ -1,0 +1,59 @@
+#include "tlpp-core.th"
+#INCLUDE "FWMVCDEF.CH"
+
+namespace ac.TableTempory.Repository
+
+Class acTableTemporyRepository
+  	public method New()
+	public method doesTableIdExist()
+	public method deletedTableId()
+EndClass
+
+method new() Class acTableTemporyRepository
+
+return Self
+
+/*/{Protheus.doc} acTableTemporyRepository:doesTableIdExist()
+    Metodo responsavel por verificar se existe a tabela com o nome informado
+    @type  Metodo
+    @author samuel.macedo
+    @since  Março 12, 2021
+    @version 12.1.27
+/*/
+Method doesTableIdExist(cTable) CLASS acTableTemporyRepository
+
+Local lRet    as Logical
+
+lRet := .F.
+
+If TcCanOpen(cTable)
+	lRet := .T.
+Endif	
+
+Return lRet
+
+
+/*/{Protheus.doc} acTableTemporyRepository:deletedTableId()
+    Metodo responsavel pela exclusão da tabela do banco
+    @type  Metodo
+    @author samuel.macedo
+    @since  Março 12, 2021
+    @version 12.1.27
+/*/
+Method deletedTableId(cTable) CLASS acTableTemporyRepository
+
+Local lRet    as Logical
+
+lRet := .F.
+
+(cTable)->(dbCloseArea())
+
+If TcDelFile(cTable)
+	lRet := .T.
+Endif	
+
+Return lRet
+
+
+
+

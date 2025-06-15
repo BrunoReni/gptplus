@@ -1,0 +1,217 @@
+#INCLUDE "SHPWIZ.CH"
+#INCLUDE "TLPP-CORE.TH"
+#INCLUDE "PROTHEUS.CH"
+#INCLUDE 'FWMVCDEF.CH'
+#DEFINE MIMFUNCOES  7
+#DEFINE MHNGATILH   8
+namespace totvs.protheus.retail.rmi.wizard.configuracao.credenciais
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} TelaCredenciais
+    Construtor de tela de Credenciais do Wizard
+/*/
+//-------------------------------------------------------------------
+Function TelaCredenciais(oPanel,oConfigWiz) as Variant
+
+    Local oSay1     as Object
+    Local oSay2     as Object
+    Local oSay3     as Object
+    Local oSay4     as Object
+    Local oSay5     as Object
+    Local oSay6     as Object
+    Local oGet1     as Object
+    Local oGet2     as Object
+    Local oSayMsg   as Object
+
+    If !oConfigWiz:HasProperty("cUser")
+        oConfigWiz['cUser'] := Space(50)
+    EndIf
+
+    If !oConfigWiz:HasProperty("cSenha")
+        oConfigWiz['cSenha'] := Space(50)
+    EndIf
+	
+	If !oConfigWiz:HasProperty("cFil")
+        oConfigWiz['cFil'] := Space(50)
+    EndIf
+    
+	oSay1:= TSay():New(10,20,{||STR0002},oPanel,,oConfigWiz['oTBold'],,,,.T.,,,200,20)//'Configuração de Credenciais'
+
+    oSay2:= TSay():New(40,20,{||I18n(STR0008,{oConfigWiz['cComboProd']})},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//"Informe suas credenciais do #1 "
+
+    oSay3:= TSay():New(62,20,{||STR0009},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//"Usuário: "
+    oGet1:= TGet():New(60,50,{|u| if( PCount() > 0, oConfigWiz['cUser'] := u, oConfigWiz['cUser']) } ,oPanel,110,010, ,,0,,,.F.,,.T.,,.F.,,.F.,.F.,,.F.,.F.,,oConfigWiz['cUser'],,,, )
+
+    oSay4:= TSay():New(82,20,{||STR0010},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//"Senha: "
+    oGet2:= TGet():New(80,50,{|u| if( PCount() > 0, oConfigWiz['cSenha'] := u, oConfigWiz['cSenha'] ) } ,oPanel,110,010, ,,0,,,.F.,,.T.,,.F.,,.F.,.F.,,.F.,.T.,,oConfigWiz['cSenha'],,,,)
+
+
+    oConfigWiz["mensagem"] := ""
+    oSayMsg := TSay():New(142,20,{||oConfigWiz["mensagem"]},oPanel,,oConfigWiz['oTFont'],,,,.T.,CLR_HRED,,250,20)
+
+    oSay5:= TSay():New(180,20,{||STR0007},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//'Em caso de dúvidas acesse a documentação:'
+    oSay6:= TSay():New(190,20,{||STR0025},oPanel,,oConfigWiz['oTSubl'],,,,.T.,CLR_CYAN,,200,20)//'https://tdn.totvs.com/pages/releaseview.action?pageId=516633428'
+    oSay6:bLClicked := {|| ShellExecute("open",STR0026,"","",1) }//"https://tdn.totvs.com/pages/releaseview.action?pageId=516633428"
+
+Return Nil
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} ValidaCredenciais
+    Função de validação da tela de Credenciais do Wizard
+/*/
+//-------------------------------------------------------------------
+Function ValidaCredenciais(oConfigWiz)
+
+Local cAssin  := oConfigWiz['aAssinante'][AScan(oConfigWiz['aProdutos'],oConfigWiz['cComboProd'])] 
+Local lReturn   := .T.
+
+
+//VALIDAÇÃO DE CREDENCIAIS DO VENDA DIGITAL
+IF cAssin == "VENDA DIGITAL"
+
+	oConfigWiz['oTstAssi']:cToken   := ""
+	oConfigWiz['oTstAssi']:oConfAssin["usuario"]	:= Alltrim(oConfigWiz['cUser'])
+	oConfigWiz['oTstAssi']:oConfAssin["senha"]		:= Alltrim(oConfigWiz['cSenha'])
+	oConfigWiz['oTstAssi']:oConfAssin["FilWizard"]	:= Alltrim(oConfigWiz['cFil'])
+	oConfigWiz['oTstAssi']:PreExecucao()
+
+	If !oConfigWiz['oTstAssi']:lSucesso
+        If "400" $ oConfigWiz['oTstAssi']:cRetorno
+            oConfigWiz["mensagem"] := STR0024    //'E-Mail e/ou senha inválidos'
+        else
+            oConfigWiz["mensagem"] := I18n(STR0039,{oConfigWiz['oTstAssi']:oConfAssin["url_token"],oConfigWiz['cComboProd']})    //'"Não foi possivel enviar a requisição ao endpoint (#1), para o produto #2. Verifique se está conectado a internet e liberado para requisições externas.'
+        EndIF
+
+		lReturn   := .F.
+	Else
+		//caso sucesso, informo usuario, senha e token validados na configuração de assinante
+		MHO->( DbSetOrder(1) )  //MHO_FILIAL + MHO_COD
+		If !MHO->( DbSeek( xFilial("MHO") + PadR(oConfigWiz['oTstAssi']:cAssinante, TamSx3("MHO_COD")[1]) ) )
+			lReturn   := PSHProcXAssin(cAssin, oConfigWiz)
+			If lReturn
+				oConfigWiz['oTstAssi']:SalvaConfig()
+                oConfigWiz['oTstAssi']:cAssinante := cAssin
+			EndIf	
+		EndIf			
+
+        oConfigWiz["mensagem"] := ""
+	EndIf
+EndIf
+ 
+Return lReturn
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PSHProcXAssi
+    Carregando Processos Padrões e Assinantes.
+/*/
+//-------------------------------------------------------------------
+Function PSHProcXAssin(cAssin, oConfigWiz)
+Local lRet		:= .T.
+Default cAssin := ""
+
+
+Processa( {|| RmiCargaPr(),AjustaProcesso(cAssin)}, STR0027, STR0028 )   //"Carregando Processos Padrões"   //"Aguarde. . ."
+Processa( {|| lRet := AssinXProc(cAssin, oConfigWiz)}, STR0029, STR0028 )   //"Carregando Assinantes x Processos"   //"Aguarde. . ."
+
+return lRet
+//-------------------------------------------------------------------
+/*/{Protheus.doc} AssinXProc
+    Função para cadastrar Assinantes e processos.
+/*/
+//-------------------------------------------------------------------
+Static Function AssinXProc(cAssin, oConfigWiz)
+Local oModel   	:= FWLoadModel( 'RMICADASSI' )
+Local oModelMHP :=nil
+
+Default cAssin 	:= ""
+
+
+oModel:SetOperation( MODEL_OPERATION_INSERT )
+oModel:Activate()
+
+oModel:SetValue("MHOMASTER","MHO_COD" ,cAssin)
+oModelMHP := oModel:GetModel("MHPDETAIL")
+
+
+If oModel:VldData()
+	oModel:CommitData()
+	lRet:= .T.
+	oConfigWiz['cFil'] := SM0->M0_CODFIL
+    oConfigWiz['oTstAssi']:cAssinante := oModel:GetValue("MHOMASTER","MHO_COD") 
+Else
+	If Alltrim(oModel:GetErrorMessage()[5]) == "JAGRAVADO"
+		lRet := .T.
+		oConfigWiz['cFil'] := SM0->M0_CODFIL
+	else
+		lRet := .F.
+	EndIf
+    RollBackSx8()
+	oConfigWiz["mensagem"] := oModel:GetErrorMessage()[6]
+EndIf
+
+oModel:DeActivate()
+oModel:Destroy()
+
+Return lRet
+//-------------------------------------------------------------------
+/*/{Protheus.doc} AjustaProcesso
+    Carregando Processos Padrões e Assinantes.
+	Atualiza os processos.
+/*/
+//-------------------------------------------------------------------
+Static Function AjustaProcesso(cAssin)
+Local aArea      := GetArea()
+Local aProcessos := {}
+Local aTabSecund := {}
+Local aFuncoes   := {}
+Local nProc      := 1
+Local lCmpMhnFil := MHN->( ColumnPos("MHN_FILTRO")  ) > 0
+Local lCmpMhnSec := MHN->( ColumnPos("MHN_SECOBG")  ) > 0
+Local lMIM       := FwAliasInDic("MIM")
+Local lCmpDescri := .F.
+Local lCmpAtivo  := .F.
+
+If lMIM
+	lCmpDescri := MIM->( ColumnPos("MIM_DESCRI") ) > 0
+	lCmpAtivo  := MIM->( ColumnPos("MIM_ATIVO" ) ) > 0
+EndIf
+
+If cAssin == "VENDA DIGITAL"
+	aTabSecund := {}
+	aFuncoes := {}
+	Aadd(aProcessos, {"PRODUTO", "SB1", "B1_FILIAL+B1_COD", aClone(aTabSecund), "B1_TIPO = 'PA'", "", aClone(aFuncoes)})
+EndIf
+
+Begin Transaction
+
+	For nProc:=1 To Len(aProcessos)
+
+		IncProc()
+		
+		If MHN->( Dbseek( xFilial("MHN") + PadR(aProcessos[nProc][1], TamSx3("MHN_COD")[1]) ) )
+
+			RecLock("MHN", .F.)
+				MHN->MHN_FILIAL := xFilial("MHN")
+				MHN->MHN_COD    := aProcessos[nProc][1]
+				MHN->MHN_TABELA := aProcessos[nProc][2]
+				MHN->MHN_CHAVE  := aProcessos[nProc][3]
+
+				If lCmpMhnFil  .And. Len(aProcessos[nProc]) > 4
+					MHN->MHN_FILTRO := aProcessos[nProc][5]
+				EndIf
+
+				If lCmpMhnSec  .And. Len(aProcessos[nProc]) > 5
+					MHN->MHN_SECOBG := aProcessos[nProc][6]
+				EndIf
+			MHN->( MsUnLock() )
+		EndIf
+	Next nProc
+
+End Transaction
+
+
+FwFreeArray(aProcessos)
+FwFreeArray(aTabSecund)
+FwFreeArray(aFuncoes  )
+RestArea(aArea)
+
+Return

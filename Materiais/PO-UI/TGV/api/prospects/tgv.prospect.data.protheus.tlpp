@@ -1,0 +1,267 @@
+#include 'tlpp-core.th'
+
+namespace totvs.protheus.backoffice.tgvProspects
+using namespace tgv.util
+
+#DEFINE LABEL 1
+#DEFINE VALUE 2
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} ProspectProtheusData
+	Efetua a consulta dos Prospects no Protheus.
+	@type class
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 03/03/2021
+/*/
+//------------------------------------------------------------------------------
+class ProspectProtheusData from FWAdapterBaseV2
+	public method new() as object
+	public method get()
+	public method RowToJson()
+endClass
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} ProspectProtheusData::new() as Object
+	obtem uma nova instancia da classe ProspectProtheusData
+	@type method
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 03/03/2021
+	@return object, nova intancia da classe ProspectProtheusData
+/*/
+//------------------------------------------------------------------------------
+method new() as object class ProspectProtheusData
+	_Super:New( "GET", .T. )
+return self
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} ProspectProtheusData::get
+	Obtem uma Lista de Prospects
+	@type method
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 03/03/2021
+	@param nPage, numeric, número da página
+	@param nPageSize, numeric, Quantidade de registros por página
+	@param aURLFilter , array, Lista de Filtros no padrão do FWAdapterBaseV2
+	@param cFields, character, Lista de campos que devem ser retornados
+	@param cSort, character, Ordernação do Response
+	@param cCode, character, Código do Prospect
+	@param cStore, character, Loja do Prospect
+	@param cQuickFilter, Character, Filtro rápido a ser aplicado na lista de produtos a ser retornada
+/*/
+//------------------------------------------------------------------------------
+method get(	nPage as Numeric    , nPageSize as Numeric, aURLFilter as Array, ;
+			cFields as Character, cSort as Character  , cCode as Character , ;
+			cStore as Character , cQuickFilter as Character) CLASS ProspectProtheusData
+	local aArea 	 := GetArea()   as array
+	local cSeller	                as character
+	local isAdmin	 := FWIsAdmin() as logical
+	local cInnerJoin := ""          as character
+
+	default cQuickFilter := ""
+
+	AddMapFieldsSUS( self, .f. )
+
+	if cQuickFilter $ "BUDGETONLASTMONTH|BUDGETONLASTTHREEMONTH|WITHOUTBUDGETONLASTTHREEMONTH"
+		cInnerJoin += " #TYPEINNER JOIN ("
+		cInnerJoin += " 	SELECT "
+		cInnerJoin += " 		SCJ.CJ_PROSPE, "
+		cInnerJoin += " 		SCJ.CJ_LOJPRO "
+		cInnerJoin += " 	FROM " 
+		cInnerJoin += " 		" + RetSQLName("SCJ") + " SCJ "
+		cInnerJoin += " 	WHERE "
+		cInnerJoin += " 		SCJ.D_E_L_E_T_ = ' ' "
+		cInnerJoin += " 			AND "
+		cInnerJoin += " 		SCJ.CJ_FILIAL = '" + XFilial("SCJ") + "' "
+		cInnerJoin += " 			AND "
+		cInnerJoin += "		 	#PERIOD "
+		cInnerJoin += " 	GROUP BY "
+		cInnerJoin += " 		SCJ.CJ_PROSPE, "
+		cInnerJoin += " 		SCJ.CJ_LOJPRO "
+		cInnerJoin += "			 ) SCJGROUP "
+		cInnerJoin += "		ON "
+		cInnerJoin += "			SCJGROUP.CJ_PROSPE = SUS.US_COD "
+		cInnerJoin += " 			AND "
+		cInnerJoin += "			SCJGROUP.CJ_LOJPRO = SUS.US_LOJA "
+
+		do case
+			case cQuickFilter == "BUDGETONLASTMONTH"
+				cInnerJoin := StrTran(cInnerJoin, "#PERIOD", "SCJ.CJ_EMISSAO >= '" + DToS(dDataBase - 30) + "' ")
+				cInnerJoin := StrTran(cInnerJoin, "#TYPEINNER", "INNER")
+			case cQuickFilter == "BUDGETONLASTTHREEMONTH"
+				cInnerJoin := StrTran(cInnerJoin, "#PERIOD", "SCJ.CJ_EMISSAO >= '" + DToS(dDataBase - 90) + "' ")
+				cInnerJoin := StrTran(cInnerJoin, "#TYPEINNER", "INNER")
+			case cQuickFilter == "WITHOUTBUDGETONLASTTHREEMONTH"
+				cInnerJoin := StrTran(cInnerJoin, "#PERIOD", "SCJ.CJ_EMISSAO >= '" + DToS(dDataBase - 90) + "' ")
+				cInnerJoin := StrTran(cInnerJoin, "#TYPEINNER", "LEFT")
+	endcase
+	EndIf
+
+	::setPage(nPage)
+	::setPageSize(nPageSize)
+	::SetQuery( GetQueryTGV("SUS", cInnerJoin) )
+
+	If Empty( cCode ) .and. Empty( cStore ) .And. Len( aURLFilter ) > 0
+		::SetUrlFilter( aURLFilter )
+	Endif
+
+	If !Empty( cSort )
+		::SetOrderQuery( cSort )
+	EndIf
+
+	If !Empty( cFields )
+		::SetFields( cFields )
+	Endif
+
+	::SetWhere( getProspectFilter(isAdmin, /*cDateSync*/, cCode, cStore, @cSeller, .T., /*lSync*/, cQuickFilter))
+	::SetOrder("SUS.US_FILIAL, SUS.US_COD, SUS.US_LOJA" )
+
+	If canExecutewithUser(isAdmin, cSeller) .and. ::Execute()
+		::FillGetResponse()
+	EndIf
+
+	RestArea( aArea )
+	aSize( aArea, 0 )
+return nil
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} ProspectProtheusData::RowToJson
+	Efetua a conversão da consulta SQL em um objeto JSON
+	@type method
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 03/03/2021
+	@param cAlias, character, Retorno da consulta
+	@param aFields, array, Lista de Campos utilizados no retorno
+	@param lEmpty, logical, Parametro reservado
+/*/
+//------------------------------------------------------------------------------
+method RowToJson( cAlias As character, aFields as array, lEmpty as logical) class ProspectProtheusData
+	local nLoop		as integer
+	local cContent	as character
+
+	if (cAlias)->(!Eof()) .And. (cAlias)->(!Bof()) .or. ::oJsonObj:lList
+		for nLoop := 1 to len( aFields )
+			cContent := ::ValueToJson( aFields[nLoop, LABEL], (cAlias)->( &(aFields[nLoop, VALUE])))
+			self:oJsonObj:setProp( aFields[nLoop, LABEL], cContent, lEmpty  )
+		next
+
+		if canConvertField(cAlias, 'US_FILIAL') .and. canConvertField(cAlias, 'US_COD') .and. canConvertField(cAlias, 'US_LOJA')
+			Self:oJsonObj:setProp( "internalid"	, rtrim((cAlias)->US_FILIAL + (cAlias)->US_COD + (cAlias)->US_LOJA) , .F. )
+		endif
+	endIf
+return nil
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} AddMapFieldsSUS
+	Cria o Mapa de campos Protheus x API - SUS - Prospects
+	@type function
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 03/03/2022
+	@param oSelf, object, Objeto com herança da classe FWAdapterBaseV2
+	@param isSync, logical, Utiliza versão do PO-SYNC
+/*/
+//------------------------------------------------------------------------------
+function AddMapFieldsSUS( oSelf as object, isSync as logical )
+	Local aInternalId  := GetInternalId( { "US_FILIAL", "US_COD", "US_LOJA" } )
+
+	if isSync
+		oSelf:AddMapFields( "internalid"		, "internalid"  , .T., .T., { "internalid"  , 'C', aInternalId[1]				, 0 }, "' '")
+		oSelf:AddMapFields( "deleted"			, "deleted"     , .T., .F., { "deleted"   	, 'C', 1							, 0 }, "SUS.D_E_L_E_T_" )
+	Endif
+
+	oSelf:AddMapFields( "branch"                , "US_FILIAL" 	, .T., .F., { "US_FILIAL" , 'C', GetFieldLength("US_FILIAL")	, 0 } )
+	oSelf:AddMapFields( "code"                  , "US_COD"	    , .T., .F., { "US_COD"    , 'C', GetFieldLength("US_COD")		, 0 } )
+	oSelf:AddMapFields( "store"                 , "US_LOJA"     , .T., .F., { "US_LOJA"	  , 'C', GetFieldLength("US_LOJA")	 	, 0 } )
+	oSelf:AddMapFields( "name"                  , "US_NOME"   	, .T., .F., { "US_NOME"   , 'C', GetFieldLength("US_NOME")	    , 0 } )
+	oSelf:AddMapFields( "fantasy"               , "US_NREDUZ"	, .T., .F., { "US_NREDUZ" , 'C', GetFieldLength("US_NREDUZ")	, 0 } )
+	oSelf:AddMapFields( "prospecttype"			, "US_TIPO"		, .T., .F., { "US_TIPO"	  , 'C', GetFieldLength("US_TIPO")	    , 0 } )
+	oSelf:AddMapFields( "cgc"					, "US_CGC"		, .T., .F., { "US_CGC"	  , 'C', GetFieldLength("US_CGC")	    , 0 } )
+	oSelf:AddMapFields( "cnae"					, "US_CNAE"		, .T., .F., { "US_CNAE"	  , 'C', GetFieldLength("US_CNAE")	    , 0 } )
+	oSelf:AddMapFields( "vendor"				, "US_VEND"		, .T., .F., { "US_VEND"	  , 'C', GetFieldLength("US_VEND")	    , 0 } )
+	if cPaisLoc == "BRA"
+		oSelf:AddMapFields( "citycode"				, "US_COD_MUN"	, .T., .F., { "US_COD_MUN", 'C', GetFieldLength("US_COD_MUN")	, 0 } )
+		oSelf:AddMapFields( "persontype"			, "US_PESSOA"	, .T., .F., { "US_PESSOA" , 'C', GetFieldLength("US_PESSOA")	, 0 } )
+		oSelf:AddMapFields( "estadualregistration"  , "US_INSCR"	, .T., .F., { "US_INSCR"  , 'C', GetFieldLength("US_INSCR")	    , 0 } )
+	endIf
+	oSelf:AddMapFields( "city"					, "US_MUN"		, .T., .F., { "US_MUN"	  , 'C', GetFieldLength("US_MUN")		, 0 } )
+	oSelf:AddMapFields( "neighborhood"			, "US_BAIRRO"	, .T., .F., { "US_BAIRRO" , 'C', GetFieldLength("US_BAIRRO")	, 0 } )
+	oSelf:AddMapFields( "address"				, "US_END"		, .T., .F., { "US_END"	  , 'C', GetFieldLength("US_END")		, 0 } )
+	oSelf:AddMapFields( "zipcode"				, "US_CEP"		, .T., .F., { "US_CEP"	  , 'C', GetFieldLength("US_CEP")		, 0 } )
+	oSelf:AddMapFields( "uf"					, "US_EST"		, .T., .F., { "US_EST"	  , 'C', GetFieldLength("US_EST")		, 0 } )
+	oSelf:AddMapFields( "ddi"					, "US_DDI"		, .T., .F., { "US_DDI"	  , 'C', GetFieldLength("US_DDI")		, 0 } )
+	oSelf:AddMapFields( "ddd"					, "US_DDD"		, .T., .F., { "US_DDD"	  , 'C', GetFieldLength("US_DDD")		, 0 } )
+	oSelf:AddMapFields( "phone"					, "US_TEL"		, .T., .F., { "US_TEL"	  , 'C', GetFieldLength("US_TEL")		, 0 } )
+	oSelf:AddMapFields( "email"					, "US_EMAIL"	, .T., .F., { "US_EMAIL"  , 'C', GetFieldLength("US_EMAIL")	    , 0 } )
+	oSelf:AddMapFields( "country"				, "US_PAIS"		, .T., .F., { "US_PAIS"	  , 'C', GetFieldLength("US_PAIS")	    , 0 } )
+	oSelf:AddMapFields( "creditlimit"			, "US_LC"		, .T., .F., { "US_LC"	  , 'N', GetFieldLength("US_LC")		, GetFieldDecimal("US_LC") } )
+	oSelf:AddMapFields( "inclusiondate"			, "US_DTCAD"	, .T., .F., { "US_DTCAD"  , 'D', GetFieldLength("US_DTCAD")	    , 0 } )
+	oSelf:AddMapFields( "status"				, "US_MSBLQL"	, .T., .F., { "US_MSBLQL" , 'C', GetFieldLength("US_MSBLQL")	, 0 } )
+	oSelf:AddMapFields( "currentstatus"			, "US_STATUS"	, .T., .F., { "US_STATUS" , 'C', GetFieldLength("US_STATUS")	, 0 } )
+
+	aSize(aInternalId, 0)
+return nil
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} getProspectFilter
+	obtem o filtro utilizado para filtrar os prospects (sem aURLFilter )
+	@type function
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 19/01/2022
+	@param isAdmin, logical, usuário é administrador do sistema?
+	@param cDateSync, character, data de sincronismo
+	@param cCode, character, código do prospect
+	@param cStore, character, loja do prospect
+	@param cSeller, character, Código do Vendedor
+	@param lShowError, logical, Exibir Erro quando vendedor não é localizado
+	@param lSync, logical, valida se terá filtro para pgv Offline
+	@param cQuickFilter, Character, Filtro rápido a ser aplicado na lista de produtos a ser retornada
+	@return character, Expressão SQL utilizado para filtrar um prospect
+	
+/*/
+//------------------------------------------------------------------------------
+function getProspectFilter(	isAdmin as logical  , cDateSync as character, cCode as character, cStore as character, ;
+							cSeller as character, lShowError as logical , lSync as logical  , cQuickFilter as character) as character
+	local cFilter as character
+
+	default lSync := .F.
+	default cQuickFilter := ""
+
+	cFilter := " SUS.US_FILIAL = '" + FwXFilial("SUS") + "'"
+
+	If cQuickFilter == "WITHOUTBUDGETONLASTTHREEMONTH"
+		cFilter += " AND SCJGROUP.CJ_PROSPE IS NULL"
+	EndIf
+
+	If !(Empty(cCode) .And. Empty(cStore))
+		cFilter += " AND SUS.US_COD = '" + cCode + "'"
+		cFilter += " AND SUS.US_LOJA = '" + cStore + "'"
+	Endif
+
+	If !isAdmin
+		If !Empty(cSeller := getSellerFromFilter(isAdmin, lShowError))
+			cFilter += " AND SUS.US_VEND = '" + cSeller + "' "
+		EndIf
+	EndIf
+
+	If !Empty(cDateSync) .And. SubStr(cDateSync, 1, 1) != '-'
+		cFilter += " AND SUS.S_T_A_M_P_ > " + ConvertTimeStamp( cDateSync, "value", "timestamp" )
+	Else
+		cFilter += " AND SUS.D_E_L_E_T_ = ' ' "
+	EndIf
+
+	If lSync 		
+		cSeller := getSellerFromFilter(.F.,.T.) 
+
+		cFilter += " AND AQ4.AQ4_FILIAL = '" + FwXFilial("AQ4") + "'"
+		cFilter += " AND AQ4.AQ4_VEND   = '" + cSeller + "'"
+		cFilter += " AND AQ4.AQ4_SCHEMA = '000016'"
+		cFilter += " AND AQ4.AQ4_DATA   = '"+DTOS(Date())+"'"
+		cFilter += " AND AQ4.D_E_L_E_T_ = ' '"
+	EndIf
+
+return cFilter

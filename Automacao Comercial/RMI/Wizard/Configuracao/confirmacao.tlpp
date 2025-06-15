@@ -1,0 +1,37 @@
+#INCLUDE "TLPP-CORE.TH"
+#INCLUDE "PROTHEUS.CH"
+#INCLUDE "SHPWIZ.CH"
+namespace totvs.protheus.retail.rmi.wizard.configuracao.confirmacao
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Telaconfirmacao
+    Construtor de tela de confirmação do Wizard
+/*/
+//-------------------------------------------------------------------
+Function Telaconfirmacao(oPanel,oConfigWiz)
+Local oSay2
+Local oSay3
+Local oSay4
+
+oSay1:= TSay():New(30,20,{||STR0020},oPanel,,oConfigWiz['oTBold'],,,,.T.,,,200,20)//"Tudo Pronto!!"
+oSay2:= TSay():New(60,20,{||I18n(STR0021,{oConfigWiz['cComboProd']})},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,300,20)//"Sua configuração da integração com o #1 está finalizada."
+
+oSay3:= TSay():New(230,20,{||STR0007},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//'Em caso de dúvidas acesse a documentação:'
+oSay4:= TSay():New(240,20,{||'https://tdn.totvs.com/pages/releaseview.action?pageId=516633428'},oPanel,,oConfigWiz['oTSubl'],,,,.T.,CLR_CYAN,,200,20)
+oSay4:bLClicked := {|| ShellExecute("open","https://tdn.totvs.com/pages/releaseview.action?pageId=516633428","","",1) }
+
+Return
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Validaconfirmacao
+    Função de validação da tela de confirmação do Wizard
+/*/
+//-------------------------------------------------------------------
+Function Validaconfirmacao(oConfigWiz)
+
+If oConfigWiz['oTstAssi']['cAssinante'] == "VENDA DIGITAL"
+    If MSGNOYES(STR0038,oConfigWiz['oTstAssi']['cAssinante'])//"Deseja configurar uma nova loja para o VENDA DIGITAL ?" 
+        PSHWizard()
+    EndIf
+EndIf
+
+Return .T.

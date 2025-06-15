@@ -1,0 +1,46 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSAuthorizationsDaoBEG
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSAuthorizationsDaoBEG from PLSAuthorizationsDao
+
+    Public Method New()
+    Public Method buscaCrit(cSequen)
+
+EndClass
+
+
+Method New(cGuia) class PLSAuthorizationsDaoBEG
+    
+    _Super:New(cGuia)
+
+Return self
+
+
+Method buscaCrit(cSequen) class PLSAuthorizationsDaoBEG
+
+    Local cQuery := ""
+    Local lFound := .F.
+
+    cQuery += " SELECT BEG_SEQUEN, BEG_CODGLO, BEG_SEQCRI, " 
+    cQuery += " BEG_DESGLO "
+    cQuery += " FROM " + RetSqlName("BEG")+" BEG "
+    cQuery += " WHERE BEG_FILIAL = '" + xFilial("BEG") +"' "	
+    cQuery += " AND BEG_OPEMOV = '" + Substr(self:cGuia,01,04) + "' "
+    cQuery += " AND BEG_ANOAUT = '" + Substr(self:cGuia,05,04) + "' "
+    cQuery += " AND BEG_MESAUT = '" + Substr(self:cGuia,09,02) + "' "
+    cQuery += " AND BEG_NUMAUT = '" + Substr(self:cGuia,11,08) + "' "
+    cQuery += " AND BEG_SEQUEN = '" + cSequen + "' "
+    cQuery += " AND BEG.D_E_L_E_T_ = ' ' "
+    
+    self:setQuery(cQuery)
+	lFound := self:executaQuery()
+
+Return lFound

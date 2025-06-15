@@ -1,0 +1,269 @@
+#include "tlpp-core.th"
+#include "backoffice.reconciliation.conciliateitems.data.protheus.ch"
+
+namespace totvs.protheus.backoffice.reconciliation.reconciliationitems
+using namespace totvs.protheus.backoffice.reconciliation.util
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} ReconciliationItemsProtheusData
+Classe responsável pela consulta de dados
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+class ReconciliationItemsProtheusData from FWAdapterBaseV2
+    Public method new()
+    Public method getAll()
+    Public  method tcRetSQLExpression()
+    static method getData() As object
+endclass
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} ReconciliationItemsProtheusData
+Metodo construtor
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method new(cVerbo as Character, lList as Logical) Class ReconciliationItemsProtheusData
+    Default cVerbo := "GET"
+    Default lList  := .T.
+    _Super:New(cVerbo, lList)
+return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} ReconciliationItemsProtheusData
+Método para chamada e validação do tratamento de dados
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method getData() class ReconciliationItemsProtheusData As Object
+    static __oActiveData As Object
+
+    If ValType(__oActiveData) == "U"
+        __oActiveData := ReconciliationItemsProtheusData():new()
+    EndIf
+return __oActiveData
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getAll
+Metodo responsável pela busca das configuracoes do conciliador
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method getAll(nPage as Numeric, nPageSize as Numeric, aFieldsApi as Array, cCodcfg as Character,;
+ cMatch as Character, cCodCon as Character, cFilPos as Character, cResponse as Character) class ReconciliationItemsProtheusData
+    Local aArea     := GetArea() As Array
+    Local cWhere    := "" As Character
+    Local cCpoId    := "" as Character
+    Local cSQLSel   := "" as Character    
+    Local jHeaders  := JsonObject():new() as Json
+    Local lProgress := .T. as Logical
+    Local aStruct   := {}  as Array
+    Local cTable    := "" as Character  
+
+    Local cConcat   := IIF("MSSQL" $ Alltrim(TcGetDB()), "+", "||") as Character
+    
+    Default cCodCfg   := "" 
+    Default nPage     := 1
+    Default nPageSize := 10
+
+    lProgress := ValType(cCodCfg)=="C" .And. !Empty(cCodCfg)    
+    If lProgress
+        lProgress := RetConfiguration(cCodCfg)
+        If lProgress
+            QLB->(dbSelectArea("QLB"))
+            QLB->(dbSetOrder(1))
+            If QLB->(dbSeek(FWxFilial("QLB")+cCodcfg))
+                uRet := jHeaders:FromJson(AllTrim(QLB->QLB_FIELDS)) 
+                If cMatch = "1"
+                    If Empty(QLB->QLB_CIDORI)
+                        lProgress := .F.
+                    Else
+                        cCpoId := QLB->QLB_CIDORI
+                        cTable := QLB->QLB_TABORI
+                    EndIf
+                Else
+                    If Empty(QLB->QLB_CIDDES)
+                        lProgress := .F.
+                    Else
+                        cCpoId := QLB->QLB_CIDDES
+                        cTable := QLB->QLB_TABDES
+                    EndIf
+                EndIf        
+            EndIf
+        Else
+            cResponse := STR0005+" "+cCodCfg+" "+STR0006 //"A configuração" //"foi excluída pela rotina de Setup"   
+        EndIf
+    EndIf
+    If lProgress
+        If cMatch = "1"
+            cSQLSel := ::tcRetSQLExpression(jHeaders["data_ori"],",") //Cabecalho da query (origem)
+        Else
+            cSQLSel := ::tcRetSQLExpression(jHeaders["data_des"],",") //Cabecalho da query (destino)
+        EndIf
+        //Alimenta campos para obter estrutura
+        aStruct := StrTokArr2(cSQLSel, ",") //Armazena campos em array    
+
+        addMapFields(self,aStruct,aFieldsApi,cTable, cConcat)
+
+        ::setPage(nPage)
+        ::setPageSize(nPageSize)
+        ::SetQuery(getQuery(cTable,cCpoId))
+
+        cWhere := " QLD.QLD_FILIAL = '"+cFilPos+"' AND QLD.QLD_CODCON = '"+Alltrim(cCodCon)+"' and QLD.QLD_TPITEM = '"+Alltrim(cMatch)+"'"
+        cWhere += " AND QLD.D_E_L_E_T_ = ' '"
+
+        ::SetWhere(cWhere)
+        
+        ::SetOrder("(QLD.QLD_REGMAT "+cConcat+" QLD.QLD_SEQMAT)")  
+
+        If ::Execute()
+            ::FillGetResponse()
+        EndIf
+
+        TcRefresh(cTable) // Resetar tempo de timeout
+    EndIf
+
+    RestArea(aArea)
+    FwFreeArray(aArea)
+return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} addMapFields
+Realiza o mapeamento dos campos que serão retornados
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+Static Function addMapFields(oSelf as Object, aStruct as Array, aFieldsApi as Array, cTable as Character, cConcat as Character)
+    Local nI         := 0  As Numeric
+    Local cOrdem     := "00" As Character
+    Local cTipo      := "" As Character
+    Local cWidth     := "" As Character
+    Local nTamanho   := 0  As Numeric
+    Local nDecimal   := 0  As Numeric   
+    Local aStructSX3 := {}  As Array 
+    Local cMSUIDT    := "" As Character
+
+    //  Obtem o MSIDT da tabela posicionada
+    cMSUIDT = IIf(!(cTable)->(FieldPos(cTable+"_FILIAL")),SubStr(cTable, 2, 2)+"_MSUIDT",cTable+"_MSUIDT")
+      
+    For nI := 1 to Len(aStruct)
+
+        If nI == 1 
+            cOrdem := "01"
+            oSelf:AddMapFields("IDMATCH", "IDMATCH", .T., .F., {"IDMATCH", "C", 13, 0}, "(QLD.QLD_REGMAT"+cConcat+"QLD.QLD_SEQMAT)")
+
+            //Adiciona informacoes do dicionario - SX3 dos campos                
+            aAdd(aFieldsApi, {  cOrdem,;
+                                "idmatch",;
+                                STR0004,; //"Id Match"
+                                "C",;
+                                14,;
+                                0,;
+                                "999.9999999999",;
+                                "140px",;
+                                "" })  
+        EndIf
+
+        If nI == 1 
+            cOrdem := "02"
+            oSelf:AddMapFields("MSUIDT", "MSUIDT", .T., .F., {"MSUIDT", "C", 36, 0}, cMSUIDT)
+            //Adiciona informacoes do MSUIDT (QLD_IDITEM)
+                    aAdd(aFieldsApi, {  cOrdem,;
+                                        "msuidt",;
+                                        "msuidt",; //"ID Item"
+                                        "C",;
+                                        36,;
+                                        0,;
+                                        "",;
+                                        "120px",;
+                                        "" })
+        EndIf
+            
+        cField := aStruct[nI]                 
+        cOrdem  := Soma1(cOrdem)
+        aStructSX3 := FWSX3Util():GetFieldStruct(cField) // Retorna um array com os dados da estrutura do campo na SX3
+        cTitulo := FWX3Titulo(cField) //Adiciona informacoes do dicionario - SX3 dos campos             
+        cTipo   := FWSX3Util():GetFieldType(aStruct[nI]) //Retorna o tipo do campo no SX3  
+        nTamTit := Len(AllTrim(FWX3Titulo(cField)))
+        nTamanho:= aStructSX3[3]
+        nDecimal:= aStructSX3[4]
+
+        oSelf:AddMapFields(cField, cField, .T., .F., {cField, cTipo, nTamanho, nDecimal}, cTable+"."+cField)
+
+        If nTamTit < 10 .And. nTamanho < 10
+            //DEFAULT - Tratamento para campos pequenos
+            cWidth := "100px"
+        Else
+            If nTamTit > nTamanho
+                cWidth := CValToChar(nTamTit * 12) + "px"
+            Else
+                cWidth := CValToChar(nTamanho * 12) + "px"
+            EndIf            
+        EndIf                    
+
+        aAdd(aFieldsApi, { cOrdem,;
+                        AllTrim(Lower(cField)),;
+                        AllTrim(If(Empty(cTitulo), Lower(cField), cTitulo)),;
+                        cTipo,;
+                        nTamanho,;
+                        nDecimal,;
+                        AllTrim(X3Picture(cField)),;
+                        cWidth}) 
+    Next
+
+Return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getQuery
+Realiza a query para busca de informações
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+Static Function getQuery(cTable,cCpoId) As Character
+    Local cQuery As Character
+    Local cNameDB   := Alltrim(TcGetDB()) as Character    
+
+    cQuery := " SELECT #QueryFields#"
+    cQuery += " FROM " + RetSqlName(cTable) +" "+ cTable
+    cQuery += " INNER JOIN "+RetSqlName("QLD")+" QLD ON "    
+    
+    If cNameDB $ "POSTGRES"
+        cQuery += " QLD.QLD_IDITEM = CAST("+cTable+"."+Alltrim(cCpoId)+" AS VARCHAR) AND"
+    Elseif cNameDB $ "ORACLE"        
+        cQuery += "RTRIM(QLD.QLD_IDITEM) = COALESCE("+cTable+"."+Alltrim(cCpoId)+", SYS_GUID()) AND"
+    Else
+        cQuery += "RTRIM(QLD.QLD_IDITEM) = "+cTable+"."+Alltrim(cCpoId)+" AND"
+    EndIf
+    cQuery +=  " "+cTable+"."+Alltrim(cCpoId)+" IS NOT NULL "
+
+    cQuery += " WHERE #QueryWhere#"
+Return cQuery
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} tcRetSQLExpression
+    @author TOTVS
+    @since 29/07/2021
+    @version version
+    @param param_name, param_type, param_descr
+    @return return_var, return_type, return_description
+/*/
+//-------------------------------------------------------------------
+Method tcRetSQLExpression(aSQLArr as Array, cSeparator as Character) class ReconciliationItemsProtheusData
+Local cRet      := "" as Character
+Local nI        := 0 as Numeric
+Default aSQLArr := {}
+
+For nI := 1 to Len(aSQLArr)  
+    If nI > 1
+        cRet += cSeparator
+    EndIf
+    cRet += aSQLArr[nI]    
+Next
+
+Return cRet

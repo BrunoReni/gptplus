@@ -1,0 +1,86 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSHealthProvidersDao
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSHealthProvidersDao From PLSDaoAux
+    
+    Data cCodRda as Character
+
+    Public Method New()
+
+    //Metodos de busca de dados
+    Public Method getRda()
+    Public Method getLocEsp()
+
+EndClass
+
+Method New(cCodRda) class PLSHealthProvidersDao
+    
+    _Super:New()
+    self:cCodRda := cCodRda
+    
+Return self
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Metodos de busca de dados
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+Method getRda() class PLSHealthProvidersDao
+
+    Local cQuery := ""
+    Local lFound := .F.
+
+    cQuery += " SELECT BAU_CODIGO, BAU_NOME FROM " + RetSqlName("BAU")
+    cQuery += " WHERE BAU_FILIAL = '"+xFilial("BAU")+"' "
+    cQuery += " AND BAU_CODIGO = '"+self:cCodRda+"' "
+    cQuery += " AND D_E_L_E_T_ = ' ' "
+    
+    self:setQuery(cQuery)
+    lFound := self:executaQuery()
+
+Return lFound
+
+Method getLocEsp() class PLSHealthProvidersDao
+
+    Local cQuery := ""
+    Local lFound := .F.
+
+    cQuery += " SELECT BB8_CODINT, BB8_CODIGO, BB8_CODLOC, BB8_LOCAL, BB8_END , BAX_CODESP, BAQ_DESCRI, BB8_DESLOC "
+    cQuery += " FROM "+RetSqlName("BB8")+" BB8 "
+
+	cQuery += " LEFT JOIN "+RetSqlName("BAX")+" BAX "
+	cQuery += "     ON BAX_FILIAL = '"+xFilial("BAX")+"' "
+	cQuery += "     AND BAX_CODIGO = BB8_CODIGO "
+	cQuery += "     AND BAX_CODINT = BB8_CODINT "
+	cQuery += "     AND BAX_CODLOC = BB8_CODLOC "
+    cQuery += "     AND (BAX.BAX_DATBLO = ' ' OR BAX.BAX_DATBLO > '"+Dtos(dDataBase)+"')  "
+	cQuery += "     AND BAX.D_E_L_E_T_  =  '  '	 "
+
+    cQuery += " LEFT JOIN "+RetSqlName("BAQ")+" BAQ  "
+	cQuery += "     ON BAQ_FILIAL = '"+xFilial("BAQ")+"' "
+	cQuery += "     AND BAQ_CODINT = '"+PlsIntPad()+"' "
+	cQuery += "     AND BAQ_CODESP = BAX_CODESP "
+	cQuery += "     AND BAQ.D_E_L_E_T_ = ' ' 	 "
+
+    cQuery += " WHERE BB8_FILIAL = '"+xFilial("BB8")+"' "
+    cQuery += "     AND BB8_CODINT = '"+PlsIntPad()+"' "
+    cQuery += "     AND BB8.BB8_CODIGO = '"+self:cCodRda+"' "
+    cQuery += "     AND (BB8.BB8_DATBLO = ' ' OR BB8.BB8_DATBLO > '"+Dtos(dDataBase)+"')  "
+    cQuery += "     AND BB8.D_E_L_E_T_ = ' '  "
+    cQuery += "     ORDER BY BB8_CODINT, BB8_CODIGO, BB8_CODLOC, BB8_LOCAL "
+    
+    self:setQuery(cQuery)
+    lFound := self:executaQuery()
+
+Return lFound

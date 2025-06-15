@@ -1,0 +1,75 @@
+#include "tlpp-core.th"
+
+namespace totvs.protheus.backoffice.reconciliation.matchsettingitems
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} MatchSettingItemsService
+Classe de serviço, realizada instância e chamada de métodos de serviços
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+class MatchSettingItemsService
+    public method new()
+    public method getInstance()
+    public method getAllMatchSettingItems()
+    public method validCidFieldsItems()
+endclass
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} MatchSettingItemsService
+Metodo construtor
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method new() class MatchSettingItemsService
+return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} MatchSettingItemsService
+Responsável por instanciar a classe controller
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method getInstance() class MatchSettingItemsService
+    static __instance As Object
+    
+    If ValType(__instance) == "U"
+        __instance := MatchSettingItemsService():new()
+    EndIf
+return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getAllMatchSettingItems
+Responsável por chamar a consulta e parsear o retorno no formato JSON
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method getAllMatchSettingItems(cCodCfg as Character, nPage as Numeric, nPageSize as Numeric, cFromWhere as Character) class MatchSettingItemsService
+    Local oSettings := MatchSettingItemsProtheusData():getData() As Object
+    Local jResponse := JsonObject():new() As Json
+
+    oSettings:getAll(cCodCfg, nPage, nPageSize)
+
+    IIf(oSettings:lOk,;
+        jResponse := oSettings:getJSONResponse(),;    
+        jResponse := SetRestFault(oSettings:GetCode(), oSettings:getMessage()))    
+
+    oSettings:DeActivate()
+    FreeObj(oSettings)
+return jResponse
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} validCidFieldsItems
+Responsável por chamar a validação da existencia dos campos cidori e ciddes
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method validCidFieldsItems(jResponse as Json) class MatchSettingItemsService
+    Local oSettings := MatchSettingItemsProtheusData():getData() As Object
+    Local aCidFields := oSettings:validCidFields(jResponse) as Array
+Return aCidFields

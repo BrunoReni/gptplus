@@ -1,0 +1,251 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+#INCLUDE 'FWMVCDEF.CH'
+#Include 'VALIDPAYMENTFORMSERVICE.CH'
+
+namespace tr.validPaymentForm
+
+/*/{Protheus.doc} validPaymentFormService
+Definicion de metodos de la clase
+@type class
+@version  1
+@author jose.gonzalez
+@since 12/4/2021
+/*/
+Class validPaymentFormService
+	Public Method new()
+	Public Method getvalidPaymentFormService()
+EndClass
+
+/*/{Protheus.doc} validPaymentFormService::new
+Inicializa la clase
+@type method
+@version 1 
+@author jose.gonzalez
+@since 12/4/2021
+/*/
+Method new() Class validPaymentFormService
+Return
+
+
+/*/{Protheus.doc} validPaymentFormService::getvalidPaymentFormService
+Realiza una validacion de campos en el Objeto FINA887 
+@type method
+@version  1
+@author jose.gonzalez
+@since 12/4/2021
+/*/
+Method getvalidPaymentFormService (oJParams ) class  validPaymentFormService
+	Local oMdlTab	As Object
+	Local jtotal	:= JsonObject():new()
+	Local jresponse := JsonObject():New()
+	Local jItems 	:= JsonObject():New()
+	Local cSaltoL   := Chr(10)+ Chr(13)
+	Local aError 	:= {}	As Array
+	Local aErrors 	:= {}	As Array
+	Local cCampo 	:= "" 	As Character
+	Local cTable 	:= "EL_" As Character
+	Local cTitulo 	:= ""	As Character
+	Local cValue 	:= ""	As Character
+	Local nValue 	:= 0	As Numeric
+	Local i 		:= 1	As Numeric
+	Local nPos 		:= 1	As Numeric
+	Local dValue	As Date
+
+
+	SetFunName("FINA998")
+
+	jItems := oJParams['items']
+
+	oMdlTab:= FwLoadModel("FINA887")
+	oMdlTab:SetOperation(MODEL_OPERATION_INSERT)
+	oMdlTab:Activate()
+	oMdlTab:Getmodel('SEL_DETAIL'):OFORMMODELSTRUCT:ATRIGGERS:= {}
+
+	For i := 1 to len(oJParams['coins'])
+		If len(oJParams['coins']) > 1 .and. i > 1
+			oMdlTab:GetModel('MOE_DETAIL' ):AddLine()
+		EndIF 
+		oMdlTab:SetValue('MOE_DETAIL',"MOEDA" 		, alltrim(str(oJParams['coins'][i]['moneda'])))
+		oMdlTab:SetValue('MOE_DETAIL',"TASA" 		, oJParams['coins'][i]['tasa'] )
+	Next
+	
+	aHeader := oJParams['header']:GetNames()
+	FOR i := 1 to len(aHeader)
+		If oMdlTab:GetModel('FJT_MASTER'):GETSTRUCT():GetProperty("FJT_"+UPPER(aHeader[i]),MODEL_FIELD_TIPO ) == 'D'
+            oMdlTab:loadValue('FJT_MASTER', "FJT_"+UPPER(aHeader[i]),STOD(StrTran(oJParams['header'][aHeader[i]],"-","")))
+        Else
+    		oMdlTab:loadValue('FJT_MASTER', "FJT_"+UPPER(aHeader[i]),oJParams['header'][aHeader[i]])	
+		EndIf
+    NEXT
+
+	For i:= 1 to len(jItems)
+		dValue := CTOD("")
+		cCampo := cTable + UPPER(jItems[i]["property"])
+		cTitulo := getTitleType(cCampo, "title")
+		cCampoTipo := getTitleType(cCampo, "type")
+		If cCampoTipo == 'D'
+			If !VAZIO(jItems[i]["value"])
+				dValue := STOD(jItems[i]["value"]) 
+			Endif
+			IF (!(oMdlTab:SetValue('SEL_DETAIL',cCampo ,dValue)) .AND. !VAZIO(dValue))
+				aError := oMdlTab:GetErrorMessage()
+				Aadd(aErrors,JsonObject():new())
+				nPos := Len(aErrors)
+				aErrors[nPos]['message' ]:= cTitulo+" ==> "+	aError[6]
+			EndIf
+		ElseIF cCampoTipo == 'N'
+			If !(jItems[i]["value"] == NIL)
+				nValue := jItems[i]["value"]
+				If !(oMdlTab:SetValue('SEL_DETAIL',cCampo ,nValue)) .AND. !VAZIO(nValue) 
+					aError := oMdlTab:GetErrorMessage()
+					Aadd(aErrors,JsonObject():new())
+					nPos := Len(aErrors)
+					aErrors[nPos]['message' ]:= cTitulo +" ==> "+	aError[6]
+				EndIf
+			EndIF
+		Else
+			cValue := IIF(jItems[i]["value"]!=Nil,jItems[i]["value"],"")
+			If !(oMdlTab:SetValue('SEL_DETAIL',cCampo ,Alltrim(cValue))) .AND. !VAZIO(cValue)
+				aError := oMdlTab:GetErrorMessage()
+				Aadd(aErrors,JsonObject():new())
+				nPos := Len(aErrors)
+				aErrors[nPos]['message' ] 	:=  cTitulo +" ==> "+	aError[6] + IIF(!VAZIO(aError[7]),cSaltoL+STR0012+cSaltoL+aError[7],"")
+			EndIf
+		EndIF
+		cTitulo := ""
+	Next
+
+	IF !oMdlTab:GetModel('SEL_DETAIL'):VldLineData() //Validacion de linea
+		aError := oMdlTab:GetErrorMessage()
+		Aadd(aErrors,JsonObject():new())
+		nPos := Len(aErrors)
+		aErrors[nPos]['message' ]:= aError[6]
+	ENDIF
+
+	If cPaisLoc=="PER"	.AND. VAZIO(aErrors)//Validaciones especificas a nivel de codigo para el pais Peru
+		validPaymentFormPerú(oJParams['items'],@aErrors)
+	ElseIF cPaisLoc=="PAR"	.AND. VAZIO(aErrors) 	//Validaciones especificas a nivel de codigo para el pais Paraguay
+		validaPaymentFormPar(oJParams['items'],@aErrors)
+	ENDIF
+
+	jtotal ['errors' ]:= 	aErrors
+
+	If len(aErrors) > 0
+		jtotal['success' ] := 	.F.
+	Else
+		jtotal['success' ] := 	.T.
+	EndIf
+
+	oMdlTab:DeActivate()
+	jresponse["result"] := .T.
+	jresponse["response"] := jtotal
+
+return jresponse
+
+/*/{Protheus.doc} validPaymentFormPerú
+Funcion para validar los campos de la forma de pago cuando el tipo de documento es RI
+@type function
+@version  1
+@author luis.aboytes
+@since 12/10/2021
+@param jPaymentForm, json, json con los datos de la forma de pago
+@param nTipoDoc, numeric, posicion del tipo de documento
+@param nSerieRecibo, numeric, pocision del serie recibo
+@param nBanco, numeric, pocision del banco
+@param aError, array, array donde se almacenara un error
+/*/
+Static Function validPaymentFormPerú(jPaymentForm,aErrors)
+	Local nPos As Numeric
+	Local nTipoDoc,nSerieRecibo,nBanco As Numeric
+
+	nTipoDoc := AScan(jPaymentForm,{|x|x['property'] == "tipodoc"})
+	nSerieRecibo  := AScan(jPaymentForm,{|x|x['property'] == "serret"})
+	nBanco  := AScan(jPaymentForm,{|x|x['property'] == "banco"})
+
+	If ALLTRIM(jPaymentForm[nTipoDoc]['value'])=="RI" .AND. nSerieRecibo == 0
+		Aadd(aErrors,JsonObject():new())
+		nPos := Len(aErrors)
+		aErrors[nPos]['message' ]:= "EL_SERRET ==> " + STR0001
+	ElseIf !ALLTRIM(jPaymentForm[nTipoDoc]['value'])=="RI" .AND. !nSerieRecibo == 0
+		IF !VAZIO(jPaymentForm[nSerieRecibo]['value'])
+			Aadd(aErrors,JsonObject():new())
+			nPos := Len(aErrors)
+			aErrors[nPos]['message' ]:= "EL_SERRET ==> " + STR0002
+		ENDIF
+	EndIf
+
+	If ALLTRIM(jPaymentForm[nTipoDoc]['value'])=="RI"
+		IF nBanco==0
+			Aadd(aErrors,JsonObject():new())
+			nPos := Len(aErrors)
+			aErrors[nPos]['message' ]:= "EL_BANCO ==> " + STR0003
+		ENDIF
+	EndIf
+Return
+
+
+/*/{Protheus.doc} validaPaymentFormPar
+Funcion para validar los campos de la forma de pago cuando el tipo de documento es RI/RR
+@type function
+@version  1
+@author luis.aboytes
+@since 3/11/2021
+@param aErrors, array, array con errores
+/*/
+Static Function validaPaymentFormPar(jPaymentForm,aErrors)
+	Local nPos As Numeric
+	Local nTipoDoc,nAliq,nValBase,nBanco As Numeric
+
+	nBanco  := AScan(jPaymentForm,{|x|x['property'] == "banco"})
+	nTipoDoc := AScan(jPaymentForm,{|x|x['property'] == "tipodoc"})  //Si da 0 el campo no fue mandado por front-end
+	nAliq	:= AScan(jPaymentForm,{|x|x['property'] == "alqimp1"})
+	nValBase	:= AScan(jPaymentForm,{|x|x['property'] == "valimp1"})
+
+	If ALLTRIM(jPaymentForm[nTipoDoc]['value'])$"RI|RR"
+		IF nAliq == 0
+			Aadd(aErrors,JsonObject():new())
+			nPos := Len(aErrors)
+			aErrors[nPos]['message' ]:= STR0009
+		ELSEIF VAZIO(jPaymentForm[nAliq]['value']) .AND.  nAliq!=0
+			Aadd(aErrors,JsonObject():new())
+			nPos := Len(aErrors)
+			aErrors[nPos]['message' ]:= STR0009
+		ENDIF
+		IF nValBase == 0
+			Aadd(aErrors,JsonObject():new())
+			nPos := Len(aErrors)
+			aErrors[nPos]['message' ]:= STR0008
+		ELSEIF VAZIO(jPaymentForm[nValBase]['value']) .AND.  nValBase!=0
+			Aadd(aErrors,JsonObject():new())
+			nPos := Len(aErrors)
+			aErrors[nPos]['message' ]:= STR0008
+		ENDIF
+	ENDIF
+Return
+
+/*/{Protheus.doc} getTitleType
+Metodo encargado de obtener los valores como el titulo y el tipo ya sea de un campo en la base de datos o generada en el modelo 
+por ejemplo en ARG no existe en la DB la variable EL_VALBASE, pero en el modelo se basa de la FE_VALBASE, por lo cual se cambia y se obtienen los valores
+@type function
+@version  1
+@author luis.aboytes
+@since 22/10/2021
+/*/
+STATIC FUNCTION getTitleType(cCampo,get)
+	Local cRet := "" As Character
+
+	IF get == "title"
+		IF cPaisLoc == "ARG" .AND. cCampo$"EL_VALBASE|EL_ALIQ"
+			cRet := Getsx3Cache( STRTRAN(cCampo,"EL","FE"),'X3_TITULO' )
+		ELSE
+			cRet := Getsx3Cache( cCampo,'X3_TITULO' )
+		ENDIF
+	ELSEIF get == "type"
+		IF cPaisLoc == "ARG" .AND. cCampo$"EL_VALBASE|EL_ALIQ"
+			cRet := Getsx3Cache( STRTRAN(cCampo,"EL","FE"),'X3_TIPO'  )
+		ELSE
+			cRet := Getsx3Cache( cCampo,'X3_TIPO' )
+		ENDIF
+	ENDIF
+RETURN cRet

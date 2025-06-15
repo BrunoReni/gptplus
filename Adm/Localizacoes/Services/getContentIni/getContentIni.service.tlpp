@@ -1,0 +1,67 @@
+#include 'tlpp-core.th'
+
+namespace tr.getContentIni
+
+/*/{Protheus.doc} getContentIniService
+Se definen los metodos de la clase
+@type class
+@version  1
+@author luis.aboytes
+@since 15/9/2021
+/*/
+Class getContentIniService
+	Public Method new()
+	Public Method getPictFormat()
+EndClass
+
+/*/{Protheus.doc} getContentIniService::new
+Inicializador de la clase
+@type method
+@version  1
+@author luis.aboytes
+@since 15/9/2021
+/*/
+Method new() Class getContentIniService
+Return Nil
+
+/*/{Protheus.doc} getPictFormat
+Metodo creado para obtener el valor del parametro PictFormat
+@type function
+@version  1
+@author luis.aboytes
+@since 14/9/2021
+/*/
+Method getPictFormat() Class getContentIniService
+	Local cServerIni 	:= "" As Character
+	Local cClientIni 	:= "" As Character
+	Local cPadrao 		:= "undefined" As Character
+	Local cSesionLanguage := "" As Character
+	Local cEnviroment	:= "" As Character
+	Local cIniLanguage	:= "" As Character
+	Local oResponse 	:= JsonObject():New()
+	Local oContent	 	:= JsonObject():new()
+
+	cServerIni := GetAdv97()
+	cClientIni := GetRemoteIniName()
+	cEnviroment := GetEnvServer()
+	cSesionLanguage := "LANGUAGE"+UPPER(GetEnvServer())
+	cIniLanguage := StrTran( cClientIni, "smartclient.ini", "language.ini")
+
+	cPadrao := "undefined"
+
+	oContent['pictformat'] := GetPvProfString(cEnviroment, "PictFormat", "undefined", cServerIni)
+	oContent['dateFormat'] := GetPvProfString(cEnviroment, "DateFormat", "undefined", cServerIni)
+	oContent['lenguagesmartclient'] := GetPvProfString(cSesionLanguage, "currentlanguage", "undefined", cIniLanguage)
+	oContent['dateSystem'] := dtos(dDataBase)
+	oContent['isCallMata465n'] := IsInCallStack("MATA465N")
+	if oContent['isCallMata465n']
+		SA1->(DbSetOrder(1)) //A1_FILIAL+A1_COD+A1_LOJA
+		If SA1->(MsSeek(xFilial("SA1")+SF1->(F1_FORNECE+F1_LOJA)))
+			oContent['client'] :=  SF1->F1_FORNECE
+			oContent['loja'] := SF1->F1_LOJA
+		Endif
+	Endif
+	oResponse['result'] := .T.
+	oResponse['response'] := oContent
+
+Return oResponse

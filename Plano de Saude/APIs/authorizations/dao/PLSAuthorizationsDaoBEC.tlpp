@@ -1,0 +1,57 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSAuthorizationsDaoBEQ
+
+@author  Daniel Silva
+@version P12
+@since   16/05/23
+/*/
+//------------------------------------------------------------------- 
+class PLSAuthorizationsDaoBEC from PLSAuthorizationsDao
+    
+    Public Method New()
+    Private Method getCampos()
+    Public Method buscaGuia()
+
+EndClass
+
+
+Method New(cGuia) class PLSAuthorizationsDaoBEC    
+    _Super:New(cGuia)
+Return self
+
+Method getCampos() class PLSAuthorizationsDaoBEC  
+
+    Local cCampos := ""
+
+    //Campos BEC
+    cCampos += " BEC_SEQUEN, BEC_GUIPRE, BEC_GUIOPE, BEC_GUIPRI, "
+    cCampos += " BEC_DENT18, BEC_DENT17, BEC_DENT16, BEC_DENT15, BEC_DENT14, BEC_DENT13, "
+    cCampos += " BEC_DENT12, BEC_DENT11, BEC_DENT21, BEC_DENT22, BEC_DENT23, BEC_DENT24, BEC_DENT25, BEC_DENT26, BEC_DENT27, BEC_DENT28, "
+    cCampos += " BEC_DENT55, BEC_DENT54, BEC_DENT53, BEC_DENT52, BEC_DENT51, BEC_DENT61, BEC_DENT62, BEC_DENT63, BEC_DENT64, BEC_DENT65, "
+    cCampos += " BEC_DENT85, BEC_DENT84, BEC_DENT83, BEC_DENT82, BEC_DENT81, BEC_DENT71, BEC_DENT72, BEC_DENT73, BEC_DENT74, BEC_DENT75, "
+    cCampos += " BEC_DENT48, BEC_DENT47, BEC_DENT46, BEC_DENT45, BEC_DENT44, BEC_DENT43, BEC_DENT42, BEC_DENT41, BEC_DENT31, BEC_DENT32, "
+    cCampos += " BEC_DENT33, BEC_DENT34, BEC_DENT35, BEC_DENT36, BEC_DENT37, BEC_DENT38, "
+    cCampos += " BEC_SIDOPE, BEC_ALTEMO, CONVERT(VARCHAR(8000),BEC_OBSERV) OBSERVACAO, BEC_CODRDA, BEC_DATINC, BEC_GPRIOP, BEC_LOTGUI"
+
+Return cCampos
+
+
+Method buscaGuia() class PLSAuthorizationsDaoBEC
+
+    Local cQuery := ""
+    Local lFound := .F.
+
+    cQuery += " SELECT "
+    cQuery += self:getCampos()
+    cQuery += " FROM " + RetSqlName("BEC")+" BEC "
+    cQuery += " WHERE BEC_FILIAL = '" + xFilial("BEC") +"' "	
+    cQuery += " AND BEC_GUIPRI = '" + self:cGuia + "' " "
+    cQuery += " AND D_E_L_E_T_ = ' ' "
+    
+    self:setQuery(cQuery)
+	lFound := self:executaQuery()
+    
+Return lFound

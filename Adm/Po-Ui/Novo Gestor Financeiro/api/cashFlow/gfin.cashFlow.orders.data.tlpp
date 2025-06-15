@@ -1,0 +1,56 @@
+#INCLUDE 'tlpp-core.th'
+
+NameSpace gfin.api.cashFlow
+Using NameSpace gfin.util
+
+//---------------------------------------------------------------------
+/*/{Protheus.doc }getOrdersFlowQuery
+retorna os saldos de pedidos no periodo definido
+
+@param queryFilter  , character, filtro da query 
+@param cJoin        , character, join da query
+@param cCustomSearch, character, filtro personalizado
+
+@author Alison Kaique
+@since mar|2021
+/*/
+//---------------------------------------------------------------------
+Function getOrdersFlowQuery(queryFilter as Character, cJoin As Character, cCustomSearch As Character)
+  Local aliasResult  as Character
+  Local retValues    as Array
+  Local queryGroup   as Character
+
+  aliasResult := ''
+
+  // agrupa os valores por data
+  queryGroup := "SELECT F76_DATA, SUM(F76_VALOR) VALUE, COUNT(F76_DATA) QUANTITY FROM "
+  queryGroup += RetSqlName('F76') + " F76"
+
+  If !(Empty(cJoin))
+    queryGroup += " " + cJoin
+  EndIf
+
+  queryGroup += " WHERE F76.D_E_L_E_T_ = ' ' " + queryFilter
+
+  If !(Empty(cCustomSearch))
+    queryGroup += " AND " + cCustomSearch
+  EndIf
+
+  queryGroup += " GROUP BY F76_DATA "
+  queryGroup += " ORDER BY F76_DATA"
+
+  aliasResult := MpSysOpenQuery(ChangeQuery(queryGroup))
+
+  retValues := {}
+
+  While (aliasResult)->(!EOF())
+    AAdd(retValues, {;
+      {"date", stringDateToIso((aliasResult)->F76_DATA)},;
+      {"value",(aliasResult)->VALUE},;
+      {"quantity",(aliasResult)->QUANTITY};
+    })
+    (aliasResult)->(dbSkip())
+  EndDo
+  (aliasResult)->(dbCloseArea())
+
+Return arrayToJson(retValues)

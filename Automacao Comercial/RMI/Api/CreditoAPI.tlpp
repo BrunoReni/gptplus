@@ -1,0 +1,80 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+
+namespace totvs.protheus.retail.rmi.api.creditoAPI
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Lista
+API  para listar creditos em aberto para o cliente
+
+@author  Lucas Novais (lnovais@)
+@since   08/08/2022
+@version 1.0
+/*/
+//-------------------------------------------------------------------
+
+@Post("/api/retail/v1/credito/lista/") 
+Function Lista()
+    Local lMV_CMP330    := SuperGetMV("MV_CMP330", .T., .F.)
+    Local cLstCart      := ""
+    Local oCreditoObj   := CreditoObj():New(oRest, oRest:getQueryRequest(), oRest:getBodyRequest())
+    
+    oCreditoObj:SetjBody("soma","Saldo")
+    oCreditoObj:SetSelect("SE1")
+    oCreditoObj:cWhere := " WHERE E1_SALDO > 0 AND D_E_L_E_T_ = ''"
+
+    If lMV_CMP330
+        cLstCart := FN022LSTCB(1,'0007')
+        oCreditoObj:cWhere += " AND E1_SITUACA IN "+FormatIN(cLstCart,"|") + " "
+        oCreditoObj:cWhere += " AND E1_ORIGEM NOT IN " + FormatIN(SuperGetMv('MV_RMORIG',, "E|U|S"), "|" ) + " "
+    EndIf
+
+    oCreditoObj:get()
+    oRest:setResponse( EncodeUtf8( oCreditoObj:GetReturn() ))
+
+Return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Baixa
+API  para realizar a baixa dos títulos de crédito em aberto do cliente
+
+@author  Evandro Pattaro
+@since   29/09/2022
+@version 1.0
+/*/
+//-------------------------------------------------------------------
+
+@Post("/api/retail/v1/credito/baixa/") 
+Function Baixa()
+    Local jBody := jsonObject():New()
+    Local lMV_CMP330    := SuperGetMV("MV_CMP330", .T., .F.)
+    Local cLstCart      := ""
+    Local oCreditoObj := Nil
+
+    jBody:FromJson(oRest:getBodyRequest())
+
+    oCreditoObj := CredBxObj():New(oRest, oRest:getQueryRequest(),jBody:ToJson())
+    oCreditoObj:SetjBody("ordem","vencto")
+    oCreditoObj:SetSelect("SE1")
+    oCreditoObj:cWhere := " WHERE E1_SALDO > 0 AND D_E_L_E_T_ = ''"
+
+    If lMV_CMP330
+        cLstCart := FN022LSTCB(1,'0007')
+        oCreditoObj:cWhere += " AND E1_SITUACA IN "+FormatIN(cLstCart,"|") + " "
+        oCreditoObj:cWhere += " AND E1_ORIGEM NOT IN " + FormatIN(SuperGetMv('MV_RMORIG',, "E|U|S"), "|" ) + " "
+    EndIf
+
+    oCreditoObj:get()
+    oCreditoObj:Baixa(jBody)
+
+    If oCreditoObj:lSuccess
+        oCreditoObj:cOrderBy := ""
+        oCreditoObj:aOrder := {}
+        oCreditoObj:SetSelect("SE1")
+        oCreditoObj:SetjBody("ordem","")
+        oCreditoObj:SetjBody("soma","Saldo")
+        oCreditoObj:get()
+    EndIf
+
+    oRest:setResponse( EncodeUtf8( oCreditoObj:GetReturn() ))
+Return

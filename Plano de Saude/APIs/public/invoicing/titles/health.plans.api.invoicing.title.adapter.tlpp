@@ -1,0 +1,175 @@
+#Include "tlpp-core.th"
+
+Namespace totvs.protheus.health.plans.api.invoicing.title
+
+Using Namespace totvs.protheus.health.plans.api.util
+
+/*/{Protheus.doc} TitleAdapter
+Classe adaptadora de collenction de Títulos - Base de dados
+
+@type class
+@author Vinicius Queiros Teixeira
+@since 14/02/2023
+@version Protheus 12
+/*/
+Class TitleAdapter From BaseAdapter
+
+	Public Method new() Constructor
+	Public Method getPageTitles() As Logical
+
+	Private Method mapFieldsTitles() As Logical
+	Private Method getQueryTitles() As Character
+	Private Method getWhereTitles() As Character
+	Private Method getOrderTitles() As Character
+
+EndClass
+
+/*/{Protheus.doc} new
+Método construtor da classe
+
+@type method
+@author Vinicius Queiros Teixeira
+@since 14/02/2023
+@version Protheus 12
+/*/
+Method new() class TitleAdapter
+
+	_Super:new()
+
+Return Self
+
+/*/{Protheus.doc} getPageTitles
+Método responsavel por retornar a pagina de Títulos
+
+@type method
+@author Vinicius Queiros Teixeira
+@since 14/02/2023
+@version Protheus 12
+/*/
+Method getPageTitles() As Logical Class TitleAdapter
+
+	Local lSucess := .F. As Logical
+    Local cQuery := Self:getQueryTitles() As Character
+    Local cWhere := Self:getWhereTitles() As Character
+    Local cOrder := Self:getOrderTitles() As Character
+	
+	Self:mapFieldsTitles()
+
+	If Self:executeQueryAdapter(cQuery, cWhere, cOrder)
+		lSucess := .T.
+	EndIf
+
+Return lSucess
+
+/*/{Protheus.doc} mapFieldsTitles
+Método responsavel por mapear os atributos do json com os campos da tabela de títulos
+
+@type method
+@author Vinicius Queiros Teixeira
+@since 14/02/2023
+@version Protheus 12
+/*/
+Method mapFieldsTitles() As Logical Class TitleAdapter
+
+	Self:oAdapterBase:addMapFields("customer-id", "E1_CLIENTE", .T., .F., {"E1_CLIENTE", "C", TamSX3("E1_CLIENTE")[1], 0})
+	Self:oAdapterBase:addMapFields("customer-store", "E1_LOJA", .T., .F., {"E1_LOJA", "C", TamSX3("E1_LOJA")[1], 0})
+	Self:oAdapterBase:addMapFields("customer-name", "E1_NOMCLI", .T., .F., {"E1_NOMCLI", "C", TamSX3("E1_NOMCLI")[1], 0})
+	Self:oAdapterBase:addMapFields("issue-date", "E1_EMISSAO", .T., .F., {"E1_EMISSAO", "C", TamSX3("E1_EMISSAO")[1], 0}, Self:getFormatDate("E1_EMISSAO"))
+	Self:oAdapterBase:addMapFields("prefix", "E1_PREFIXO", .T., .F., {"E1_PREFIXO", "C", TamSX3("E1_PREFIXO")[1], 0})
+	Self:oAdapterBase:addMapFields("number", "E1_NUM", .T., .F., {"E1_NUM", "C", TamSX3("E1_NUM")[1], 0})
+	Self:oAdapterBase:addMapFields("parcel", "E1_PARCELA", .T., .F., {"E1_PARCELA", "C", TamSX3("E1_PARCELA")[1], 0})
+	Self:oAdapterBase:addMapFields("type", "E1_TIPO", .T., .F., {"E1_TIPO", "C", TamSX3("E1_TIPO")[1], 0})
+	Self:oAdapterBase:addMapFields("base-month", "E1_MESBASE", .T., .F., {"E1_MESBASE", "C", TamSX3("E1_MESBASE")[1], 0})
+	Self:oAdapterBase:addMapFields("base-year", "E1_ANOBASE", .T., .F., {"E1_ANOBASE", "C", TamSX3("E1_ANOBASE")[1], 0})
+	Self:oAdapterBase:addMapFields("real-due-date", "E1_VENCREA", .T., .F., {"E1_VENCREA", "C", TamSX3("E1_VENCREA")[1], 0}, Self:getFormatDate("E1_VENCREA"))
+	Self:oAdapterBase:addMapFields("amount", "E1_VALOR", .T., .F., {"E1_VALOR", "N", TamSX3("E1_VALOR")[1], 0})
+	Self:oAdapterBase:addMapFields("balance", "E1_SALDO", .T., .F., {"E1_SALDO", "N", TamSX3("E1_SALDO")[1], 0})
+	Self:oAdapterBase:addMapFields("net-value", "E1_VALLIQ", .T., .F., {"E1_VALLIQ", "N", TamSX3("E1_VALLIQ")[1], 0})
+	Self:oAdapterBase:addMapFields("low-date", "E1_BAIXA", .T., .F., {"E1_BAIXA", "C", TamSX3("E1_BAIXA")[1], 0}, Self:getFormatDate("E1_BAIXA"))
+	Self:oAdapterBase:AddMapFields("status", "E1_STATUS", .T., .F., {"E1_STATUS", "C", TamSX3("E1_STATUS")[1], 0})
+	Self:oAdapterBase:AddMapFields("title-id", "SE1KEY", .T., .F., {"SE1KEY", "C", TamSX3("E1_PREFIXO")[1]+TamSX3("E1_NUM")[1]+TamSX3("E1_PARCELA")[1]+TamSX3("E1_TIPO")[1], 0},;
+								   "CASE WHEN E1_PARCELA = ' ' THEN E1_PREFIXO"+Self:concatOperator()+"E1_NUM"+Self:concatOperator()+"'+'"+Self:concatOperator()+"E1_TIPO "+;
+								   " ELSE E1_PREFIXO"+Self:concatOperator()+"E1_NUM"+Self:concatOperator()+"E1_PARCELA"+Self:concatOperator()+"E1_TIPO END")
+
+Return .T.
+
+/*/{Protheus.doc} getQueryTitles
+Método responsavel por retornar o corpo da query que busca os títulos
+
+@type Method
+@author Vinicius Queiros Teixeira
+@since 14/02/2023
+@version Protheus 12
+/*/
+Method getQueryTitles() As Character Class TitleAdapter
+
+	Local cQuery As Character
+
+	cQuery := "SELECT #QueryFields# FROM "+RetSqlName("SE1")+" SE1 "
+  	cQuery += " WHERE #QueryWhere#"
+
+Return cQuery
+
+/*/{Protheus.doc} getWhereTitles
+Método responsavel por retornar o WHERE da query que busca os títulos
+
+@type Method
+@author Vinicius Queiros Teixeira
+@since 14/02/2023
+@version Protheus 12
+/*/
+Method getWhereTitles() As Character Class TitleAdapter
+
+	Local cQuery As Character
+
+	cQuery := " SE1.E1_FILIAL = '"+FWxFilial("SE1")+"' AND "
+    cQuery += " SE1.E1_CODINT = '"+Self:jParams["health-insurer-code"]+"' AND "
+	cQuery += " SE1.E1_CODEMP = '"+Self:jParams["company-code"]+"' AND "
+
+	If Self:jParams:hasProperty("family-code")
+		cQuery += " SE1.E1_MATRIC = '"+Self:jParams["family-code"]+"' AND "
+	Else
+		If Self:jParams:hasProperty("contract-code")
+			cQuery += " SE1.E1_CONEMP = '"+Self:jParams["contract-code"]+"' AND "		
+		EndIf
+
+		If Self:jParams:hasProperty("contract-version-code")
+			cQuery += " SE1.E1_VERCON = '"+Self:jParams["contract-version-code"]+"' AND "
+		EndIf
+
+		If Self:jParams:hasProperty("subcontract-code")
+			cQuery += " SE1.E1_SUBCON = '"+Self:jParams["subcontract-code"]+"' AND "		
+		EndIf
+
+		If Self:jParams:hasProperty("subcontract-version-code")
+			cQuery += " SE1.E1_VERSUB = '"+Self:jParams["subcontract-version-code"]+"' AND "
+		EndIf
+	EndIf
+
+	If Self:jParams:hasProperty("type")
+		cQuery += " SE1.E1_TIPO IN ("+Self:breakValueQuery(Self:jParams["type"])+") AND "
+	EndIf
+
+	If Self:jParams:hasProperty("status")
+		cQuery += " SE1.E1_STATUS = '"+Self:jParams["status"]+"' AND "
+	EndIf
+
+	cQuery += " SE1.D_E_L_E_T_ = ' ' "
+
+Return cQuery
+
+/*/{Protheus.doc} getOrderTitles
+Método responsavel por retornar a ORDEM da query que busca os títulos
+
+@type Method
+@author Vinicius Queiros Teixeira
+@since 14/02/2023
+@version Protheus 12
+/*/
+Method getOrderTitles() As Character Class TitleAdapter
+
+	Local cOrdemQuery As Character
+	
+	cOrdemQuery := "SE1.E1_PREFIXO, SE1.E1_NUM, SE1.E1_PARCELA, SE1.E1_TIPO"
+
+Return cOrdemQuery

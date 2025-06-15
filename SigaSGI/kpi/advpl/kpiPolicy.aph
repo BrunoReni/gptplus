@@ -1,0 +1,100 @@
+<%
+#include "kpiwebex.ch"
+%>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+	<head>
+		<title><%=KPIEncode(STR0019)%></title> <%=/*SGI - Sistema de Gestão de Indicadores*/%>
+		<meta content="text/html; charset=iso-8859-1" http-equiv="Content-Type">
+		<link type="text/css" rel="stylesheet" href="estilo.css">
+	</head>
+	<body>
+		<br>
+		<table style= "border: 3px solid black; width: 540px; text-align: left; margin-left: auto; margin-right: auto;" align="center"  cellpadding="1" cellspacing="0">
+		  <tbody>
+		    <tr>
+		      <td ><img src="imagens/topo_login-01.gif" height="89px" width="100%"></td>
+		    </tr>
+		    <tr class="FundoLogin">
+		      <th style="vertical-align: top; height: 100%; width: 100%;">
+		      <div style="text-align: center; font-weight: normal; font-family: Verdana;">
+					<%=KPIEncode(STR0051)%> <%=/*"Para configurar a política de segurança no SGI, é necessário realizar o seguinte procedimento:"*/%>
+					<br>
+			  </div>
+				<br>
+				<div style="font-family: Verdana; font-weight: normal; text-align: left;">
+				
+		        <small><%="1º "+KPIEncode(STR0052)%><a href="sgidownload.apw?file=.java.policy"> link. </a> </small><br>
+		        <small><%="2º "+KPIEncode(STR0053)%>.</small><br>
+			    <small><%="3º "+KPIEncode(STR0054)%> </small><br>
+				<br>
+			   </div>
+		      </th>
+		
+		    </tr>
+		    <tr class="FundoLogin">
+		      <td colspan="1" height="84" valign="top">
+			      <table style=" text-align: left; width: 100%; height: 100%;" border="0" cellpadding="0" cellspacing="0">
+			        <tbody>
+			          <tr>
+						<td colspan=2>
+						<hr>
+						</td>			
+			          </tr>
+			          <tr>
+			            <td style="text-align: center;"><font name="verdana"><%=KPIEncode(STR0055)%></font></td>
+			            <td style="text-align: center;"><%=KPIEncode(STR0056)%></td>
+			          </tr>
+			          <tr>
+						<td colspan=2>
+						<hr>
+						</td>			
+			          </tr>
+			          <tr>
+			            <td style="text-align: left;">Unix</td>
+			            <td style="text-align: left;">~/</td>
+			          </tr>
+			          <tr>
+			            <td style="text-align: left;">Linux</td>
+			            <td style="text-align: left;">~/</td>
+			          </tr>
+			          <tr>
+			            <td style="text-align: left;">MacOS X</td>
+			            <td style="text-align: left;">~/</td>
+			          </tr>
+			          <tr>
+			            <td style="text-align: left;">Windows 95 e Windows 98 - <%=KPIEncode(STR0057)%></td>
+			            <td style="text-align: left;">\Windows\Profiles\username</td>
+			          </tr>
+			          <tr>
+			            <td style="text-align: left;">Windows 95 e Windows 98 - <%=KPIEncode(STR0058)%></td>
+			            <td style="text-align: left;">\Windows</td>
+			          </tr>
+			          <tr>
+			            <td style="text-align: left;">Windows NT</td>
+			            <td style="text-align: left;">\Winnt\Profiles\username</td>
+			          </tr>
+			          <tr>
+			            <td style="text-align: left;">Windows 2000</td>
+			            <td style="text-align: left;">\Documents and Settings\username</td>
+			          </tr>
+			          <tr>
+			            <td style="text-align: left;">Windows XP</td>
+			            <td style="text-align: left;">\Documents and Settings\username</td>
+			          </tr>  
+			          <tr>
+			            <td style="text-align: left;">Windows Vista</td>
+			            <td style="text-align: left;">\Users\username</td>
+			          </tr>
+			          <tr>
+			            <td style="text-align: left;">Solaris</td>
+			            <td style="text-align: left;"> $HOME/</td>
+			          </tr>
+			        </tbody>
+			      </table>		
+		      </td>
+		    </tr>
+		  </tbody>
+		</table>
+	</body>
+</html>

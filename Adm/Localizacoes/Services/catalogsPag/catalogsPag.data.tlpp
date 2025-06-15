@@ -1,0 +1,146 @@
+#include 'tlpp-core.th'
+
+namespace tr.Catconpag
+//-------------------------------------------------------------------
+/*/{Protheus.doc} totvsRecibos/ Catconpag
+Class Catconpag Data
+
+@author José González
+@since 03/06/2022
+/*/
+//-------------------------------------------------------------------
+Class CatconpagAdapter From FWAdapterBaseV2
+	Data cTableNick 
+
+	Public Method new()
+	Public Method Catconpag1Adapter()
+EndClass
+
+Method new(cResMethod As Character) Class CatconpagAdapter
+	_Super:new(cResMethod)
+Return
+
+
+Static Function AddMapFields(oSelf , cfield,aCampos)
+Local ni := 1
+	For nI:= 1 to len(aCampos)
+		oSelf:AddMapFields(alltrim(aCampos[nI][1])	,alltrim(aCampos[nI][2])	,.T.,.T.,{ alltrim(aCampos[nI][2])	, 'C',GetSx3Cache("FJN_COD"	,"X3_TAMANHO"),0})
+	Next
+Return 
+
+Static Function getQuery(cTableNick ) As Character
+	Local cQuery 
+	cQuery := " SELECT #QueryFields# "
+	cQuery += " FROM " + RetSqlName(cTableNick)
+	cQuery += " WHERE #QueryWhere#"
+Return cQuery
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} totvsRecibos/ Catconpag
+
+	Prepara y retorna el detalle de los catalogos Paginados
+
+@author José González
+@since 03/06/2022
+/*/
+//-------------------------------------------------------------------
+Method Catconpag1Adapter( cConsul, cFiltro,cFiltro2) Class CatconpagAdapter
+	Local cQueryFields := ""
+	Local cQueryWhere :=""
+	Local aActivedArea 
+	Local oFWSXB 
+	local nI := 1
+	local cTable 	
+	local cTitle 	
+	local aCampos := {}
+	local cFilter 
+	local cTipo 
+	local afilters := {}
+
+	Default cFiltro2 := "" 
+
+	afilters:=	separa(cFiltro2,"-")
+
+	oFWSXB := FWSXB():New(cConsul)
+	oFWSXB:Activate()
+	oFWSXB:BuildLookUpStruct()
+	oFWSXB:GetStruct()
+	cTable 	:= oFWSXB:CTABLE
+	cTitle 	:= oFWSXB:CTITLE
+	cFilter := Alltrim(oFWSXB:CFILTER)
+	cTipo 	:= oFWSXB:ANODES[1]:CCOLUNA
+
+	IF cTipo == "DB" .AND. ctable == "SX5"
+		Aadd(aCampos,{"value","X5_CHAVE"})
+		Aadd(aCampos,{"label","X5_DESCRI"})
+		If cFiltro <> ""
+			iF cFilter  <>""
+			cFilter += "AND "
+			ENDIF
+			cFilter += "(X5_CHAVE LIKE '%"+cFiltro+"%'"
+			cFilter += "OR X5_DESCRI LIKE '%"+cFiltro+"%')"
+		EndIf
+		If cFiltro2 <> "" 
+			iF cFilter  <>""
+				cFilter += "AND "
+			ENDIF
+			cFilter += " X5_CHAVE = '"+cFiltro2+"'"
+		EndIf
+	EndIF
+	If cTipo == "RE" .AND. subStr(oFWSXB:ANODES[2]:CCONTEM,1,8) == "FJNCON()"
+		cTable := subStr(oFWSXB:ANODES[2]:CCONTEM,1,3)
+		cSpecif := "FJNCON()"
+		Aadd(aCampos,{"codigo","FJN_COD"})
+		Aadd(aCampos,{"agencia","FJN_AGENCI"})
+		Aadd(aCampos,{"postal","FJN_POSTAL"})
+		Aadd(aCampos,{"nomage","FJN_NOMAGE"})
+		cFilter += "FJN_FILIAL = '"+ xFilial("FJN") +"' "
+		If cFiltro <> ""
+			cFilter += "AND (FJN_COD LIKE '%"+cFiltro+"%'"
+			cFilter += "OR FJN_AGENCI LIKE '%"+cFiltro+"%'"
+			cFilter += "OR FJN_POSTAL LIKE '%"+cFiltro+"%'"
+			cFilter += "OR FJN_NOMAGE LIKE '%"+cFiltro+"%')"
+		EndIf
+		If cFiltro2 <> "" .and. Len(afilters) > 1
+			cFilter += "AND (FJN_COD = '"+afilters[1]+"'"
+			cFilter += " And FJN_AGENCI = '"+afilters[2]+"'"
+			cFilter += " And FJN_POSTAL = '"+afilters[3]+"')"
+		EndIf
+		
+	EndIf
+	
+	//Asignamos el nombre de la tabla a utilizar
+	::cTableNick := cTable
+	aActivedArea   := FwGetArea()
+
+	//Agregamos los campos Json/ResultSet
+	AddMapFields(self,cTable,aCampos)
+
+	//Informamos el query a utilizar en la API
+	::SetQuery(getQuery(cTable))
+	For nI := 1 to len(aCampos)
+		cQueryFields += aCampos[nI][2]
+		If nI > 1 .and. nI < (len(aCampos)) //4
+		cQueryFields += " , "
+		EndIF
+	Next
+	cQueryWhere := " D_E_L_E_T_ = ' '  "
+	if cFilter <> ""
+		cQueryWhere += " and " + cFilter
+	EndIf
+
+	//Configuramos los campos para el query
+	::SetWhere(cQueryWhere)
+	::SetFields(cQueryFields)
+
+	//Informamos el ordenamiento a ser utilizado en la Query
+	::SetOrder(aCampos[2][2])
+
+	//Ejecuta la consulta, retorna .T. si todo ocurre conforme a lo esperado
+	If ::Execute()
+		//Genera un archivo Json
+		::FillGetResponse()
+	EndIf
+
+	FwrestArea(aActivedArea)
+Return Nil

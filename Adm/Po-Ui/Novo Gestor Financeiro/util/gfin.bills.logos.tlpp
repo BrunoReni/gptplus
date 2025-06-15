@@ -1,0 +1,264 @@
+#include 'tlpp-core.th'
+NameSpace gfin.util.bills.logos
+
+/*/{Protheus.doc }BB
+  Logo do banco do brasil em base64
+  @type function
+  @version  12.1.33
+  @author renato.ito
+  @since 07/05/2021
+  @return character, base64 do logo em bmp
+/*/
+Function BB() As Character
+  Local clogoBase64 As Character
+  clogoBase64 := "Qk2OCgAAAAAAAD4AAAAoAAAAdAEAADcAAAABAAEAAAAAAFAKAAATCwAAEwsAAAAAAAAAAAAAAAAAAP///wD/////////////////////////////////////////////////////////////8AD////////////////////////////////////////////////////"
+  clogoBase64 += "/////////8AD/////////////////////////////////////////////////////////////8AD+///8f///////////////////////////////////////////////////////8AD+P//wH/////////////////////////////////////////////////////"
+  clogoBase64 += "//8AD+H//gD///////////////////////////////////////////////////////8AD+B/+AA///////////////////////////////////////////////////////8AD+A/8AAf//////////////////////////////////////////////////////8AD+A"
+  clogoBase64 += "PwAAH//////////////////////////////////////////////////////8AD+APgAAD//////////////////////////////////////////////////////8AD/geABgA/////////////////wB//AH//////4Af//////////////////////8AD/x8AH4Af/"
+  clogoBase64 += "/8AAA/A/+Awf4B+AAf8AB/+AAP/gAH/wAAH+A/gAf/AAAD8B4AA/8AD//wAf+AH//8AAAPAf8AwfwB8AAPwAAf+AAH/AAD/wAAB+A/gAP+AAAB8B4AA/8AD//gA//AD//8AAAHAf8BwfwB8AAHwAAf+AAB+AAB/wAAAeA/gAP+AAAA8B4AA/8AD/+AD//AA//8AAADg"
+  clogoBase64 += "f8BwfwB4DwHgHAP+AAB+A8B/wAAAeA/AgP+AAAAcB4AB/8AD/8AH/+AAf/8AAADgP8BwfgB4D4HgPgP+B8A8A+A/wAAAOA/AwP8B/+AcB4D//8AD/wAfP4AAH/8AfgBgP4DwfgB4H4DgfwP+B+A8B+A/wD+AOA+BwH8B//AcB4D//8AD/gA8HwAAD/8AfwBwAADwfAB"
+  clogoBase64 += "wH4DAfwH+B/A8B+A/wD/AGA+BwAAB//AcB4D//8AD+AB4B4AAA/8Af4BwAADwfABwH4DAfwH+B/AcB/A/wD/AGA8D4AAB//AcB4D//8AD/ADwA+AAB/8Af4BwAAHwfABwH//AfwH+B/AcB/AfwD/AGA8D4AAD/+AcB4D//8AD/gB8APAAD/8Af4BwAAHweABwH//Afw"
+  clogoBase64 += "H+B/AcB/AfwD/AGA4D4AAD/8AcB4D//8AD/4AeAHwAP/8Af4B4HwHweABwH//AfwH+B/AcB/AfwD/AGA4H8D4D/wA8B4D//8AD/8APgB4Af/8AfwB4HwHwcDBwH//AfwH+B/AcB/AfwD/AOA4H8D4H/AA8B4D//8AD//ADwA+B//8AfwB4HwPwcDBwH//AfwH+B/AcB"
+  clogoBase64 += "/AfwD/AOAwP8DwH8AB8B4D//8AD//gB8APD//8AfgD8DgPwYDBwH//AfwH+B/AcB/AfwD+AOAwD8BwHwAH8B4D//8AD//4AeAH///8AAAH8DgPwYHBwH//AfwH+B/AcB/AfwAAAeA8A+BwPgAP8B4D//8AD//8APgB///8AAAP8DgfwYHBwH//AfwH+B/AcB/AfwAAA"
+  clogoBase64 += "+A+A+BwPAB/8B4D//8AD///ADwA///8AAA/+DgfwAPBwH//AfwH+B/AcB/AfwAAH+A/AeBgPAD/8B4D//8AD///gB8AP//8AAA/+BAfwAPBwH//AfwH+B/AcB/AfwAAD+A/AfBgOAP/8B4D//8AD//z4AeAH//8AAAP+BA/wAPBwH4DAfwH+B/AcB/A/wAAA+A/AfAg"
+  clogoBase64 += "eAP/8B4D//8AD//A8APgB//8AfAH/BA/wAfBwH4DAfwH+B/AcB+A/wD8AeA/AfAgeAP/8B4D//8AD/+AfADwA//8AfgD/AA/wAfB4D4DgfwH+B+A8B+A/wD+AeA/AfgAeAP/8B4D//8AD/4AHgB8AP/8AfwD/AA/wA/B4D4HgPgP+B+A8A+A/wD/AOA+AfgA+AP/8B4"
+  clogoBase64 += "D//8AD/wAD4AeAH/8AfwD/gB/wA/B4DwHgHgP+A4A+A8A/wD/AOA4AfgA/AH/8B4D//8AD/AAA8APgB/8AfwB/gB/wB/B8AAHwAAf+AAB+AAB/wD/AOAAA/wA/AAB8B4D//8AD+AAAfAHgA/8AfwB/gB/wB/B8AAPwAAf+AAD/AAD/wD/AOAAB/wB/gAB8B4D//8AD/"
+  clogoBase64 += "AAAHgeAB/8AfwD/gD/wB/B+AAf4AA/+AAH/gAH/wD/AOAAD/wB/wAB8B4D//8AD/wAAP48AH/8AfgD/wD/wD/B/gB/+AD/+AA//4Af/wD+AOAAP/4B/+AB8B4D//8AD/4AAf/4AP/8AeAD/////////////////////////wD8AP////////////////8AD/+AB//gA"
+  clogoBase64 += "//8AAAD/////////////////////////wAAAf////////////////8AD//AB//AB//8AAAH/////////////////////////wAAAf////////////////8AD//wA/8AH//8AAAP/////////////////////////wAAA/////////////////8AD//4APwAPP/8AAAf"
+  clogoBase64 += "/////////////////////////wAAD/////////////////8AD//+AHgA+D/+AAH//////////////////////////wAA//////////////////8AD///AAAB4B////////////////////////////////////////////////////8AD///wAAH4A/////////////"
+  clogoBase64 += "///////////////////////////////////////8AD///4AAP8A////////////////////////////////////////////////////8AD///+AA//A////////////////////////////////////////////////////8AD////AB//g////////////////////"
+  clogoBase64 += "////////////////////////////////8AD////wH//4////////////////////////////////////////////////////8AD////4P//8////////////////////////////////////////////////////8AD////+///////////////////////////////"
+  clogoBase64 += "/////////////////////////8AD/////////////////////////////////////////////////////////////8AD/////////////////////////////////////////////////////////////8AD///////////////////////////////////////////"
+  clogoBase64 += "//////////////////8AA="
+
+Return clogoBase64
+
+/*/{Protheus.doc }Itau
+  Logo do banco do itau em base64
+  @type function
+  @version  12.1.33
+  @author daniel.muniz
+  @since 13/05/2021
+  @return character, base64 do logo em bmp
+/*/
+Function Itau() As Character
+  Local clogoBase64 as Character
+
+  clogoBase64 := "Qk3+GwAAAAAAAD4AAAAoAAAA5gEAAG8AAAABAAEAAAAAAMAbAAATCwAAEwsAAAAAAAAAAAAAAAAAAP///wD////////////////////////////////////////////////////////////////////////////////8AAAA/////gAAAAAAAAAAAAf//////////////////////////////"
+  clogoBase64 += "////////////////////////////////AAAAP////AAAAAAAAAAAAAA//////////////////////////////////////////////////////////////wAAAD///+AAAAAAAAAAAAAAD/////////////////////////////////////////////////////////////8AAAA////AAAAAA"
+  clogoBase64 += "AAAAAAAAAP/////////////////////////////////////////////////////////////AAAAP///AAAAAAAAAAAAAAAB/////////////////////////////////////////////////////////////wAAAD///gAAAAAAAAAAAAAAAP////////////////////////////////////"
+  clogoBase64 += "////////////////////////8AAAA///wAAAAAAAAAAAAAAAB/////////////////////////////////////////////////////////////AAAAP//8AAAAAAAAAAAAAAAAP////////////////////////////////////////////////////////////wAAAD//+AAAAAAAAAAAAAA"
+  clogoBase64 += "AAB////////////////////////////////////////////////////////////8AAAA///AAAAAAAAAAAAAAAAAf////////////////////////////////////////////////////////////AAAAP//wAAAAAAAAAAAAAAAAD///////////////////////////////////////////"
+  clogoBase64 += "/////////////////wAAAD//8AAAAAAAAAAAAAAAAA////////////////////////////////////////////////////////////8AAAA//+AAAAAAAAAAAAAAAAAP////////////////////////////////////////////////////////////AAAAP//gAAAAAAAAAAAAAAAAD////"
+  clogoBase64 += "////////////////////////////////////////////////////////wAAAD//4AAAAAAAAAAAAAAAAAf///////////////////////////////////////////////////////////8AAAA//+AAAAAAAAAAAAAAAAAH//////////////////////////////////////////////////"
+  clogoBase64 += "//////////AAAAP//gAAAAAAAAAAAAAAAAB////////////////////////////////////////////////////////////wAAAD//4AAAAH8AP4AAAH4AAAf///////////////////////////////////////////////////////////8AAAA//8Af4AH/AP/j+AH/w/gH/gAB//8AEB+"
+  clogoBase64 += "A/4B/8AB/8AD////AP/gB/ABAf8AGA///gAA//A8Af/8AfA//AAAAP//AH+AH/wP/8/gH/+P4B/4AAB/+AAAfgP+Af8AAP8AAf///wD/wAPgAAH+AAAP//wAAD/gHAH//AHgH/wAAAD//wB/gB/8H///4B//z+Af+AAAH/AAAH4D/gH+AAD+AAB///8A/4ADwAAB/AAAD//8AAAfwA4A//wBw"
+  clogoBase64 += "A/8AAAA//8Af4A//B///+A////gH/gAAAfgAAB+A/4B/AAA/AAAP///AP+AA4AAAfgAAA///AAAD8AOAP/4AcAP/AAAAP//AH+AP/w/4P/gf///4B/4AAAD4AAAfgP+AfgAAPgAAB///wD/AAOAAAH4AAAP//4AAAfADgD/+AHAD/wAAAD//wB/gD/gP8A/4H/h/+Af+AMAA+AfAH4D/gH4AG"
+  clogoBase64 += "DwAcAP//8A/wB/gHwB+AAAD//+AAAHwA8A//gDwA/8AAAA//8Af4B/wD/AH+B/wH/gH/gH+AHgH4B+A/4B8AP/8AfgD///AP8A/4B+AfgD8A///g/wA8APAH/4A8AP/AAAAP//AH+Af4A/wB/gf4A/4B/4B/wB4D+AfgP+AfAH/+AP8Af//wD/AP+A/gH4B/AP/////APgDwB/8APgD/wAAAD"
+  clogoBase64 += "//wB/gH+AP8AP4P8AP+Af+Af+AeA/gH4D/gHgD//gD/gH//8A/wH/gP4B+AfwD/////wD4B+Af/AH4B/8AAAA//8Af4B/gD/AD+D/AB/gH/gH/gHgH4B+A/4B4A//4B/4B///AP8B/4B+AfgP8A/////8A/g/gD/wB/g//AAAAP//AH+Af4Af4A/g/wAf4B/4B/4B8A+AfgP+AeAf/+Af+Af/"
+  clogoBase64 += "/wD/Af/APgH4D/AP/////AP//4AAAAf///wAAAD//wB/gH+AH/gP4P8AH+Af+Af+AfABgH4D/gHgH//gH/gH//8A/wH/wAYB+A/wD/////gD///AAAAP///8AAAA//8Af4B/gA//n+D/AB/gH/gH/AH4AAB+A/4B4B//4B/8B///AP8B/+AAAfgP8A/////wA///wAAAD////AAAAP//AH+"
+  clogoBase64 += "Af4AH///g/wAf4B/4B/gB/AAAfgP+AeAf/+Af/Af//wD/Af/wAAH4D/AP////wAP//+AAAA////wAAAD//wB/gH+AA///4P8AH+Af+AfgAf8AAH4D/gHgH//gH/gH//8A/wH//AAB+A/wD////wAH///gAAAf///8AAAA//8Af4B/gAD//+D/AB/gH/gAAAP/4AB+A/4B4B//4B/4B///AP"
+  clogoBase64 += "8B//+AAfgP8A////wAB///4A/AH////AAAAP//AH+Af4AAH//g/wAf4B/4AAAD//+AfgP+AeAf/+Af+Af//wD/Af///gH4D/AP///wAA////AfwB////wAAAD//wB/gH+AAAAf4P8AH+Af+AAAD///gH4D/gHgD//gD/AH//8A/wH///4B+A/wD///4AAf///wD8A////8AAAA//8Af4B/g"
+  clogoBase64 += "AAAD+D/AB/gH/gAAB///4B+AfwB8Af/8A/wB///AP8B///+AfgP8A///4AAP///8A+AP////AAAAP//AH+Af4AAAB/g/wAf4B/4AAB///+AfgD8AfAD//AH4A///wD/Af///gHwD/AP//+AAH////gPgD////wAAAD//wB/gH+ABgA/wP8AH+Af+AYAH/H+AH4AAAH4AIP4A8AP//8A8AAH"
+  clogoBase64 += "x/gB8A/wD///AAH////4B4B////8AAAA//8Af4f//AfA/8D/AB/gH/gH4A/wAAD8AAAD/AAB+AAAH///APAAB8AAA/AP8A///gAH/////AcAf////AAAAP//AH+H//wH//+A/wAf4B/4B/AH8AAA/AAAA/wAAfwAAB///wDwAAfAAAPwD/AP//4AH/////wHAH////wAAAD//wB/h//8D//"
+  clogoBase64 += "/AP8AH+Af+Af4B/AAAfwAAAP+AAH+AAA///8A8AAHwAAH8A/wD//+AH/////8AwD////8AAAA//8Af4f//A///gD/AB/gH/gH+AfwAAP8AAAH/4AB/4AA////APgAB8AAD/AP8A///gD//////gIA/////AAAAP//AH+H//wD//wA/wAf4B/4B/gD+AAH/AMAH//gAf/gA////wD/Af/gAB"
+  clogoBase64 += "/+D/4P//4B//////4CAP////wAAAD//wB/gH+AAH/gAAAAAAAf+Af4A/////////////////////8A/wH////////////+Af/////+AAH////8AAAA//8Af4B/gAAAAAAAAAAAH/gP8AP/////////////////////AP8B/////////////gH//////wAB/////AAAAP//AH+Af4AAAAAAA"
+  clogoBase64 += "BgAAB/4D+AD/////////////////////wD/Af//////+B////4A/5////8AAf////wAAAD//wB/gH+AAAAAAAAfgAAf+AAAB/////////////////////8A/wH///////gf///+ABgP////AAP////8AAAA//8Af4B/gAAAAAAAD8AAH/gAAAf/////////////////////AP8B///////4D//"
+  clogoBase64 += "//wAAD////4AD/////AAAAP//AH+Af4AAAAAAAAfgAB/4AAAP/////////////////////wD/Af///////Af///8AAA////+AA/////wAAAD//wB/gH+AAAAAAAAD8AAf+AAAH/////////////////////8A/4H///////4D////gAAP////gAf////8AAAA//8Af4B/gAAAAAAAA/gAH/gAA"
+  clogoBase64 += "D//////////////////////AP/////////+Af///+AAD////8AH/////AAAAP//AH+Af4AAAAAAAAH8AB//4AP//////////////////////wD//////////wD////4AA/////AB/////wAAAD//wAAAAAAAAAAAAAAAAAf//////////////////////////////////////8Af//////////"
+  clogoBase64 += "////////8AAAA//8AAAAAAAAAAAAAAAAAH///////////////////////////////////////gH///////////////////AAAAP//AAAAAAAAAAAAAAAAAB////////////////////////////////////////////////////////////wAAAD//wAAAAAAAAAAAAAAAAAf/////////////"
+  clogoBase64 += "//////////////////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAH////////////////////////////////////////////////////////////AAAAP//AAAAAAAAAAAAAAAAAB////////////////////////////////////////////////////////////w"
+  clogoBase64 += "AAAD//wAAAAAAAAAAAAAAAAAf///////////////////////////////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAH////////////////////////////////////////////////////////////AAAAP//AAAAAAAAAAAAAAAAAB///////////////////////"
+  clogoBase64 += "/////////////////////////////////////wAAAD//wAAAAAAAAAAAAAAAAAf///////////////////////////////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAH////////////////////////////////////////////////////////////AAAAP//AAA"
+  clogoBase64 += "AAAAAAAAAAAAAAB////////////////////////////////////////////////////////////wAAAD//wAAAAAAAAAAAAAAAAAf///////////////////////////////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAH////////////////////////////////"
+  clogoBase64 += "////////////////////////////AAAAP//AAAAAAAAAAAAAAAAAB////////////////////////////////////////////////////////////wAAAD//wAAAAAAAAAAAAAAAAAf///////////////////////////////////////////////////////////8AAAA//8AAAAAAAAAAAA"
+  clogoBase64 += "AAAAAH////////////////////////////////////////////////////////////AAAAP//AAAAAAAAAAAAAAAAAB////////////////////////////////////////////////////////////wAAAD//wAAAAAAAAAAAAAAAAAf/////////////////////////////////////////"
+  clogoBase64 += "//////////////////8AAAA//8AAAAAAAAAAAAAAAAAH////////////////////////////////////////////////////////////AAAAP//AAAAAAAAAAAAAAAAAB////////////////////////////////////////////////////////////wAAAD//wAAAAAAAAAAAAAAAAAf///"
+  clogoBase64 += "////////////////////////////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAH////////////////////////////////////////////////////////////AAAAP//AAAAAAAAAAAAAAAAAB///////////////////////////////////////////////////"
+  clogoBase64 += "/////////wAAAD//wAAAAAAAAAAAAAAAAAf///////////////////////////////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAH////////////////////////////////////////////////////////////AAAAP//AAAAAAAAAAAAAAAAAB/////////////"
+  clogoBase64 += "///////////////////////////////////////////////wAAAD//wAAAAAAAAAAAAAAAAA////////////////////////////////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAP////////////////////////////////////////////////////////////"
+  clogoBase64 += "AAAAP//AAAAAAAAAAAAAAAAAD////////////////////////////////////////////////////////////wAAAD//wAAAAAAAAAAAAAAAAA////////////////////////////////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAP"
+  clogoBase64 += "////////////////////////////////////////////////////////////AAAAP//AAAAAAAAAAAAAAAAAD////////////////////////////////////////////////////////////wAAAD//wAAAAAAAAAAAAAAAAA//////////////////////////"
+  clogoBase64 += "//////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAP////////////////////////////////////////////////////////////AAAAP//AAAAAAAAAAAAAAAAAD///////////////////////////////////////////////////"
+  clogoBase64 += "/////////wAAAD//wAAAAAAAAAAAAAAAAA////////////////////////////////////////////////////////////8AAAA//8AAAAAAAAAAAAAAAAAP////////////////////////////////////////////////////////////AAAAP//AAAAAAAAA"
+  clogoBase64 += "AAAAAAAAD////////////////////////////////////////////////////////////wAAAD//4AAAAAAAAAAAAAAAAA////////////////////////////////////////////////////////////8AAAA//+AAAAAAAAAAAAAAAAAf///////////////////////////////////////"
+  clogoBase64 += "/////////////////////AAAAP//gAAAAAAAAAAAAAAAAH////////////////////////////////////////////////////////////wAAAD//4AAAAAAAAAAAAAAAAB////////////////////////////////////////////////////////////8AAAA///IAAAAAAAAAAAAAAAA///"
+  clogoBase64 += "//////////////////////////////////////////////////////////AAAAP//zAAAAAAAAAAAAAAAAP////////////////////////////////////////////////////////////wAAAD//+YAAAAAAAAAAAAAAAH///////////////////////////////////////////////////"
+  clogoBase64 += "/////////8AAAA///ngAAAAAAAAAAAAAAB/////////////////////////////////////////////////////////////AAAAP//8+AAAAAAAAAAAAAAA/////////////////////////////////////////////////////////////wAAAD///n4AAAAAAAP//AAAAf//////////////"
+  clogoBase64 += "//////////////////////////////////////////////8AAAA///8/////////////z/P/////////////////////////////////////////////////////////////AAAAP///j//////////////j/////////////////////////////////////////////////////////////wA"
+  clogoBase64 += "AAD///+P/////////////h/////////////////////////////////////////////////////////////8AAAA////4P///////////+B//////////////////////////////////////////////////////////////AAAAP////wAAAAAAAAAAAAD///////////////////////////"
+  clogoBase64 += "///////////////////////////////////wAAAD////////////////////////////////////////////////////////////////////////////////8AAAA/////////////////////////////////////////////////////////////////////////////////AAAAP////////"
+  clogoBase64 += "////////////////////////////////////////////////////////////////////////wAAAA="
+  
+return clogoBase64
+
+/*/{Protheus.doc }Bradesco
+  Logo do banco Bradesco em base64
+  @type function
+  @version  12.1.33
+  @author vinicius.prado
+  @since 07/10/2021
+  @return character, base64 do logo em bmp
+/*/
+Function Bradesco() As Character
+  Local clogoBase64 as Character
+
+  clogoBase64 := "iVBORw0KGgoAAAANSUhEUgAAASQAAABTCAIAAAC5y+12AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAACdESURBVHhe7d33v1bF1Tbw99+JPlGDyZNgj280xsSoUbF3nygW7CWKBUQligqKKAYrtlhib7FgF40Nu0SMQRQbIkGDGvPyfu99bSab+3AOBzjAg599/TCf2bPXrFkzs"
+  clogoBase64 += "65Za+77PvB/Flb4fy1atFgJCL+CxcjWrK+h+Pe//61c02fR4juDcCqoycZH//Wvf3311VfffPON+pqIb7/91hTYD+ppgXrSLVqsDoRfQU22r7/+mqf2fL0GAbtiP7KZTvhWGlu0WC2ovbNCTTZMmz179kUXXTR27NgLL7xw/JqGcePGTZw4ccqUKR988EGJZi3ZWqx2hF/Bf+5sM2bM+K81Ft///vfXWWedH/7wh9tss82wYc"
+  clogoBase64 += "Ouu+46rMu8Wsq1WI0Iv4KabPD3v//9xz/+8Q9+8IP/XjPxox/9aP3110e5tSv87Gc/E+vmzJljauI2tJRrseoRcgWLke0nP/kJsvHaNRohHtYJdzvvvPOrr75qdm5xLdlarHqEXMF3kGwgRItyKvi21VZbTZs2zbRbsrVY9ajZVeG7STbBzVxc4QYPHizEbbvttrNmzTLzzu2tQhaiRYuVjZpdFb6bZAuqq9x/i3LrrrvuyJE"
+  clogoBase64 += "jzTw3t5ZsLVYZanZV+C6TDZBNud56622wwQavvfaayX/zzTfthyUtVhlqdlX47pPNpJQub+PHjzdNTGs/LGmxyhByBauUbEnqEm1cqPJYWlQYUAkOGOhcf/316ZdJ7r333l9++eW3334ruNUr0aLFSkbNrgqrOrINHjxYRpdo4zF885jGyKwMrLPOOltttdUHH3wgprVka7HKULOrwqom26BBg/h9E2KO4GNoCANXBoxL/5tv"
+  clogoBase64 += "vmmmMsl6JVq0WMkIuYKVQjacCdTzq478nEoQ22KLLYYMGbLXXnvtv//+++2336677rrNNttsuOGG5SdXxYB0Hyjka7fnnnsukc1868Vo0WJlIuQKBoZsoRYupa7iSrbeeuvhj8C13XbbjRw58q677nrjjTc+/PDD+fPn57fCygULFsydO/ftt9+eMmXKhAkTDjroIPlkWBc90k5WZZQVAbIx6dlnn8241Tq0aLHSUbOrwoBFN"
+  clogoBase64 += "txQcuhwA2GUxx9//GOPPfbpp58aNR8AZqzKjMWQRjLTp08fP3781ltvTQNtudEpo3+5gWzwl7/8xUDtR5EtVhkqf68xYGTLp4tKQUlOeNhhh7300kv1gNW3yfmTuXqwilp1bREiCeqzZ8+eOHHiRhttFNKuINOgJVuL1YLKtWusKNkScxKCVDCNkmuvvTapWv6Os3yJnIE0/u1vf3v44Ydvvvnmyy+//JJLLrniiituvPHGhx"
+  clogoBase64 += "566PXXX583b15lZAfTpk3bZ599UJfmwIgplxUt2VqsFsTngxUlW1w/mR6mbb755o8//jhthkEqwLSvvvpKCxd/8sknzzvvvF133dXFjHAgduXTEXc8erbddttTTz31wQcf/Pzzz/XS97TTTiMWPqfM0MuElmwtVgv4W8EKkQ3TuL5egwcPXnfddTfddNN8AhFvRjPxTR3l7r///gMOOIDysGvQoEH66hgkKkYnPQSIYd3VV18"
+  clogoBase64 += "tMLJt3LhxJZ8sksuElmwtVgsqbtUYgDQS0uuRRx6hvfyrQZimLprtueee3/ve99Zaa60EscSxEtP0xb1c+ahig4pHgY7MLrvsgsBUjRo1Cg8JrEqyZWWWCXXP7xDqiS0JtUSL3lGvVIXlIVvxeGUqaHPxxRdTkrwxZINXXnnllFNOGTFixIQJE1zM4Kqrrrr00kvPP/987UcdddR+++233XbbbbTRRohUSIgVdDJGwNSofuWV"
+  clogoBase64 += "V15//fXop46HymXFspItMVlZrc3yIKNET+prKOwmmIidDdS1qNQSLXpH7Q0Vlj+yoRwy8OC111579913nz9/PpcSypQ2I7AlzfF6Du9xzpw5b7/99tSpU1Fx+PDhQ4YMoTZBLze0/OjEQAZNAIwBy4SKa8tGNuXMmTNFVOfC6aefPrJPOFDOPPNMh8g111zz4osvlmsqj1SPtjUO1RYtlJsceuihRzYwbNiwo48++q9//au3a"
+  clogoBase64 += "+jUVhmyhsHykI0YqIQD6PHMM8/QG2pl9aOzM1qfiEy8P12++OKLN954Y/LkyUOHDs0X3AIajoV4hosNy4qKa8tANjIk+dPPf/5zd9GfLQ3/t8KWW26pvvXWWwvaU6ZMwTR6LEgqteo1ChbB7WDDDTfcfPPNzS5QN8e33nrL25ZsfcMSFSwb2UrSCFtssYXj3LH35Zdf8qRkGgHfWrBgwbx582bPnk3tu++++7cKHjV+/fXXXX"
+  clogoBase64 += "boohGakZDOadOmnXfeedtss00yzBiwfHxbPrK98847O+ywA8f6de/YdtttlYwsj+Tjmueee25CnAnWetc0MP7xxx934vzqV7+S8AfqlqUlW39giQqWgWz5yJHT/+Y3v7n66qs//vjjdMSQ8AQsPe6dcMIJ3M6WOOw322wzkQE22WQTj5xyjz32ELXkZhMnTnzooYdmzJihe8xS8vJwT5mWTz755Lrrrtt+++0NLcqJb1Db1G8"
+  clogoBase64 += "sK9mApGOCbxWyMT7U0qgCWgq6Wn7xi1+YtcsqVf0c8X8hLMKjjz7q4DAjE88cf/nLXyJb0sg1d2qrBpaoYNkiG7f74x//mNMa2e66664xY8bMmjULN3I5of2WW25xi0MMSSZyAoYE6hq9AsEqYkjoynfGGWfY1M8++ywm2sJwWCXbabixY8fKZ3RBNiEO+ft/f1s+sonGeMW3Kq7VZAPMTyXtKg4gjSFhabRcytdff73/g/5v"
+  clogoBase64 += "A8sfe+wxuXHIFlgQ8w3ZarkWvcASFfSXbPzbq9NOO23mzJkuVAceeKBMCWGccDJDnoRsIKztsssu+LBUGhAwnJJaDAwzOevo0aNffvllqmKrCg6X0Pf8888LjITZgzyrmGwgXOOPFv4naFuEXNi22mor7kgYatGKnATGjRvXWd810y+Z3ZJtRVDtfI3+ki3cEEzye0U0ww2Vs846i+9K+QQiquX3gwYNinxBNEA+5wjCNI1oo"
+  clogoBase64 += "64i9GERnd4OGzZsypQpMTfK8Q3Y+eGHHx5//PHEdGkq7xsDQrbQSbw64ogjrr32Wrn0lVdeOWnSJHQ65JBDXGxINsmGltz04IMP/uKLL2ir9S4O7T1fpTGom3qgft0D9etlRN15EdKScvnIVrr3RAT6j7rb4qjfLQvqnosj7RFYKtKlifpF76jlKvSXbAigjMumrsQNPkdj+KYiLiXsVJ36gu6ALREO5UIedA3ljjzyyDfeeI"
+  clogoBase64 += "NywDdR7p///CdTse7MM89EeL3wX7lU1sXyFY9s6uLYZZdd1lmyBtDJxdI9rSkMmLnzzjvTQybjRr4ncuOtHxYulCN8/vnnkVfq622xPDKgkaTkggE01K0VvEqX0isglkYgUEsvXGht586dS1v9vMgRHaBbbLFF8xDpjWxR2MlwFv/FOdvMpakZCHuVSuoFaQkiDAsWLJhfIbeYgshEuO6/6BqSFmUkQZ2ef1RoLld6QVNJtX4"
+  clogoBase64 += "d1EIV8smfGeXoLyCvL5BP96B+XWHZ7mwBz8YEFby699579Y2JrN9nn33wpP8BpzfQgHKC56abbip6mFj0J6U0ojkfddRRBMLS2NMHBops0kiZ4cSJE73tAg876aST+GUtWiF+OX36dALRaRYPPfTQ3Xffbenuueee++6774477mCY7gRslZB+6qmnHlThuOOOe+211/Ric/HgTz/99KmnnrrmmmvOOeeco48+WlAdOnSoUrw9"
+  clogoBase64 += "5ZRTxNtp06bFkyhUKXWIN1ClMW7knsyYk08+mQYjKtVvuumm9957rzNYFdkkyfV8KvRGNgqL2jlz5uh44YUXHnvssXT+9re/VUpJLrnkkmeffTZz0SWzbu6I7nnsjL1w4VtvveVAHzFixKGHHipHMFNZz8iRI3nFk08++dFHH0UPx8i4lY7a71UqHQvRgzEXXXTRCSeccNhhhzHGPchyWUBbkKMQdKEkGkA9zoaZL7zwggW3L"
+  clogoBase64 += "7pbJZYcfvjhw4cPv+qqq7wqmYvpQIYOKsU1lp9sIPEzBxppp+H999/niDSsONmCsAiluZRD10BZ08zn448/tvFsKIlrei0RK4lsRTI7zQO6yCay7bTTTjNmzKjEO7BzO+64o0Mklz3Jp8ycR7LKCSJi82xKttxyS+UGG2xw//3365WB6Dn//PP32msvvbzVnRJ16Hz/VXVxkxRgf/e733ECHalFgHQPSou3Tz/99P/8z//Qk+"
+  clogoBase64 += "5R5ZEed+Obb76Z8BNPPOGxuQh9kE2LPcLeAw44gG2MyRwh+q2eNWHeSy+9RFiXntsRPdhuNQz005/+NDNtgjYLtfvuu0+ePNmI8fJiD53gEc2uv/56xpCPEnNhhr5aomrIkCEuAtbWuOkexLwHH3wQryyp7qB7+oK6llwrHJoxmxl1/wpaClaUbE4XGjOA5euP3/cT/IyeJJmipePEiW4FHTYWN6f1LbfcgopYtNRMcmDJ5nj"
+  clogoBase64 += "uLFmDbCnHjx9v9WvR6hsC+7r33nt/8sknlXgHtn/PPfe0ebkFKTmTYGKrzj333E022SQ3Q/c9Fa5gs/WK69x+++3SZo3eFkRYmQqdth+Z1YXQ9I2dQVxKO/8wNR4TS9KXEiVwJkrkxlOnTs0KRAB6I5tHAe2MM84wI0ZGkjEq+gbGsoaZQjMtakKj4LzffvvhKnmgRJnuUFnR2QsCmCABpqRLDyWSAm8ZU7pndipKLcwLnHe7"
+  clogoBase64 += "7rrru+++W2akwt/OOuss62MpCBuufOCcSizJdMg4GvJ9WNMSjwXLQzbg3Ik5ch59s38PPPDAsn5u0Qea/FFxQ5M3YlqWFYwrfJs2MxgTyd4wUGSz0DZv0qRJ3hZEWGAXJZoZl82wB3KnEluIub0ITcSy8WTw06Y++uij9jUkjDeAXSyEUcp5yNjd9FXJxishe59XHmOJ01BHiAH0JALwZh2b1kKGjiqlFjInnniiUNxcBPVCt"
+  clogoBase64 += "ijMoW5q8l4EIJPu9MRI8uo6Fmsz0/xBVvwn8Dhz5kxL5FArwiaVeemS0qO31kdSUIJJ9GSCzzzzDLPDeRqU6Vg0ZBkzhLHOPvvseFfm8uGHH4pX9jp2RkyXdI/CPKZFPcxP+p01ya4VrBDZUOu2227TN0odVLmwFZIMFCg03Nprr33DDTeU4cDKnnbaaXi41BEHkGy4IV2sxu+ApJOVZrlul+/aAMIYQiyDqvBIsc4Wlv1TP+"
+  clogoBase64 += "aYY3TPvmqp+/cgm1iUIXRkVTIZMkqPOsYJApaLqzIoI8bOQJ3BPKkZhEH3uE6gJaPEHtqKco1NsvGqJBpSXF7rbSRNUF+PzNPOTsZ7pR1inqWYPXt2l3nnnXeeoKojmegxnMWhhwaz1jGjeAzZoqEs8ttvvy1SGZEMVFZ3QGGmBpmvFkp222238h/6wZdffinRZTOxajE6XWKMujhZ+nYUVcgourgW6k7JQJJNycvdgPWN0mU"
+  clogoBase64 += "lW5dYH73ySgQzH5e3yt56XWTkSBixPjAgZMui23V3/d///venn3766NGjc2nWbs8INzeANzvqXNKsO1RWL0Y2wnTaJ/Wmr9tO2riUw7KZRrq/2U7QnX8MHTqUT5xyyim4KhTwQr3qsRf5Ooe744479K1nVc2LHme2t01HNK4WQ4fARtcoOCip6vjskshGYZgmkmShIpnpsFPOzEmuvfbaiy+++Le//a0W7VFIBqkuvfRS3aNK"
+  clogoBase64 += "KaSYGjMsTlTRqZcRrbPJCp4yTI2M3Hjjjc09a5slosQtY/jw4VYj3aFjdAVDm5d9yQTN1EDq+Xi5bNNVV11lfQjrQkCZbSXpcZcKllr3jtIKEdCFzDXXXEOJZckpULD8ZEMAZJNjmF5MlEbig/Zwow9EBpqPqaSlCwxLxS0xiUcIo+Iak0Ej0BsGhGyQzYtH2jNksLhcgUyYAxHwik/ko5F8rhOdPcmmjN+r6IhLHGvfffeVl"
+  clogoBase64 += "Gp/+OGHY7MSbbRIeCzCrFmznKDaabavroVusI5zTkBVrCVMmz0qjqgkLCFnv+EiFhA2F7Y5RMSWI488kjuyM4YRKGq7yCb7WrBggQjDv02HQOQNfeihhwoyxAJXmtDAW9qMaIjdd98dwbyNefJejWXNibEBzV599dWsobk4v6TBfBp7hWjLm+7R4GpDg46MKccEWBlDO6EclBMnTjRH66Cd2DvvvKNjHMOW7bzzzgY1eqajJE"
+  clogoBase64 += "anOWblkcW+ZMpeVZZ2Zg067rTTTgSyNdQWLCfZAl4+ZMgQF6dY+cILL+TulLjXN9CDWEibShrztguRURE5r7jiCmM5M3Kg3nTTTcyIWB8YKLJ1oSw0lLq9cfJdcMEF+WDacKzNoB670sh0CTTC2LFj3ezzldf06dPzb5PpCNpffvnl1JsoAnLOeAabo5yH7bPPPpREAN58880ImFrGBS1OB3Ej2RSg0I033qg9DsfaSEIX2ZS"
+  clogoBase64 += "YQKwZV7Nor7zySqXsPxa6j3FlklGLb2hfMm3lnXfeGQ8mkPMon9NUvbuBdU8//bSsmP50598SOTyvrOggqpxiOPCnP/0pH9MHej377LOmme8AE4gmT56su15QNDhYUStiBVS5kDf5FoiKV199NYGYVLBCZOO+SuZGqashm2hYapwB5CGJPMKjEmGCJfYlHBoTnjRpkjWyprzBoGPGjEnuGsnesJLItkSQF3xyFQGm2sWcyh77"
+  clogoBase64 += "IBsXzB24CzrG5jw6Zbp2sQnBhJ6Op1TZKbXKECNwPMU/IOOqiGly49zumFr08/KiLfSAJtkCYhy0uVAodNJJJ1EFtdAiyo0aNYqfoJm1pVZHoUZ7BrUCibqGIGNQaoWvsp5AZ1Sl9Khvuvfcsjxa8Nx+IeuZSmmJkhL2m/NlhjXMP6dNhnDpqFGmjcmRDHR3A08waGKFyAboce6552Zs3r/HHntw/fpd78AcMBk25ctKpeuNj"
+  clogoBase64 += "CIEXiKYZ7i77747Y5m27EV+v+66665isrHcBhSUXSmw+vZAopIEyYjFP3ojG//jc2RIZuMBS9MrZSKkCsid5DNCx9SpU+U2ILOQDrlD4hKTWB6ysf/FF19ML7BfvMGrYraKHMktwFsuYpQy0Jw5c3LRoq1YS2GTbGyTebI/b4FCQwgjEegCOiEYmawAMg8bNqwEjUcffTRxLyuvtMLM41oXXXSRkz3/T3rAyOZyackHtrUdlS"
+  clogoBase64 += "VGYdtZZ50VeSiLrJJHpSkTsOOStZCnzJdCE4xYejVxxhlnNEcEyyWKNg+jYEXJxtGtu3iagWXka6+9Ntdfqvfj5JlnnlmPvQjydXSqJRaH4ObC5kLMn0wY2QxHHoUGVf+Ofy3XCwaKbDbA3muxH5AK5+Y9cZE4kHaPEjOemkXPoCpLJFs6RtLUbHyE9SodVZTmjlQXXnjhQQcd5KDR0UAMyD3HnQ3JqQUKaY61zz//vL5As3S"
+  clogoBase64 += "I85WhgTEl1TS6IVTiVSoXX3yxuEfeWJGnsEk2u88YDmetIgCswmrB5L777ru/gT//+c/nnHOOEWu5anRmv//++9Hmjsdyq2rEHGQxlf5cj91mxUZqC+uYanHCFoRM2IxyyArINotkE+ao1A4EeBTLjQhlvsZNxuEkIqZLoKNGeW9zPVWMqIsrtLdNrBDZMEqAQhtZr7EpMbBMj1vXEr2jkC12VyYsdOnsjWzglVOEsAmbp0yd"
+  clogoBase64 += "12I7s1cN2bLxdv20006zK4899tgTTzyhtPE8cq+99mqe7qAvvknrRWDaorOQjb9GhlpUkSllIzlNc0ezwfEkjjhixAiOGLfjFnFHeuIcXmnJfoN2jSQzcbBoQ4cO1TG9AtrcczJEPWqFdMEQAsRKly6yYamUJD4aAVDX4gwC3QvcZ0y2KUmbx/whEpivMOKexv4sTi1XQaPu9FjqAw444IYbbki2pozBo0ePNmItXYF81yf7v"
+  clogoBase64 += "YEABy7mZWgjWtVwled0OY/Gp556ikzTTnX29/xN34pGNgEHB6xXfk710UcfWWJKkLCW6AXIhjnGLRNQdxAukWwZxSoIa5EnfMEFF1BSJaRL/4dJBpBs9rL5PVuB7TzuuOMYGeFAFwsixyMQnc3IRoB+JU6ef/753rIt1IoNQWggY9xzzz3zkTQz0jHmhXjKQjboDF8Z0CSbbC3fvMeVI8N3JZ8GItC1OFr0pYF8hKGLbDadN3"
+  clogoBase64 += "fJGLcg9gT16wb0gueee46qjOjyX2ZaCzVACcu9stQoN27cuJxHlS0LHUY2qAykQkx+kTQ1k+oNBG6++eZyoQUachbkk56O5/VYH4lGxKoBO2CbDe365QOsENlwAFSkjmPHjs3YKIQD/Ukj+082PJFD3nHHHUVYLNWinc1LHQsqrg1AGmkd7WUOrciAnZZ9qfA/WVyR19c+kS9/0gY900iuxt3z+RUwrxnZPGr85JNPDjzwQP5"
+  clogoBase64 += "XNANjhFmla8bOFfK1WKA9ZZNsiWz8T3tGB6PL/41FICNWI3egxZ2wP2RD4IwYqBfE2qB+3QDNFD7zzDNUmXgi1fTp04V68YFtzfUPoicduXUzYTvllFN0KVMDhjlfTNzbela9gECTbOluCPWQrZZbhDA8n8Q218cjq/7whz9428SKppHhm16DBw/Oek2bNk1L+ZFk/gRGXfxJRam9P2QjqTtVhC+55BJzA8JXXXUV5iAbPRCF"
+  clogoBase64 += "dZ9eMIBks5eFbAU5XL/66isuYreKsNKjJM1bXaAn2YjxftscnT3N03755ZeHaemlC6t22GGHSy+9VIbDzncrvPHGG4723NeL8ibZ2Hn00UcXCwOPhx9+uLPfWJ3NWMT2dJFGEqCn6X9Nsn322Wf5Sj1vA8LCrIPGcok/Kr2BX5pagn9ng6stVncVdLxKwg1NQ2GdFcj01VVMVhgsn1W6m8Tayop6+rLc8juVTBA6K7s4CJTPV"
+  clogoBase64 += "5pHYTONrEUreNTI7ZNQVAN2YFDHxABHtgK+jiRmZUqMkE2hB57kx8RArbscGWWyPpU+yEZAiUUYhWzY5S0ZB/zIkSPJFKZV49fyfWCgyGZN+UfXr/6BE1Or5ZhjjiluZ9FtGCIddthhCX3QRbbsKJkcz7W6BjSiATI0vZlmlqBBpXIxXHjhhVyT2XG4eFshG2Ajx42egK+IjeVHfZC5BHKWxM9augfZzP3II4/sIhvz3GydIN"
+  clogoBase64 += "dff72b1R97h7dkjG6yGbdMHBjz1ltvWRwhy4qZWvRn3cBAYlcOenAokylvgeWWt/w2IMqX6AMEhHETsXpNDXY8n6zmSK2lF1l46623FqsCJmnJx+ZNDAzZgLvjDzeaM2eOhbOdSIItgF3SG0eUMzVfuidYLTWyEbNSDzzwgLeclfUeddReEa3z8UwtujSsVLJRaBs8fvrpp/vssw/njnD2jKfyxQjAcpBNyJIiokTxeGuI1Xl"
+  clogoBase64 += "Lc5GE8ePHCxTURlhZyBaZyy67zO4UgcgwMgbQZjoqKaWI+RuF2Bk0yRadY8aMsSz16wqGYIlX/YcRoZpKDZlCzMhbCVu+RK7HWARDu1ZE7N577+06SliuS0kusFdZD7A4tGNBUnG7k+6AObnTJupGGMh7dHh10Rv5d9llF7tGoImBJJvua6211v777++YkcRTlSCGHvJXxpmn0jGvBfomm77w4IMPmuFtt9227777rlv9e0HY"
+  clogoBase64 += "m9QUeSLZHwws2Xqm44F2O12c2AbYMy1O5VpiucgmOaTT0EUzbthjrzphaJH3KEHkZyHJCCsL2Uxc6YzP4R2BgEIb1/wKK7jooosIG7qWq9CTbPI9g5aFMikzkrzNmjUrMktEZ4AKlQvUqJsq1E3Vx/qZ5gcffGD1eHMZSClnKx9ZlW8OIgCZKfPKrXiJiD3OGiej1dAxysH01e1CxAo8vv7668jZHI6k7kcdddSCBQsiUzCQZ"
+  clogoBase64 += "FPiQPmKWekxZMvvlTM2somBfaeR6Y5sriX2NeRMOxT9qfQHA0I2e2bdLaUz240CbebOnSuazZw585FHHhk1apRFb647ed2RbcKECbQFy0E2t3PjQtQCb6Mkfz1VYF6yna7ToUm2aEMAcZKGDB0Q03LiiSeWnzIinpTMoNFGIJLQk2ych04DEYtkJn7yySebb6VvCeCO0hb+Wk20xj/+8Y8nnnii+fuywOyU5QOeWJI1cevL77"
+  clogoBase64 += "nICIZm4YDI7JQxKRM5//zzuwKONXRdnD9/vqET+iZPntyVFmYukrLmr1jAZVV+wR8IRKyznYs+r6YwB0TBgJGtCW6tLEzAq0I2CNmQZ6lpJCSaYZ16/6nVEwNCNsjmueHst99+MkalkCuM45hFt6MEatEKhDlxrtfRuXyRrfysIdCLBl718ssvI/yHH35oameeeab2WJvtBwZ0kQ2sPAfN0AFjGM/JDCRlourAAw9klb7ekox"
+  clogoBase64 += "bB11ki486UPKXrwQIE1Bak2HDhklPnEeCBkn+N2/ePNewO++8k6caIn/WUM21Xh90sqROtCeffNIWIFhG0RETor8ypFNhDCbcd999UaKcMmUKs72KMWUpIrnrrruavlwazjrrLDtog/Jn42yjQfDMaqc7qNCGwAcffLA0dfr06eZ+zz33HHHEESaYt0qwUGZUvqPPyhSsFLJ1YUXINlAYKLJlQbP0dhRsVbZWe1CL/vrXHI77"
+  clogoBase64 += "2pLyubNyOcjmsO/5Z6mUa9GdNtcqFRvfNDUgaaxCNnNXked3XKMRrCpDOvMibGrMZpJHr5Rdaj02yRadTn15o15FlaVTskqjO8yhhx563HHHSdIcUuau3SiGe/TRR6MHVKzV4YcfjrfiA0t22mmngw46CC1d+CW6OBCrAnUtjMnP9sMWrJa3U26ChWkQw8hT61qLeCrm4tw599xzdc/tVyU/9ay7VR2VtGVxZFtSRxUy2USjl"
+  clogoBase64 += "LGMe+2111KCaS3ZloFsUo4m2SyolY0beUypEcgUMdCitDcan3rqKaqse3T2RrZ83pWhu6Dd3Yn/Vbo7MHS6cx2qdI8N6hkaotmjxkI2ZmT6o0ePLt/aBeTLjMyxY1mlX6OjWkvRbCD+nYSTtmhWygnxP3wjz0LCuntkA+/k36AetbGti2xffvml44kSfSkxlnqIQbnHyq760x0Vzj18+PCOD1XfWMQep2S+Fo9wx+hKmNnGjW"
+  clogoBase64 += "0xD6jFn/zOOGawQQKse2YdJVkW8kr2A2PKmkQM/fC8fIlSPoIOWrL1CpIzZsxwhnGILChk3aF+biCeCt5aelulo2QpEy9zRDZHu60iky7k+VP5nq0ntKO9zIqYLrwkHlMZ0nHrKKFTbBE64pFRbhS98q9XOPiTy6m7uUmAOTExiDzhaFMBjVzZPQdisFegLtHKPxmWQyRGwq233hpu6AtFlUoeY3bGogfKz2uiRGQTxJKekUx"
+  clogoBase64 += "pyngSDemuohEDtecb52IJeHzxxRedEbw/syMPqYO+aVRqDEnyd3F2SukuxwztLGQzM3TJRNJXvay8ur3edNNNdclts7Zj0bIELdmWjHik5MSZZ7mt5lLBxa2+Rc8xfMghhzz22GOUUMXFyxyRLf8GSbYKbLYuvZFNxxgjAkTS7horfcGj7efibOC4+fo79iiNosvtt98eSwo8Tps2TYwtx39cKl2UuuvoWuimdPbZZycrCxhv"
+  clogoBase64 += "xJAtmVvgER555BGnCXmLQJjNtaGLUPSTEa7Jp2M0fPHFF3LmDTbYgExWPgwppR1R8QoTJJnhatMMsGgabZ+MlFg5LjvzXES81IElTN1oo43yvWVZ8Pnz548bN87CspPNEW5OR2NK3ZXnnXeezdWxNqKCx4KWbEtGZEQ2m8odHbR9w5ZYbnvvwj1q1CgTsVWZsvOSK5Q5zp071wXGPSGc1BEcitdff33ku9AMR07rYcOG8XUdd"
+  clogoBase64 += "TeuMkCbeK2l5qkEYhhsuOGG+WIwNlBFZxTa9BEjRpQDgleBiimLGJMmTcI0YqeffvrGG29cdHrL5nwU3lzMaNY4c+bMCRMmWIqmGeoB7zcKDTI9l6X333+/7l+tj9TL0eCoihPryLZ0r9R0bno0oJxMOLlfptO0RN2ieSWjo43LGY4GSxdVHqmtpts5RHDy6quvfu+996IqoIcGPuOqyRiDxhNiD0QJvsk5c7BCOhakMWjJ1i"
+  clogoBase64 += "tIOqgcnE888YR7V9+YOnWqQOGqkLMtoMRYZeeCBQsWPPfcc09W0DEVaR4HTZcu6NsMjKhL3nryAMTjJfKf2267Lf9aHhkBh800F7P5AWJEQ4wp9Y6VVYhzJzz++ONpi8LrrruOP0Qh4bfeeguTow1ohjlz5ngVVQXRH7VMEo0vvvhiprqG0XzUUUeddNJJ4uQNN9zw9NNPx2bQpe6/KCiZpuTQPXbs2LEnnHDCMcccE9tE2jF"
+  clogoBase64 += "jxtxxxx35RAR00b3LjMqujp6ANufUlVde6WQ59thjYwm1qG6Il156KZ9ggV5WO5RTUqVR/fXXX5d6oDdL8reXKk5VjRYnUyasCw2VCTUqrTVasvUFwsuHuv+SUEssCbVEn6hFK+Btzu+gp0ATedsT9esKtDUVQk+ZJvK2J+rXDfBCIStO2YW6z+Ko3y2C7gjTZRvU0ktDLV3B7i9RFdTSi1Ba8jbwaCLQs32JqF9XaMm2RsIs"
+  clogoBase64 += "oNRTWRFkF6IW6tYBQq10cdTv+kR2KsL979U3oieom/qHus8iaIl5faOWrtCSrUWNlboslCfZs/5B/aIfiHBxkqptABBVsSotfaNjdAX1/huTLkFLthYdlF1YGejSHE/g5XnsJ6KkeNGKg6r+a4u1kQ8/g+plX8goQUu2Fi1WIvhbQUu2Fi1WIvhbQUu2Fi1WIvhbwWJk23DDDfP7+gEEAuPPhAkTDJxvIQ455JD81/WjRo3S+"
+  clogoBase64 += "E31JZI8mA0t2Vp8x1Bxq8Z/yDZr1qzBgwcj24r8JUtP0IZXl19+uSEy9uGHHy6yQf7dzCamTp3akq3Fdwlx7KAmm9Z58+Ztv/325U8/Bwo/rv4dkaFDh15xxRWXXnop1hlFssr199hjj8suu2zSpEna82r48OErI4+FlmwtVgvCr6AmW36ZcuKJJ4pCA042wGGalQIaOhlCY/4lEqEsgQ4GfPSClmwtVgvCr6AmW75GuOGGG/"
+  clogoBase64 += "ABDXinu9aA+H2UKEulPBoolY5chWZ9YNGSrcVqQfgV1GSL/82YMWOzzTbDAUzjoCvP9Vc9WrK1WC0Iv4L/kC3BbcSIEdI5fEvYqV11zUdLtharBeFX8B+yubapvPnmmxtvvLFkMv9c3HeGci3ZWqwWVPSqUZOt+eLOO+/knYMGDcrXAMrvAOVasrVYLQingsXIBup88ZZbbuGg8kll7m9rOlqytVgtqOhVo5tsbm75ScfDDz+"
+  clogoBase64 += "844475qP58nlJQTx4DUKTbPVUW7RY+Qi/gm6yoZnLW752++STTyZPnrzbbrvJJFEuyP90scaB2S6izzzzjHl9Xf0XwdV0W7RYuQi/gm6ydcGrefPmPf3005dffvnQoUM333zzjTbaaLPNNtt0TQOzGf/cc88J3QsWLGjJ1mLVIPwK+iIbv4QIgIAwe/bsDz744OOPPxb0lGsQGPz+++/Pnz9fktxGtharDDV5KtRka9GixcpG"
+  clogoBase64 += "S7YWLVYRWrK1aLFKsHDh/weoHvxMfg7mfAAAAABJRU5ErkJggg=="
+
+return clogoBase64
+
+/*/{Protheus.doc } Caixa Economica Federal
+  Logo do banco Caixa Economica Federal em base64
+  @type function
+  @version  12.1.33
+  @author francisco.oliveira
+  @since 01/12/2021
+  @return character, base64 do logo em bmp
+/*/
+Function CEFLogo() As Character
+  Local clogoBase64 as Character
+
+  clogoBase64 := "iVBORw0KGgoAAAANSUhEUgAAAdYAAABrCAMAAAD951N3AAAA6lBMVEUAcK/////2gioAbq4AaaybwNoAZ6sAa60xhboAba4AaKsAZaojgbj2fBX7y6/+6+H5p3b2fyC2xc8qe7TH3uxyp8z2+/0Ab7"
+  clogoBase64 += "Tn8fcAYqlbmMT1eABJjr8OdrLj7vW0z+PS4++wzeL/+fSLtdSXvNj82cOErtBsocn9gyGnxt6zzuK/1udknsdEi736u5T3mVf83Mj95NT7xaP3j0T4oWf2iTj5sYP4pXL80rj5sYLs495mcIfKfk48c"
+  clogoBase64 += "5ype2WCeH3ggDhbdZLBfVX3k00icaSdem5xdobWf0O3fF2ReXY1cp/o0sLegDv1dACQNW4+AAASKklEQVR4nO1dW3vbxhEFDQoQCMqOKok3iRRl3axQSmLHjt1c2iR1rm3//98pAYIgsJidcwYk3ZecN"
+  clogoBase64 += "38WwMXO7syZy84GHRNG88ubu8lTfxpMp9P+0+TuYDEb2F7xFz4BAv5PZw+PJ2Hai+MwDMIgQxjG3SiaXlyf7m+AnwijUxL/74FyYMV6ejYd95JwJU4HSZx2HxctN+28f4jRv7O/+BK8uP9U/evBOI0IpO"
+  clogoBase64 += "O55+fevP+MxNtb7gOeiIk5PJSfpcQ6u5tGsSTQEmESBfe+L1Zxsdz8ELFn9BquI/DOi9qfP0TqB5Yf+iT/2ofzYxJHX3LjfwDjX2E8Eh8mxLq4GOsyLRCPD6+4EVcwp2YzDOTRa7gHg47P6n9/mDAjCdLP"
+  clogoBase64 += "pR97cfSMxPG7l9z4T0TN6CK6FB+GYl30I+57l0ii6QE35hIT7uWRXRMcgmnp3tT//jSlRhJOBWvz8t0xK9ajF9zwrzjtEcvmCYh1fphSi6b86K7NxM64uQx61uXS6cRg4NHCeWBC6aSgd938rbe0VM8/kM"
+  clogoBase64 += "Pvc/MeXohPq2IdTVJ6pxaYkqMuQE5lEN/b3ptxIPDKnqsARgk3k1HDIHxBq+CjL8jhX5LrPZCUhy7Wh4Cc9A0SG7eZdUldEJ6Y3rvEHMxLGDakc92jxhJPnOduz1mpHpN0id6sy0U2kx73i3UwYRdMBYn7y"
+  clogoBase64 += "ToQrdlgbPWfFsg2CXplys1lWnde90CXOgt67qMr6XmvWE/tWzXwWnAPRvzCiaxxgJuu/sJE8FSuuPEk/dpTPF06J+nS0meljZ884z6x3tio0hrdB3bgGc74ldO1cibo30jW+om0rtWvfEtvVpouYVWzgbQ8"
+  clogoBase64 += "vWK9599b/2DZjZIxIzlKPnqbdsfr3fVvciCDXGJjEvZAl2gfOkckvUAU6+CCIw/Cb1h05Z1BzYd9/L7aJyBvXl6ApLHvlqGMr/ZAlzqniMVXkUouvSTWQb+NWc3hiWWJGFgoWZjY4kzQWxFnozNA3u76Owv"
+  clogoBase64 += "++YK2qzxd6nQuLAawdyW8QRDr6KS1VANLNMKyWc2cCcY5UnmkN5z1WduEr3m69JoeO20KcrhB0BxNsY6m1hBEBbJzLGIkp4N8EG2hH5ct/JscXCg2SPMY1fs90KXlZjUJQORMDbEOTraQqiUacQ08EPfVNs"
+  clogoBase64 += "4E/Rs56EZ7jGG2LN7wdOnv/NBtmzWo8rcSrli3sKuBae4Hkc2DChN+YjrYd/JHI8m90rvZD12isx8lJJbgivViG6nKel4G2k7N0Zs4E3IRukLAfoU5F9AMw29pu/rsmKdL9s3aE2IFjljb+qsF/JPlYmB+dy"
+  clogoBase64 += "PjogIRYcXBvuMW3PC7V7QK5umSfbOKe6kuVpIHeiGSbRE3Zs84ppdMJ1PxaKT+BO6AtA7D78ntev7cMPKZWQRSGqQmVjKT7Afthdg3q40zoaIL1Q1m619+4LarhS5Zsh8lBF+tKtZR0CoOXAFdxHBgD2OFJw"
+  clogoBase64 += "afGAVVQzXPTMbuhv9g5GqiS3RdQRXCrFc/bzu6lCFmaQ2ZAquP3sCZDoB9DFVPjA3efWQ2q4UumbIfJQTOVBHrwbYqmHdCSDVXhyWNgGYneVQff+Qmd/hPvF1NdImvKwAfsxGrJZ+SIwwT9xG25IUM5dRh4"
+  clogoBase64 += "UwoqgpiVuzsDn9ErMlEl6wB1QKC6tmI1RSyintp9+Tw6akfpNEmOi7n/ppotVnpt3eyoAryb670F5D1L8lPYLva6JKlrqCCMG6wjlKsdE3U8i3R9P6qOHozGC3uTnrFigCqrUQby5ppB3p6Bu3yN5UXkEMc/"
+  clogoBase64 += "qxu1+N/0UPO0WqzNqpwOhWx0nqxF5+5bzmdrGopSDX5eUsj3hWrsSRAPhkhVk2W6YYf9e1qokvW7MdmYhqlI2uxsoGIbnAjzcj8KXteCmMJoKvqHPCcCdenQWcJVY8XGP6iyNWQjMtBxrcaaLr0hVih1loh"
+  clogoBase64 += "HN/55uMmZecd5sx84OvfHlrUpzngTpEs8c4v1TfseFewZj82aFDVQqxclix6UtTgaRwii7VCKxqcwZtMawD6N0Q1ORnuGf7q265GumROVVbQiBesxErF8sJU3y3zhEqy8CWwjQFImUURyL9hSMCArL0c/ia"
+  clogoBase64 += "zpuOvycGWP9h2XoSg7UqsB4TGCbtIxc49hSR16JE59T9TljNN0TSIx94cMJMSKKFhG11C2Q91YhqZs5VYCTofxljDXhFi1dlMMtFGwiaIBohRcrFr0loMf5fkev4VN9YN1Oq45FGTa4Mz5WJlqo0JqVJQN2t"
+  clogoBase64 += "4ojIVNks/R0aqR4WXF1uEho+MdAllPyI1CNjIzeVixZnb0HxYwgM999c7GKlSJ0ulTlH+JubeQwbehn80tuvRZ9aJ0QMgS7aoelwuq8nECnPOy8fs50tbzFQYjwaaWWQ5E8zfkLXkc9bj+HFbuoQCqtGVzsz"
+  clogoBase64 += "d0pFMrA8wAGo/XuqBXqiT+R3qolRqGqqA/g2bkW9b/3JMn6Eqof5A2AXuj0vtM7Hi41nJrnov6Woti22q1IAMYyGjQueCBmT6w6l/OSd7uVSgb9YsEKNGcdxD6QFzCjs1VYcp0EM3ee2tWpFIciYUnSRXR4"
+  clogoBase64 += "evf/mzul3tdAmx7uxsMihyqr9u+c/P0dA9/QlaQN9GeYMIfVFSnAkepGlmPLwg49fV+pejt/aJ0WWQxzr1kiQnDRIQUTJviykrdMu6KhvT/4YKeMxg2wi+fIat2puWoeEWdAlu1kv4Nw5nCnBIxtgPQoG+WV"
+  clogoBase64 += "fZWv0cHbXPdpC/qYzZWv/CduipQs9+FLVEakTUSYMEeG2jSgIawDoUSkH13yiriJg96/7mGJFOzrr+pQVdQqq+EJnK7x1DGUDT2qaDmQxd268jJeqipOovUI2B7ZSWrf6lDV1C2Y/Cbqqr1SkdCeAk7IwwgUK"
+  clogoBase64 += "ddUctfVEyjXxg/sbUt8RU/9KGLsHsR5Ec1m3LuMaZAtxkYVcBJrBZ132S1BCR0E2pCRSi54+U5LgcM71Lo+jj+dF5G7qENuu6OGGkWst6UipQo3UZDN6AipHudsRr9apzTyL3MkCHE6zx7b+R+PfthxZ0CR8"
+  clogoBase64 += "iWP+dOoF1FRSMoHuzowgTiOiVlRUzNWBHHErXXxBYj1TuHeAMwSYkpsZV63U8ATxOaexi6AOwrBt2qm82gjPBKqTxbr5oVwBUYBNouFd3dc1rC6526Q0oAMys4rnophGvMujf7Gih7gggi1hhrNfqFNbMU3"
+  clogoBase64 += "DzaYgwKIENw81a04MW2Cbs1r/ZO8BmrVRz6q5ozaUPPtEkgKq6auYPLErId9QcUGD1b/aNOYgGVXSrbl1qnxWgSWAPYOhAJbDVUlTdLGDOtLv8zacASCJWc4h6qq1mLQPku+9mt4LNWgs7g1Q7HA9s+837N7"
+  clogoBase64 += "fPWbz5ts20YH5Xaxes+6Jp5S+Dvv5aQ821AlQCW9tAeg0OPJSue+2B5SjP7fkRifPf4KkeGWCz1pmNHjmqarwAhWR2woRBA5D6ST4QIEEn3lF9WjBl3daXfIeeZx+7fO+iCtAZsPrxF931r+6NAAWZDMcPvUB"
+  clogoBase64 += "1u06plF4Zgxr5QI+N7g/PNzR89dOwzeUf8Ni744vpR4uqs6hPQQZL01EPUAMQ5+yOHjxGhUgwdcGShc/o1nev/hi2S0ujbj3Ot+rB/qpe1V+bwdbmSgLKgbgTojdYQ440rE8jteVzuvXdq9+H+UTZGTYqTHG"
+  clogoBase64 += "2lK6yqxlUqIR34OahOi/X4wCLsqv/GjqYSvo3r/mLFf6zHplVr80AaXdXMDiuWlF6kDKZ+243gRKWboESIP36ASuYkeK0z0tWqEv8WXyfuZoa1TM3hqq75JUUKnRwln+9ZYUa2qxNdaAvSl0uM5SR4o7dfcn"
+  clogoBase64 += "Tpe+G5attGb8RqktpkDs9dlQ5tRvgyyS21cJIHySTMwfbjAdmpFLt6TW+4enSL6VU3ZtUEGADkL47McDAbHgzDB5mx6q2yrji5hpJ7ACMR+VMMH/D+DcfeLr087Dy8sjSopy4/MydGPDAJg0CQ/2BpZ2shLYN"
+  clogoBase64 += "QPxQ60H1RAHn31juoaq/3HJRRNsGIH5swqIBOl2WDTamw21N8P2eaKjWcQf5G8O1ncc/1H8u5hMj7RuAeLFJgwTMkWUmgOi7NXz3m1UvXEa/R1Tc8dd2vvp16LyeZ03tG4B4scm2BVSn0x504U/H8hZq3wDED"
+  clogoBase64 += "3XDoW6F2L/h76F69Q9Xqrw7uEUDEC82vCHgXh8B8/oQeayK5VotFlqYbvv8zS1vWH+TZopkTWRVuQ3dtRBwnfAKqSrX+0i8W9p0Bx4PrUcAOgoFzyi8pKX67NlHQTOEZF1jmw6zEKUqCtjGxNHEyz8X09jnN+"
+  clogoBase64 += "xjs6qH0uHRE+Tf2NI2Ahq39oqw31XAoORMAd2rLp7KfZnmeR9LOdtuugOPh1KWj/wbVBVgTNtIYA55wxBnO5SlIwF/g1+Y9hsDHiwuxvmGlEueTHfg8VCSMNC/0cnfG2vaRgBTsEq28rKjFKvhZt8kmt5VCP"
+  clogoBase64 += "xgcTaNiofFLCjdDtIIpRMlPFGk5m9apG0E9HD4ZrfzUfm8WSlWyy0XYZxGh49319d3Z5NpGm00npjust2BZxiFt0XJdvmbl6xQn23SNtLwYPgG99ZpifXnBfYm/WEixCel6drXZlWad4PzW6DttyFtI9OlAr"
+  clogoBase64 += "A6snWTVoS10syU8S4soDRd5mu1aHhT4Th/o8ST26VtJICYB9lavAXWCyoT6y4iQULFk/kOPB7ehDWaMM2/aZu2kX5G707R7q4CCsUPBzv6GeHi9f1tVn+IDt0zqST1WqdtJKisCXZM2gJFGiQXa4urwVw0Sf"
+  clogoBase64 += "3+LKtyKF0/K6j5N1ukbaQBRgpr2ptlDcrC4lys24edBZejxR14PHxFuag+zX+CZ5u0jQAl7LGP7EeJgjOt/Nd29w1V0IxGtLkDj4cvvQbP3/i4zFZpGwmpt1f6HlKVGxT7qwhLbKsXmrmyvW5WH2eCETPfL"
+  clogoBase64 += "jekbb7nKIOXNe0l+7H52VVv3kKs297c2lBuqAR2S3g4U9trWw1pm3dS2kZCz5MV3k/2o8SqTnQdRCTvQPShcadBmwsrLZD9T7wT5Knm0zZHr+lEqVxYsFfLGqwlsf5OtqmU72WOcmt3B57lB8XiEuTfeB"
+  clogoBase64 += "Lw7+nNev6cnymZNeEC3u2wMofl8t0uh+ZGQXE9YwgAHpc5EzLosknm0zZH33QMxjG9av4WPKa57cysONNGK11vscFcPxLfgZf0AVodkke5BdG/eU1LtegpS2cwwqalgJs1nIKJAcpiVTpSMTb3WwQlnGgEL"
+  clogoBase64 += "IHFx9ZAhk2MAg4QoZcuwbMcTl7dWATzCWs0jzKjBiBEshbdn5dH56sc4rA1zXEmGZbAhrhRM1DjIqfFbb8F/4ZP25Q3FtGsqeFPwYAq7vKLbEBeOlIV6+CprVydUCssgSXOCaCUpJgJRHak19SKfNqm0lOWZ"
+  clogoBase64 += "U1ugTUMqBL1qKi2MleENcY/aLtf61SEiEXiUz1oBiQzCcuymiGCD7xU32+eolmTc5QZblamDgqkx/Ol5DhyF+1CIPU5hlV1EdHLFrEuiTNB/6bhcrzg6dK7mnzo9V9dSDCgSrXVAenxvGTW9c/vW8m13oAHV"
+  clogoBase64 += "VtwTTlgPLP5CIqBNPwbS9qm1lOWbfVe/0kY86EuwEXOY2bQG5NzQF5bWn9TVXfANJ/kzzWBFJaQuIf1aa5JN9AlpwU/e+l4lTWhBiBkiTFiHdkea675+dRsYMPqlSqwSoxsiYIqfgXOhMbp+jd82uboC/e32"
+  clogoBase64 += "DxM5WvRZg25RmCIGGYKQlBlg8exacOG0fSq8jhM8pF3YCH+0yxhhf6N42/c8ob1y8bw6KhcyZpg+2qyB41+z9GKTYux70WfPnsZxtGTc7MOANttD/GLZv3KHGn/bk1vW6pchJuT6eTIOgKHLD996h+xjvFA"
+  clogoBase64 += "Futyy5V13SqSKDxzFAcsgaVoQQZw+KjZ/BC5HcU1QWvwaZvz18LwcIC0QMGaRmhiiKrxFRDrSE99Yu10rg5ToNOSKJ1cNhYYWkocLciAEpONciFYn1bz9U1pGwlLcslhxTxgqpK+Swt9Z/fBL9alTrubRl2P"
+  clogoBase64 += "s5J0o2AiXYX+MO6q6Gm1W3Xcp/qrxlfuA+C302plzpv/0t1Hv/EM8OmEwzQzF7O0Bz6HbsK2QN850cS6xPxmkozTbpwkucZZrrwkiXvROJjczOW19XAA4C3xaeD0Rn/TjZtyvQQ/XXvgBQ96xBrm4GsO+CY"
+  clogoBase64 += "xI/QqdbcWmC0ezibZwpxOT04Onx7vHk53dUnvX9gXsFjXGCyxx4H8hV3if429g2oYQNTfAAAAAElFTkSuQmCC"
+
+return clogoBase64
+
+/*/{Protheus.doc } Santander
+  Logo do banco Santander em base64
+  @type function
+  @version  12.1.33
+  @author francisco.oliveira
+  @since 10/12/2021
+  @return character, base64 do logo em bmp
+/*/
+Function SantanLogo() As Character
+  Local clogoBase64 as Character
+
+clogoBase64 := "iVBORw0KGgoAAAANSUhEUgAAAMgAAABFCAYAAAAPdqmYAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAACzQAAAs0BrVx3igAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAA3SSURBVHic7Zx7cFTVHce/99y7N"
+clogoBase64 += "7vZvIN5QAIEgxIKQnBQYUyHJlEoWp8VpY4d+gfQ4lQRoZSRto5TW5RCCvjsDCIjllHRjEhRUYg4LWqhgCHIDBACWoKEZDeb7Cb7uPee/nGTu7tJ9mZ3Sdit/j4zmbmPc87vu4/vPff+zm8jtAIcBEEMCEu0AIJIZsggBGECGYQgTC"
+clogoBase64 += "CDEIQJZBCCMIEMQhAmkEEIwgQyCEGYQAYhCBPIIARhAhmEIEwggxCECWQQgjCBDEIQJpBBCMIEMghBmEAGIQgTyCAEYQIZhCBMSE6DCEKiFRAEgCQ0iDR1Kiy33JJoGQQBAJASLaAvKYsXg+XlIbBnT6KlEEQSziA33AD57rsh3Xx"
+clogoBase64 += "zoqUQRPIZhGVnA4IA+/r1AEs6ecT3jKT7BqrffAMAkKZPR8rPf55gNcT3naQzSGD3bmM7dc0aCBkZCVRDfN9JCoPId9xhbHs3bwbv7AQAsPx82FatSpQsgoCQ6P/NywoLkdXQAGdpKbjTCQCwrVyJ1DVrAADc54Nr4kSoZ85cdixx"
+clogoBase64 += "0iSkzJsHsbwcLD8fEATwtjZoly5B+eILBOrqoB4/ftlxLhdp2jRYKivBiorQvW4dtJ7bzv8XpKlTYZk9G2zUKHTX1EBrakq0pLhJuEHkefOQ/sYb6F67Fl2/+Y0uKiUFmcePQ7z6agCAv7YWnffcE38QSYL9+edhXbjQdBGSu1xwZ"
+clogoBase64 += "GXFH2eIyKirg2XWLACAa9o0KEeOJFZQjKTX1kK+6y4AgOumm6B88UWCFcVPwm+x2MiRAADbo49CLC0FoM8aXStWGG3ku++G5Yc/jDuGfe1aWBctCjMHb22F1twMKIpxTP3qq7hjEN9NEm4Q3tKib8gyUtetM477a2sR2LfP2LcuXR"
+clogoBase64 += "rX+EJ2NqwPP2zse//2Nzjz8+G46io4R41CmyzDWVIC9y9+ge716+N7EcR3loQbJHDgAKBpAPSH9dAyE89jjwGqCgCwVFbGNb40bRpgsQAA1MZGeH75S2i9pgQAzqGdPQvfq6/Cv2NHnK+C+K5y5UtNRBGWigqIEybA+9JL0M6ehX/"
+clogoBase64 += "3bsi33w4AsK9fj/byckBRoNbXw/vKK7AuXAghMxOpzz4L/44dUP7976jDCTabsc1bWgAexyOXIMAyezZS5s+HdOONYAUFEGw2aE4nuNMJ9dgxBPbvh+/vfzcSDeK118Iyezak8nKIZWVg+fkQcnMBRQF3u6E2NMC/axd8r74K3tUV"
+clogoBase64 += "MbT1kUegXbxo7GvNzfBu3BhswBjkO+9Eyv33Q7rpJgh5eRBkGdzphOZwQK2vR+DTT+Hbti2orawMlltv1bVNmNBPm3LsGAK7dsG3dWtkbYxBvvdepNx7L8Tp08GuugoQRWjNzWAjRpi+nay4GLalS2GZMwdszBgIsgzt4kUE6urgr"
+clogoBase64 += "anp98wl5OQg5b77IM2YEXwvc3J0vYoC9/33I1BXZxozbloBfiX+2mw27lm+nKtnz3LOOVcaG41zzkmTOA8EeC/uJUuC58rKONc0HopSX887FyzgraI4aFznxInBjj4fd06ZEpvuESO4/6OPeDS4KiuNfl3PPBNVH+XUKe4YMyYspr"
+clogoBase64 += "+uLmJ7/4cfGu0cI0fywIED0WmrqDD6da9bF522kye5o6io33viGD2aBw4dimqM9htvDOvbcfvtXPN4IndQ1bDPvxXgrupq8xgzZw7b9/aKzCCWW25B2ubNYMXFxjFx9GiwwkJoFy5AbWiA9+WXjWeF1Keegm/7dv3qfOIE1NOnIY4"
+clogoBase64 += "fH+w7eTLStmyBdelSuB96COqxYxFjqydOQDl6FNLUqYAsI3PfPngeewy+1183bt8iIsvI2LkT0owZxiHl0CEoBw8CXi+E3FxYqquNRENEDV99BeXIEfBLlyBkZoKNHasnHUQRYmkp0rZsQUeUt5BaczMAQEhNRfru3ZCmTBkabS0t"
+clogoBase64 += "ELKywMaNg+Xmm3Vt48cjbfNmdMyebbQXMjKQsWcPxGuv7RGkIfDJJ3p6XJbBiothmTkTwgDZQLGsDGk7dkBISdH1Hj4M5dNP9Rm6shLi5MkAY7Bv2gTlyy+h/Otf/V//f/+LwL594A4HIIoQ0tKgnjgR1XsXF8M9c7gffphzVR3Q+"
+clogoBase64 += "Z7Vq4NX6txcrrW1Gee6//rX4BV1z56IVw+tq4u75swx1dBeXh42Nuf61dH961/ztrQ0c+29cTo7ecfcuf3a+HbuNNpEmkHcixf36+eaNYtzRTHahF6pQ2eQ9vLyAbV5Vq4Mauvo4K4f/9hcW4QZZEBt1dXBz0zTuKOgIPi6/vhHo6"
+clogoBase64 += "964QJvnzatf9za2qD+kBnE9/bbwc+3poa3MhbsJ0nc+8orxnnfrl0DziC+t94a1u9r379hfUiXf/IT2Ddtilh0aFu2DELP/Spva0PXk08a56xLlkCcMAEABrwa9SLYbEivrYU4cWLENsqRI3DNmAHl6FHjmDh+POwbNyK7qQm25cs"
+clogoBase64 += "hpKb265eycKGx3bV8OfwhZTCXS+CTT8LWB3pfa7SEavMsW4bA++8PnbaPP4byn//oO4IQnC0EITzuwoVQDh+OakzBbjeeM7WWFnStWmUkZwAAigLP448DgQAAwFJVBcjy5b+Yy2T4DMIY7Bs2mC7MCdnZSH3qKWPf++KLwZVsi0Wv"
+clogoBase64 += "xbLZBv3yCFYr7CEp4oFQT56E6/rr4f7Zz6DW1wf7jhiB1LVrkfnZZ2BjxgSPZ2VBmjxZ3/H74du61XT8eFDPnQvGs9uj7scKC41FVO52w//aa0OuTQvVlpYGQE88sLw8/XxLC/z/+EfU44lTphhfeOXQIcBmg5CdHfYHBItVBat10"
+clogoBase64 += "NvDK8GwGUQqLwcrKRm0nXXRIv3eE9CvIsuWGefkO+6AdcUKCOnpg45jufVW44OMiKbBt3072qdMQUd1ddg6i3jddcg8cEDPxgBgRUXGzKd+8w241zuohpjx+YLbMfzMOPRZTj1+HDx0nCFioDHZ6NHGttbYiFgygqygwNiW585Fjs"
+clogoBase64 += "Mx4J84bpzRTuhJzyeSYTOIkJMTXUNRhL2mxtgN7NkTTPMJAlJ///voxmHM9FasL4G9e9FRVYXOBx4A7+7Whxg5EtbHH9dDh1zReUiaNRkI02aSIh7OuGFrSdEgxZ4P4u3tMfcZaoYtixVL2YalqgrynXfC/+67AAD/9u2Qysv1k6I"
+clogoBase64 += "Y1Ri8vR3a+fMx6/S/8Qa6S0qQ+uc/61qqq/XxOjqMNkJ+fszjDieh2lhhYWLixviecIfD2FZPnYJv8+ZB+2g96zaJZNgMop0/D//OnWGl7Gak/uUvCHzwAbjPB/XUqZjjeV96KaYpP5TQhcfeWUg7d05/YLRYIBYXQ0hPN8rwrygD"
+clogoBase64 += "XCDU06f1B1zGwMaOhWC3g3s8wy5FPX06KOuaa/RZIaSWzbRvSCqe5eXpZT09D+TJzLBmsTxLl0L79tuo2oqlpbA+8oi+E+O9p1pfj+4//Slyg0HG662cBQDt668B6Lcugc8/1w/KMqy/+lVMmi6H0C97bwFn2HmXy8geCVYrUhYtu"
+clogoBase64 += "iK6tHPnoDY26nFzcpDy0EPR9714UV+jASBkZsI2WG1dkvzrp2E1iNbUhI7KyrCMiBm21ash5OZCLCuLOoZy8CBcVVURr+6spAQ5ly4hbds2pDz4IKSZM8GKivQFrYoK2Ddtgu2JJ4z2ofVYvhdeMLZTn34a1mXLjIQBy8+HbcWKy6"
+clogoBase64 += "oyjkTowpftySchzZgBISsL4rhxsFRUAAC8zz1ntLE/8wysjz5qJCmGU5v3+eeDcXt+QtBbzsOKimD7wx8i/tum7qefNrZT16xB2rZtsFRUgBUWguXlQZo6FfK8eUh7/XU9A5oMXInFlrb0dN79wgthC2OR8KxaxZWTJwdtp3k83PP"
+clogoBase64 += "EE7xVkkxjd86fP+hYvfj37+etFkuwvyBw3zvv9Amsca2jw9hVv/3W2I5lobAV4N4tW4w2HXfdZRzvW3oTinfr1qC2994LP6mq4dqam4PaYlgobAW4d9u2oLbbbgtb0Av885/hcRWFa2638f6oZ84Yp/qWmkRbguNZvvy7v1DYC+/s"
+clogoBase64 += "hGfJEjhLS+GtqTHNgNh++9uwspK+aGfPomv1ajjHjNGvSIPcA3O32yjSi9jG64V3wwZ0zp0bfl/MOTofeEAvDuyNIwj6LMI5up99Ft4XXzQdOx7Uhga4FywAd7v7n+u5xQHncP/0p/pM0quNMV2bqqLrd7+Db8uWIdcGRUHHnDnwv"
+clogoBase64 += "fZa8JlPFPUMV89in+/NNyN271q5Eu4HHwx7numL2tiIwP79Q608LhLzi0LGIE2frleUTp4McdIksOLifusYvL0dalMT1OPHoR49Cv8HH8T3k1hZhnTDDZAmToSQl6evdUgSeFsblPp6BPbuHdRErKAAlqoqvX7M4UCgrg5aUxNYXp"
+clogoBase64 += "6xLqGePBn8Pf2oUUbuX/v6a2iXLvUfc+xYsNxcvW9jY7+0ppCVBcvMmWDjxgGSBO3MGb0OqY9xWF4epB/9CKygALytTdd2/rxeW9WTbteam421HFZUZGShImorKTH6qqdPg7tc/duMHg3LrFlg+fl6Ne5HH0G7cCE87vnzA6/TCAL"
+clogoBase64 += "EH/wA0vXXG5XE2sWL+mfd0BDeNCPDuGhyp3NIfn4dLQn/yW0YjEHIzAQ4T4ocOEEkl0EIIslI+C8KCSKZIYMQhAlkEIIwgQxCECaQQQjCBDIIQZhABiEIE8ggBGECGYQgTCCDEIQJZBCCMIEMQhAmkEEIwgQyCEGYQAYhCBPIIARh"
+clogoBase64 += "AhmEIEwggxCECWQQgjDhfyb1pmQTKPs5AAAAAElFTkSuQmCC"
+
+Return clogoBase64

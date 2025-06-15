@@ -1,0 +1,567 @@
+#INCLUDE "PROTHEUS.CH"
+
+NameSpace totvs.protheus.backoffice.ngf.cashFlow
+USING NAMESPACE gfin.api.balances
+
+Static __lF75FILORI := F75->(FieldPos("F75_FILORI")) > 0
+Static __lF76FILORI := F76->(FieldPos("F76_FILORI")) > 0
+Static __lF76BLQLIB := F76->(FieldPos("F76_BLQLIB")) > 0
+
+/*/{Protheus.doc} consolidated
+	validações e processamento para API consolidated
+	@type Function
+	@author renato.ito
+	@since 30/08/2022
+	@param jParams, Json, queryParam do rest
+	@param jHeaders, Json, headers do rest
+	@return jResponse, Json,  {
+		type: string,
+		quantity: number,
+		series: Array<ConsolidatedItems>
+		receivablesOverdue?: number,
+		payablesOverdue?: number,
+	}
+/*/
+Function consolidated(jParams as Json, jHeaders as Json) as Json
+	Local jResponse       := JsonObject():New() as Json
+	Local cPeriodo        := "MONTH"            as Character
+	Local cQryRecOverdue  := ""                 as Character
+	Local cQryPagOverdue  := ""                 as Character
+	Local considersApl	  := ""				    as character
+	Local cDateFrom       := ""                 as Character
+	Local dDateFrom       := dDataBase          as Date
+	Local aPeriodos       := {}                 as Array
+	Local aBranches       := {}                 as Array
+	Local nPeriodos       := 12                 as Numeric
+	Local lSales          := .F.                as Logical
+	Local lPurchases      := .F.                as Logical
+	Local lPurchMachine   := .F.                as Logical
+	Local lSalesMachine   := .F.                as Logical
+	Local lOrdersBlocked  := .F.                as Logical
+	Local lPayOverdue     := .F.                as Logical
+	Local lRecOverdue     := .F.                as Logical
+	Local lOrderMachine	  := .F.				as Logical
+
+	lOrderMachine	:= SuperGetMV("MV_VEICULO",,"N") == "S"
+
+	// verifica se foi encaminhado o tipo de período
+	If jParams:hasProperty('type') .And. !Empty(jParams['type'])
+		cPeriodo := UPPER(jParams['type'])
+		If !cPeriodo $ 'DAY|WEEK|TEN|BIWEEK|MONTH'
+			cPeriodo := "MONTH"
+		EndIf
+	EndIf
+	// verifica se foi encaminhada a data inicial, formato esperado iso yyyy-mm-dd
+	If jParams:hasProperty('dateFrom') .And. !Empty(jParams['dateFrom'])
+		dDateFrom := StoD(StrTran(jParams['dateFrom'], '-', ''))
+		If Empty(dDateFrom)
+			dDateFrom := dDataBase
+		EndIf
+	EndIf
+	cDateFrom := DtoS(dDateFrom)
+	// verifica se foi encaminhada a quantidade de períodos
+	If jParams:hasProperty('quantity') .And. !Empty(jParams['quantity'])
+		If VAL(jParams['quantity']) > 0
+			nPeriodos := VAL(jParams['quantity'])
+		EndIf
+	EndIf
+	// verifica se considera vencidos
+	If jParams:hasProperty('receivablesOverdue') .And. !Empty(jParams['receivablesOverdue'])
+		If UPPER(Alltrim(jParams['receivablesOverdue'])) == 'TRUE'
+			lRecOverdue := .T.
+		EndIf
+	EndIf
+	If jParams:hasProperty('payablesOverdue') .And. !Empty(jParams['payablesOverdue'])
+		If UPPER(Alltrim(jParams['payablesOverdue'])) == 'TRUE'
+			lPayOverdue := .T.
+		EndIf
+	EndIf
+	// verifica se retorna pedidos de vendas
+	If jParams:hasProperty('sales') .And. !Empty(jParams['sales'])
+		If UPPER(Alltrim(jParams['sales'])) == 'TRUE'
+			lSales := .T.
+		EndIf
+	EndIf
+	// verifica se retorna pedidos de compras
+	If jParams:hasProperty('purchases') .And. !Empty(jParams['purchases'])
+		If UPPER(Alltrim(jParams['purchases'])) == 'TRUE'
+			lPurchases := .T.
+		EndIf
+	EndIf
+	// verifica se considera pedidos bloqueados
+	If jParams:hasProperty('ordersBlocked') .And. !Empty(jParams['ordersBlocked'])
+		If UPPER(Alltrim(jParams['ordersBlocked'])) == 'TRUE' .And. __lF76BLQLIB
+			lOrdersBlocked := .T.
+		EndIf
+	EndIf
+	// verifica se considera pedidos de compra de maquinas
+	If jParams:hasProperty('purchasesMachine') .And. !Empty(jParams['purchasesMachine']) .And. lOrderMachine
+		If UPPER(Alltrim(jParams['purchasesMachine'])) == 'TRUE'
+			lPurchMachine := .T.
+		EndIf
+	EndIf
+	// verifica se considera pedidos de venda de maquinas
+	If jParams:hasProperty('salesMachine') .And. !Empty(jParams['salesMachine']).And. lOrderMachine
+		If UPPER(Alltrim(jParams['salesMachine'])) == 'TRUE'
+			lSalesMachine := .T.
+		EndIf
+	EndIf
+
+	// verifica se foi encaminhado filiais no header
+	If jHeaders:hasProperty('branches') .And. !Empty(jHeaders['branches'])
+		aBranches := STRtokARR(jHeaders['branches'], ',')
+	EndIf
+
+	// Verifica se existe a aplicação para ser apresentado
+	If jParams:hasProperty('considersApl')
+		considersApl := jParams['considersApl']
+	EndIf
+
+	aPeriodos := getLabels(cPeriodo, nPeriodos, dDateFrom)
+
+	jResponse['type']     		:= cPeriodo
+	jResponse['quantity'] 		:= nPeriodos
+	jResponse['series']   		:= getItems(aPeriodos, aBranches, lSales, lPurchases, lOrdersBlocked, .F., lPurchMachine, lSalesMachine, considersApl)
+	jResponse['inApplication']	:= 0
+
+	If considersApl != "consnot" .And. FindFunction('gfin.api.balances.getApplicationTotal')
+		jResponse['inApplication'] := getApplicationTotal(aBranches)
+	Endif
+
+	If jParams:hasProperty('considersApl')
+		If Len(jResponse['series']) > 0
+			jResponse['considersApl'] := jResponse['series'][Len(jResponse['series'])]['application']
+		Endif
+	EndIf
+	If lRecOverdue
+		cQryRecOverdue := queryTitulos(.T., aBranches, .T.)
+		jResponse['receivablesOverdue'] := MPSysExecScalar(cQryRecOverdue, "TOTAL", {cDateFrom})
+	EndIf
+	If lPayOverdue
+		cQryPagOverdue := queryTitulos(.F., aBranches, .T.)
+		jResponse['payablesOverdue'] := MPSysExecScalar(cQryPagOverdue, "TOTAL", {cDateFrom})
+	EndIf
+Return jResponse
+
+/*/{Protheus.doc} getLabels
+	prepara os períodos para o fluxo de caixa
+	@type Function
+	@author renato.ito
+	@since 30/08/2022
+	@param cTipo, Charactrer, tipo do período
+	@param nPeriodos, Numeric, quantidade de períodos
+	@param dDtStart, Date, date iniciar do período
+	@return aRetorno, Array, Array de períodos Array<{label:string, dateFrom:string, dateTo:string}>
+/*/
+Function getLabels(cTipo as Character, nPeriodos as Numeric, dDtStart as Date) as Array
+	Local aLabels   := {}       as Array
+	Local nPeriodo  := 1        as Numeric
+	Local dDtAuxIni := dDtStart as Date
+	Local dDtAuxFim := dDtStart as Date
+	Local nDay      := 0        as Numeric
+
+	For nPeriodo := 1 To nPeriodos
+		Do Case
+			Case cTipo == 'DAY' // 1 dia
+				cLabel    := DtoC(dDtAuxIni)
+				cDateFrom := DtoS(dDtAuxIni)
+				cDateTo   := DtoS(dDtAuxIni)
+				// atualiza para o próximo laço
+				dDtAuxIni := DaySum(dDtAuxIni, 1)
+			Case cTipo == 'WEEK' // 7 dias
+				dDtAuxFim := DaySum(dDtAuxIni, 7 - Dow(dDtAuxIni))
+				cLabel    := DtoC(dDtAuxIni) + " - " + DtoC(dDtAuxFim)
+				cDateFrom := DtoS(dDtAuxIni)
+				cDateTo   := DtoS(dDtAuxFim)
+				// atualiza para o próximo laço
+				dDtAuxIni := DaySum(dDtAuxFim, 1)
+			Case cTipo == 'TEN' // 10 dias
+				nDay      := Day(dDtAuxIni)
+				dDtAuxFim := dDtAuxIni
+				// Verifica quantos dias faltam para o proximo decendio
+				If nDay <= 10
+					dDtAuxFim := DaySum(dDtAuxIni, 10 - nDay)
+				ElseIf nDay > 10 .And. nDay < 20
+					dDtAuxFim := DaySum(dDtAuxIni, 20 - nDay)
+				ElseIf nDay > 20
+					dDtAuxFim := LastDay(dDtAuxIni) // Processa até o ultimo dia do mes
+				Endif
+				cLabel    := DtoC(dDtAuxIni) + " - " + DtoC(dDtAuxFim)
+				cDateFrom := DtoS(dDtAuxIni)
+				cDateTo   := DtoS(dDtAuxFim)
+				// atualiza para o próximo laço
+				dDtAuxIni := DaySum(dDtAuxFim, 1)
+			Case cTipo == 'BIWEEK'
+				nDay      := Day(dDtAuxIni)
+				If nDay < 15
+					dDtAuxFim := DaySum(dDtAuxIni, 15 - nDay)
+				ElseIf nDay == 15
+					dDtAuxFim := dDtAuxIni
+				Else
+					dDtAuxFim := LastDay(dDtAuxIni) // Processa até o ultimo dia do mes
+				Endif
+				cLabel    := DtoC(dDtAuxIni) + " - " + DtoC(dDtAuxFim)
+				cDateFrom := DtoS(dDtAuxIni)
+				cDateTo   := DtoS(dDtAuxFim)
+				// atualiza para o próximo laço
+				dDtAuxIni := DaySum(dDtAuxFim, 1)
+			Case cTipo == 'MONTH'
+				dDtAuxFim := LastDay(dDtAuxIni)
+				cLabel    := DtoC(dDtAuxIni) + " - " + DtoC(dDtAuxFim)
+				cDateFrom := DtoS(dDtAuxIni)
+				cDateTo   := DtoS(dDtAuxFim)
+				// atualiza para o próximo laço
+				dDtAuxIni := DaySum(dDtAuxFim, 1)
+		EndCase
+
+		Aadd(aLabels, {;
+				"label": cLabel,;
+				"dateFrom": cDateFrom,;
+				"dateTo": cDateTo;
+				})
+	Next nPeriodo
+Return aLabels
+
+/*/{Protheus.doc} getItems
+	processa dados dos períodos
+	@type Function
+	@author renato.ito
+	@since 30/08/2022
+	@param aPeriodos, Array, Array de períodos Array<{label:string, dateFrom:string, dateTo:string}>
+	@param aFiliais, Array, array com as filiais para considerar na query
+	@param lSales, Logical, true para processar pedidos de venda
+	@param lPurchases, Logical, true para processar pedidos de compra
+	@param lOrdersBlocked, Logical, true para considerar pedidos bloqueados
+	@param lOverdue, Logical, true para processar títulos vencidos
+	@return aRetorno, Array, Array<{
+						"label": sting
+						"dateFrom":sting
+						"dateTo":sting
+						"receivables":number
+						"payables":number
+						"sales":number
+						"purchases":number
+					}
+/*/
+Function getItems(aPeriodos as Array, aFiliais as Array, lSales as Logical, lPurchases as Logical, lOrdersBlocked as Logical, lOverdue as Logical, lPurchMachine as Logical, lSalesMachine as Logical, considersApl as Character) as Array
+
+	Local cQryRec        := " " as Character
+	Local cQryPag        := " " as Character
+	Local cQrySales      := " " as Character
+	Local cQryPurchases  := " " as Character
+	Local cQrySalesMac   := " " as Character
+	Local cQryPurchMac   := " " as Character
+	Local cDtIni         := ""  as Character
+	Local cDtFim         := ""  as Character
+	Local nDtIniMac		 := ""	as Character
+	Local cDtAplIni		 := ""  as Character
+	Local cDtAplFim		 := ""  as Character
+	Local nVlrAplPer	 := 0   as Numeric
+	Local nPeriodo       := 1   as Numeric
+	Local nVlrPer		 := 0   as Numeric
+	Local aRetorno       := {}  as Array
+	Local jVlrAPL		        as Json
+
+	cQryRec := queryTitulos(.T., aFiliais, .F.)
+	cQryPag := queryTitulos(.F., aFiliais, .F.)
+
+	jVlrAPL	:= JsonObject():New()
+
+	If lSales
+		cQrySales := queryPedidos(.T., lOrdersBlocked, aFiliais)
+	EndIf
+	If lPurchases
+		cQryPurchases := queryPedidos(.F., lOrdersBlocked, aFiliais)
+	EndIf
+
+	If lSalesMachine
+		cQrySalesMac := qryPedidosVendaMaq(aFiliais)
+	EndIf
+	If lPurchMachine
+		cQryPurchMac := qryPedidosCompraMaq(aFiliais)
+	EndIf
+
+	If considersApl == 'all'
+		cDtAplIni	:= aPeriodos[1]["dateFrom"]
+		cDtAplFim	:= aPeriodos[Len(aPeriodos)]["dateTo"]
+		nVlrAplPer	:= getApplicationEmpty(aFiliais, cDtAplIni, cDtAplFim)
+	Endif
+
+	For nPeriodo := 1 To Len(aPeriodos)
+		cDtIni := aPeriodos[nPeriodo]["dateFrom"]
+		cDtFim := aPeriodos[nPeriodo]["dateTo"]
+		If nPeriodo == 1
+			nDtIniMac := "19800101" // Traz todos os pedidos anteriores
+			nVlrPer	  := nVlrAplPer
+		Else
+			nDtIniMac := cDtIni
+		EndIf
+
+		If considersApl != 'consnot'
+			jVlrAPL := getApplicationPeriod(aFiliais, cDtIni, cDtFim, considersApl, .F.)
+			If nPeriodo == 1
+				jVlrAPL['application']['amount'] += nVlrPer
+			Endif
+		Else
+			jVlrAPL['application'] := JsonObject():New()
+			jVlrAPL['application']['amount'] := 0
+		Endif
+		Aadd(aRetorno, {;
+					"label":              aPeriodos[nPeriodo]["label"],;
+					"dateFrom":           cDtIni,;
+					"dateTo":             cDtFim,;
+					"receivables":        MPSysExecScalar(cQryRec, "TOTAL", {cDtIni, cDtFim}),;
+					"payables":           MPSysExecScalar(cQryPag, "TOTAL", {cDtIni, cDtFim}),;
+					"sales":              If(lSales, MPSysExecScalar(cQrySales, "TOTAL", {cDtIni, cDtFim}), 0),;
+					"purchases":          If(lPurchases, MPSysExecScalar(cQryPurchases, "TOTAL", {cDtIni, cDtFim}), 0),;
+					"salesMachine":       If(lSalesMachine, MPSysExecScalar(cQrySalesMac, "TOTAL", {nDtIniMac, cDtFim}), 0),;
+					"purchasesMachine":   If(lPurchMachine, MPSysExecScalar(cQryPurchMac, "TOTAL", {nDtIniMac, cDtFim}), 0),;
+					"application":        jVlrAPL['application']['amount'];
+				})
+	Next nPeriodo
+Return aRetorno
+
+/*/{Protheus.doc} queryTitulos
+	gera query para título a receber ou pagar
+	@type  Function
+	@author renato.ito
+	@since 30/08/2022
+	@param lSe1, Logical, true para SE1 e false para SE2
+	@param aFiliais, Array, array com as filiais para considerar na query
+	@param lOverdue, Logical, true query para títulos vencidos - false query para período
+	@return cQuery, Character, query para fluxo de caixa
+/*/
+Function queryTitulos(lSe1 as Logical, aFiliais as Array, lOverdue as Logical) as Character
+	Local cQuery        := "" as Character
+	Local cTable        := "" as Character
+	Local cFieldNick    := "" as Character
+	Local cCliforField  := "" as Character
+	Local cTipoNotIn    := "" as Character
+	Local cRecPag       := "" as Character
+	Local cCustomSearch := "" as Character
+
+	If lSE1
+		cTable       := 'SE1'
+		cFieldNick   := cTable + '.E1_'
+		cCliforField := cFieldNick + 'CLIENTE'
+		cTipoNotIn   := FormatIn(MVRECANT + "|" + MV_CRNEG, '|' )
+		cRecPag      := "'R'"
+	Else
+		cTable       := 'SE2'
+		cFieldNick   := cTable + '.E2_'
+		cCliforField := cFieldNick + 'FORNECE'
+		cTipoNotIn   := FormatIn(MVPAGANT + "|" + MV_CPNEG, '|')
+		cRecPag      := "'P'"
+	EndIf
+
+	cQuery := "SELECT SUM(F75.F75_SALDO) TOTAL FROM " + RetSqlName("F75") + " F75 "
+	cQuery += " INNER JOIN " + RetSqlName(cTable) + " " + cTable
+	If __lF75FILORI
+		cQuery += " ON " + cFieldNick + "FILIAL = F75.F75_FILORI"
+	Else
+		cQuery += " ON " + cFieldNick + "FILIAL = F75.F75_FILIAL"
+	EndIf
+	cQuery += " AND " + cFieldNick + "PREFIXO = F75.F75_PREFIX"
+	cQuery += " AND " + cFieldNick + "NUM = F75.F75_NUM"
+	cQuery += " AND " + cFieldNick + "PARCELA = F75.F75_PARCEL"
+	cQuery += " AND " + cFieldNick + "TIPO = F75.F75_TIPO"
+	cQuery += " AND " + cCliforField + " = F75.F75_CLIFOR"
+	cQuery += " AND " + cFieldNick + "LOJA = F75.F75_LOJA"
+	cQuery += " AND " + cTable + ".D_E_L_E_T_ =' '"
+	cQuery += " WHERE F75.D_E_L_E_T_ = ' ' "
+	If __lF75FILORI
+		If !Empty(aFiliais)
+			cQuery += " AND F75_FILORI IN (" + gfin.util.branchesFormatToIn(aFiliais, cTable) + ")"
+		EndIf
+	Else
+		If !Empty(aFiliais)
+			cQuery += " AND F75_FILIAL IN (" + gfin.util.branchesFormatToIn(aFiliais, "F75") + ")"
+		EndIf
+	EndIf
+	cQuery += " AND F75.F75_SALDO > 0 "
+	cQuery += " AND F75.F75_FLUXO <> 'N' "
+	cQuery += " AND F75.F75_RECPAG = " + cRecPag
+	cQuery += " AND F75.F75_TIPO NOT IN " + cTipoNotIn
+	If lOverdue
+		cQuery += " AND F75.F75_VENCTO < ? "
+	Else
+		cQuery += " AND F75.F75_VENCTO >= ? "
+		cQuery += " AND F75.F75_VENCTO <= ? "
+	EndIf
+
+	// filtros personalizado
+	If FindFunction("gfin.util.profileToFilter")
+		cCustomSearch := gfin.util.profileToFilter(__cUserId, 'NGF', IIf(lSE1, 'CSSE1', 'CSSE2'), 'Filter')
+	EndIf
+	If !Empty(cCustomSearch)
+		cQuery += " AND " + cCustomSearch
+	EndIf
+
+Return ChangeQuery(cQuery)
+
+/*/{Protheus.doc} queryPedidos
+	gera query para pedidos de compra e venda
+	@type  Function
+	@author renato.ito
+	@since 30/08/2022
+	@param lSales, Logical, true para pedidos de venda e false para compras
+	@param lBlocked, Logical, true considera bloqueados e false não considera
+	@param aFiliais, Array, array com as filiais para considerar na query
+	@return cQuery, Character, query para fluxo de caixa
+/*/
+Function queryPedidos(lSales as Logical, lBlocked as Logical, aFiliais as Array) as Character
+	Local cQuery        := "" as Character
+	Local cTable        := "" as Character
+	Local cFieldNick    := "" as Character
+	Local cCliforField  := "" as Character
+	Local cTipo         := "" as Character
+	Local cCustomSearch := "" as Character
+	// Preapara as variáveis para pedidos de venda ou de compra
+	If lSales
+		cTable       := 'SC6'
+		cFieldNick   := cTable + '.C6_'
+		cCliforField := cFieldNick + 'CLI'
+		cTipo        := "'1'"
+	Else
+		cTable       := 'SC7'
+		cFieldNick   := cTable + '.C7_'
+		cCliforField := cFieldNick + 'FORNECE'
+		cTipo        := "'2'"
+	EndIf
+
+	cQuery := "SELECT SUM(F76_VALOR) TOTAL FROM "
+	cQuery += RetSqlName("F76") + " F76 "
+
+	If FindFunction("gfin.api.balances.getJoinOrders")
+		cQuery += gfin.api.balances.getJoinOrders(lSales)
+	Endif
+
+	cQuery += " WHERE F76.D_E_L_E_T_ = ' ' "
+	If __lF76FILORI
+		If !Empty(aFiliais)
+			cQuery += " AND F76_FILORI IN (" + gfin.util.branchesFormatToIn(aFiliais, cTable) + ")"
+		EndIf
+	Else
+		If !Empty(aFiliais)
+			cQuery += " AND F76_FILIAL IN (" + gfin.util.branchesFormatToIn(aFiliais, "F76") + ")"
+		EndIf
+	EndIf
+
+	cQuery += " AND F76_TIPO = " + cTipo
+	cQuery += " AND F76_DATA >= ? "
+	cQuery += " AND F76_DATA <= ? "
+	If __lF76BLQLIB
+		If !lBlocked
+			cQuery += " AND F76_BLQLIB = '1' " // liberado
+		EndIf
+	EndIf
+
+	// filtros personalizado
+	If FindFunction("gfin.util.profileToFilter")
+		cCustomSearch := gfin.util.profileToFilter(__cUserId, 'NGF', IIf(lSales, 'CSSC6', 'CSSC7'), 'Filter')
+	EndIf
+	If !Empty(cCustomSearch)
+		cQuery += " AND " + cCustomSearch
+	EndIf
+Return ChangeQuery(cQuery)
+
+/*/{Protheus.doc} qryPedidosCompraMaq
+	gera query para pedidos de compra de máquinas
+	@type  Function
+	@author vinicius.prado
+	@since 06/12/2022
+	@param aFiliais, Array, array com as filiais para considerar na query
+	@return cQuery, Character, query para fluxo de caixa
+/*/
+Function qryPedidosCompraMaq(aFiliais as Array) as Character
+	Local cQuery     := ""  as Character
+	Local cMV_GRUVEI := ""  as Character
+	Local lVQ0_FLUXO := .T. as Logical
+
+	cMV_GRUVEI := Padr(GetMv("MV_GRUVEI"),TamSX3("B1_GRUPO")[1])
+	lVQ0_FLUXO := ( VQ0->(FieldPos("VQ0_FLUXO")) > 0 )
+
+	cQuery := "SELECT SUM(VQ0.VQ0_VALCUS) TOTAL FROM "
+	cQuery += RetSqlName("VQ0") + " VQ0 "
+
+	cQuery += "LEFT JOIN "+ RetSqlName("SB1") +" SB1 ON SB1.B1_FILIAL IN (" + gfin.util.branchesFormatToIn(aFiliais, "SB1") + ")"
+	cQuery += " AND SB1.B1_GRUPO = '"+cMV_GRUVEI+"'"
+	cQuery += " AND SB1.B1_CODITE = VQ0.VQ0_CHAINT "
+	cQuery += " AND SB1.D_E_L_E_T_ = ' ' "
+	cQuery += " WHERE VQ0.VQ0_FILIAL IN (" + gfin.util.branchesFormatToIn(aFiliais, "VQ0") + ")"
+
+	If lVQ0_FLUXO
+		cQuery += "    AND VQ0.VQ0_FLUXO IN (' ','S') "
+	EndIf
+
+	cQuery += " AND VQ0.D_E_L_E_T_ = ' ' "
+	cQuery += " AND (SB1.B1_COD IS NULL "
+	cQuery += " 	OR SB1.B1_COD NOT IN "
+	cQuery += " 		(SELECT SD1.D1_COD "
+	cQuery += " 		FROM " + RetSqlName("SD1") + " SD1"
+	cQuery += " 		JOIN " + RetSqlName("SF4") + " SF4 ON SF4.F4_FILIAL IN (" + gfin.util.branchesFormatToIn(aFiliais, "SF4") + ")"
+	cQuery += " 		AND SF4.F4_CODIGO = SD1.D1_TES "
+	cQuery += " 		AND SF4.F4_OPEMOV = '01' "
+	cQuery += " 		AND SF4.D_E_L_E_T_ = ' ' "
+	cQuery += " 		WHERE SD1.D1_COD = SB1.B1_COD "
+	cQuery += " 			AND SD1.D_E_L_E_T_ = ' ' )) "
+
+	If lVQ0_FLUXO
+		cQuery += " AND VQ0.VQ0_DATFLU >= ? "
+		cQuery += " AND VQ0.VQ0_DATFLU <= ? "
+	Else
+		cQuery += " AND VQ0.VQ0_DATPED >= ? "
+		cQuery += " AND VQ0.VQ0_DATPED <= ? "
+	EndIf
+Return ChangeQuery(cQuery)
+
+/*/{Protheus.doc} qryPedidosVendaMaq
+	gera query para pedidos de venda de máquinas
+	@type  Function
+	@author vinicius.prado
+	@since 06/12/2022
+	@param aFiliais, Array, array com as filiais para considerar na query
+	@return cQuery, Character, query para fluxo de caixa
+/*/
+Function qryPedidosVendaMaq(aFiliais as Array) as Character
+	Local cQuery      := ""  as Character
+	Local lVV0_FLUXO  := .T. as Logical
+	Local lVV0_TIPDOC := .T. as Logical
+
+	lVV0_FLUXO  := ( VV0->(FieldPos("VV0_FLUXO"))  > 0 )
+	lVV0_TIPDOC := ( VV0->(FieldPos("VV0_TIPDOC")) > 0 )
+
+	cQuery := "SELECT SUM(VS9.VS9_VALPAG) TOTAL "
+	cQuery += " FROM " + RetSQLName("VV0") + " VV0"
+	cQuery += " JOIN " + RetSQLName("VS9") + " VS9 "
+	cQuery += "     ON  VS9.VS9_FILIAL IN (" + gfin.util.branchesFormatToIn(aFiliais, "VS9") + ")"
+	cQuery += "     AND VS9.VS9_TIPOPE = 'V' "
+	cQuery += "     AND VS9.VS9_NUMIDE = VV0.VV0_NUMTRA "
+	cQuery += "     AND VS9.D_E_L_E_T_ = ' ' "
+	cQuery += " JOIN " + RetSQLName("VV9") + " VV9 "
+	cQuery += "     ON  VV9.VV9_FILIAL = VV0.VV0_FILIAL "
+	cQuery += "     AND VV9.VV9_NUMATE = VV0.VV0_NUMTRA "
+	cQuery += "     AND VV9.VV9_STATUS <> 'C' "
+	cQuery += "     AND VV9.D_E_L_E_T_ = ' ' "
+	cQuery += " LEFT JOIN " + RetSQLName("SA1") + " SA1 "
+	cQuery += "     ON  SA1.A1_FILIAL IN (" + gfin.util.branchesFormatToIn(aFiliais, "SA1") + ")"
+	cQuery += "     AND SA1.A1_COD = VV9.VV9_CODCLI "
+	cQuery += "     AND SA1.A1_LOJA = VV9.VV9_LOJA "
+	cQuery += "     AND SA1.D_E_L_E_T_ = ' ' "
+	cQuery += " WHERE VV0.VV0_FILIAL IN (" + gfin.util.branchesFormatToIn(aFiliais, "VV0") + ")"
+	cQuery += "     AND VV0.VV0_OPEMOV = '0'"
+	cQuery += "     AND VV0.VV0_NUMNFI = ' '"
+	cQuery += "     AND VV0.VV0_SERNFI = ' '"
+
+	If lVV0_FLUXO
+		cQuery += " AND VV0.VV0_FLUXO  = 'S'"
+	EndIf
+
+	If lVV0_TIPDOC
+		cQuery += " AND VV0.VV0_TIPDOC <> '2'"
+	EndIf
+
+	cQuery += " AND VS9.VS9_DATPAG >= ? "
+	cQuery += " AND VS9.VS9_DATPAG <= ? "
+	cQuery += " AND VV0.D_E_L_E_T_ = ' '"
+Return ChangeQuery(cQuery)

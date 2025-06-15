@@ -1,0 +1,73 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+#include "EDITRECEIPTSERVICE.CH"
+
+namespace tr.editReceiptDetail
+
+/*/{Protheus.doc} editReceiptDetailService
+Declaracion de los metodos de la clase
+@type class
+@version  1
+@author José González
+@since 07/10/2021
+/*/
+Class editReceiptDetailService
+	Public Method new()
+	Public Method geteditReceiptDetailService()
+EndClass
+
+/*/{Protheus.doc} editReceiptDetailService::new
+Constructor de la clase
+@type method
+@version  1
+@author José González
+@since 07/10/2021
+/*/
+Method new() Class editReceiptDetailService
+Return
+
+/*/{Protheus.doc} editReceiptDetailService::geteditReceiptDetailService
+Guarda la Edición de los Cheques en el Recibo de PAgo
+@type method
+@version  1
+@author  José González
+@since 07/10/2021
+/*/
+Method geteditReceiptDetailService (oJParams ) class  editReceiptDetailService
+	Local aTemp As Array
+	Local cTemp	As Character
+	Local aResponse As Array
+	Local oResponse := JsonObject():New()
+	Local jValidate	:= JsonObject():new()
+	Local jErrors := JsonObject():new()
+	Local cSerie
+	Local cRecibo	
+	Local aresp := {}
+	cTemp := "" 
+	aTemp := {} 
+	aResponse := {} 
+	aModif := {}  
+	cRecibo := oJParams['receipt']['receipt'] 
+	cRecibo := PADR(oJParams['receipt']['receipt'] , TamSX3( 'EL_RECIBO' )[1])
+	cSerie := alltrim(oJParams['receipt']['serie'])
+	cSerie := PADR(oJParams['receipt']['serie'], TamSX3( 'EL_SERIE' )[1])
+	SetFunName("FINA998")
+
+	aadd(aModif,oJParams['values'])
+	Fina841(cRecibo,cSerie,.T.,aModif,@aresp)
+	
+	If  len(aresp)>1  .And.  !aresp[2]
+		jErrors['message'] := STR0001 //!  Se encontraron inconsistencias, revise la información.
+		jErrors['detailMessage'] := "Error: " + aresp[1]
+	Else 
+		jErrors['message'] :=  STR0001 //"Se encontraron inconsistencias, revise la información"  
+		jErrors['detailMessage'] := STR0002 //"Error: No definido"
+	EndIF
+	
+	jValidate['success']	:=  Iif(len(aresp)>1,aresp[2], .F. ) 
+	jValidate['error']		:=	jErrors
+	
+	oResponse["result"] := .T.
+	oResponse["response"] := jValidate
+
+return oResponse

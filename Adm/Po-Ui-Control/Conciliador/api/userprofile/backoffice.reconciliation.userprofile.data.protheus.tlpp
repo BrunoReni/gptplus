@@ -1,0 +1,261 @@
+#include "tlpp-core.th"
+#include "totvs.ch"
+
+namespace totvs.protheus.backoffice.reconciliation.userprofile
+using namespace totvs.protheus.backoffice.reconciliation.util
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} UserProfileProtheusData
+Classe responsavel pela consulta de dados
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+class UserProfileProtheusData
+Public  method new()
+Public  method getData() as Object    
+Public  method postProfileByBody()
+Public  method getProfile()
+Public  method setAlterProfile()
+Public  method deleteProfile()
+Private method addUserProfile()
+Private method findUserProfile()
+Private method getAlterProfile()
+endclass
+
+/*/{Protheus.doc} UserProfileProtheusData
+Metodo construtor
+
+@author Totvs
+/*/
+method new() class UserProfileProtheusData
+return
+
+/*/{Protheus.doc} getData
+Metodo para chamada e validacao do tratamento de dados
+
+@author Totvs
+/*/
+method getData() class UserProfileProtheusData as Object
+static __oActiveData as Object
+
+If ValType(__oActiveData) == "U"
+    __oActiveData := UserProfileProtheusData():new()
+EndIf
+return __oActiveData
+
+/*/{Protheus.doc} postProfileByBody
+Metodo responsavel pela inclusao dos profiles dos usuarios
+
+@author Totvs
+/*/
+method postProfileByBody(jBody as Json, cBody as Character, lAlterProfile as Logical,; 
+                            aUpdProfile as Array) class UserProfileProtheusData 
+Local aResponse   := {} as Array
+Local aProfile    := {} as Array
+Local cProfile    := jBody:GetJsonText("codcfg") as Character
+Local cKeyProfile := If(cProfile == "null", "branches", cProfile) as Character
+Local uRet        := Nil
+
+Default cBody         := oRest:getBodyRequest()
+Default lAlterProfile := .F.
+Default aUpdProfile   := {}
+
+cProfile := jBody:GetJsonText(cKeyProfile)
+
+If AllTrim(cProfile) == "[]"
+    /*Retorna o valor em formato de string
+    Necessário pois se retornar um array vazio da erro no front*/            
+    cKeyProfile   := "CONCILIAD"
+    lAlterProfile := .T.
+    aAdd(aProfile, cProfile)
+    aAdd(aResponse, .T.)
+    aAdd(aResponse, cProfile)        
+Else
+    If AllTrim(cKeyProfile) == "branches" //Chamada da própria classe
+        aProfile      := aClone(jBody[cKeyProfile])
+        cKeyProfile   := "CONCILIAD"
+        lAlterProfile := .T.
+        aAdd(aResponse, .T.)
+        aAdd(aResponse, aClone(aProfile))    
+    Else //Chamadas externas
+        uRet := jBody:fromJson(cBody)
+        If ValType(uRet) == "U"            
+            aAdd(aProfile, cBody)                            
+        EndIf
+        
+        If !lAlterProfile
+            lAlterProfile := ::getAlterProfile(aProfile, cKeyProfile, aUpdProfile) //Verifica alteracao do filtro do usuario                  
+        EndIf
+                
+        If lAlterProfile //Se houve alteracao de profile, atualiza json
+            ::setAlterProfile(aProfile, aUpdProfile)
+        EndIf                      
+    EndIf        
+EndIf
+
+If lAlterProfile  
+    ::addUserProfile(aProfile, cKeyProfile)
+EndIf
+FwFreeArray(aProfile) 
+return aResponse
+
+/*/{Protheus.doc} addUserProfile
+Metodo responsavel pela gravacao de profiles
+
+@author Totvs
+/*/
+method addUserProfile(aProfile as Array, cKeyProfile as Character) class UserProfileProtheusData
+Local oProfile := FWProfile():New() as Object
+Local cUserPrf := RetCodUsr() as Character
+       
+// Carrega dados do Profile
+oProfile:SetUser(cUserPrf) 
+oProfile:SetProgram("CTBA940")
+oProfile:SetTask("CONFIG") 
+oProfile:SetType(cKeyProfile)
+
+If oProfile:Exists()
+    oProfile:Load()    
+EndIf    
+
+oProfile:SetProfile(aClone(aProfile))
+oProfile:Save()
+oProfile:Destroy()
+return
+
+/*/{Protheus.doc} getProfile
+Metodo responsavel pela busca dos profiles dos usuarios
+
+@author Totvs
+/*/
+method getProfile(cParamType as Character) class UserProfileProtheusData
+Local aResponse := {} as Array
+
+::findUserProfile(cParamType, aResponse) 
+return aResponse
+
+/*/{Protheus.doc} findUserProfile
+Metodo responsavel pela busca de profiles
+
+@author Totvs
+/*/
+method findUserProfile(cParamType as Character, aResponse as Array) class UserProfileProtheusData
+Local oProfile  := FWProfile():New() as Object
+Local aFilsProf := {} as Array
+Local cUserPrf  := RetCodUsr() as Character
+
+cParamType := If(Empty(cParamType), "CONCILIAD", cParamType)
+
+oProfile:SetUser(cUserPrf) 
+oProfile:SetProgram("CTBA940")
+oProfile:SetTask("CONFIG") 
+oProfile:SetType(cParamType)
+
+If oProfile:Exists()
+    oProfile:Load()    
+    aFilsProf := oProfile:GetProfile()
+            
+    aAdd(aResponse, .T.)    
+    aAdd(aResponse, aClone(aFilsProf))
+Else
+    aAdd(aResponse, .F.)    
+    aAdd(aResponse, "")
+EndIf
+oProfile:Destroy()
+return
+
+/*/{Protheus.doc} getAlterProfile
+Metodo responsavel pela verificacao de alteracoes
+no filtro do usuario e se grava no profile
+
+@author Totvs
+/*/
+method getAlterProfile(aNewFilter as Array, cKeyProfile as Character, aUpdProfile as Array) class UserProfileProtheusData
+Local aCurrentFilter := {} as Array
+Local oCurrentFilter := JsonObject():new() as Object
+Local oNewFilter     := JsonObject():new() as Object
+Local lAlterPrf      := .F. as Logical
+Local uRet           := Nil
+
+aCurrentFilter := AClone(::getProfile(cKeyProfile))
+
+If (ValType(aCurrentFilter) == "A" .And. !aCurrentFilter[1]) //Se inclusao de profile, sempre atualiza
+    aUpdProfile := {"update", "true"}
+    lAlterPrf := .T.    
+ElseIf (ValType(aCurrentFilter) == "A" .And. aCurrentFilter[1]) .And.;
+    (ValType(aNewFilter) == "A" .And. Len(aNewFilter) > 0)
+    
+    uRet := oCurrentFilter:fromJson(aCurrentFilter[2][1]) //Armazena filtros atuais em formato Json    
+    If ValType(uRet) == "U"    
+        uRet := oNewFilter:fromJson(aNewFilter[1]) //Armazena filtros novos em formato Json
+        If ValType(uRet) == "U"
+            If oNewFilter:getJsonText("tabori") <> oCurrentFilter:getJsonText("tabori") .Or.;
+                oNewFilter:getJsonText("tabdes") <> oCurrentFilter:getJsonText("tabdes") .Or.;
+                (oNewFilter:getJsonText("totalLedger") <> "null" .And.; 
+                oNewFilter:getJsonText("totalLedger") <> oCurrentFilter:getJsonText("totalLedger"))               
+                
+                aUpdProfile := {"update", "true"}
+                lAlterPrf   := .T.
+            EndIf
+        EndIf
+    EndIf        
+EndIf
+return lAlterPrf
+
+/*/{Protheus.doc} setAlterProfile
+Metodo responsavel pela insercao de alteracoes
+no profile do usuario
+
+@author Totvs
+/*/
+method setAlterProfile(aProfile as Array, aUpdate as Array) class UserProfileProtheusData
+Local cProfile   := "" as Character
+Local nPosUpdate := 0 as Numeric
+
+If ValType(aProfile) == "A" .And. Len(aProfile) > 0 .And.;
+    ValType(aUpdate) == "A" .And. Len(aUpdate) > 1
+    
+    cProfile := aProfile[Len(aProfile)]
+    If (nPosUpdate := At('"update"',cProfile)) > 0        
+        cProfile := SubStr(cProfile, 1, nPosUpdate-2)
+    Else
+        cProfile := SubStr(cProfile, 1, Len(cProfile)-1)
+    EndIf
+    
+    cProfile += ',"'+aUpdate[1]+'":"'+aUpdate[2]+'"}'
+    
+    aProfile[Len(aProfile)] := cProfile     
+EndIf
+return
+
+
+/*/{Protheus.doc} deleteProfile
+Metodo responsavel pela exclusao dos profiles dos usuarios
+
+@author Totvs
+/*/
+method deleteProfile(cUserPrf as Character, cKeyPrf as Character) class UserProfileProtheusData 
+Local oProfile  := FWProfile():New() as Object
+Local aResponse := {} as Array
+
+Default cUserPrf := __cUserId
+Default cKeyPrf  := "CONCILIAD"
+
+oProfile:SetUser(cUserPrf) 
+oProfile:SetProgram("CTBA940")
+oProfile:SetTask("CONFIG") 
+oProfile:SetType(cKeyPrf)
+
+If oProfile:Exists()
+    oProfile:Delete()
+
+    aAdd(aResponse, .T.)    
+    aAdd(aResponse, cUserPrf)
+Else
+    aAdd(aResponse, .F.)    
+    aAdd(aResponse, "")
+EndIf
+oProfile:Destroy()      
+
+return aResponse

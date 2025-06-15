@@ -1,0 +1,82 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+#include "acbasicvalidation.ch"
+
+namespace ac.BasicValidation.Service
+
+Class acBasicValidationService
+    public data  aErrorMsg  as Array
+
+    public  Method New()
+    public  Method GetErrorMsg()
+    public  Method GetDictionaryValidator()
+EndClass
+
+/*/{Protheus.doc} acBasicValidationService:New()
+    @type  Metodo
+    @author felipe.suetoshi
+    @since  Abril 28, 2021
+    @version 12.1.27
+/*/
+Method new() class acBasicValidationService
+    ::aErrorMsg := {}
+return Self
+
+/*/{Protheus.doc} mata038:GetDictionaryValidator()
+    Metodo responsavel por verificar se existe dicionario no RPO.
+    Retorna .T. caso passar na validação ou irá retornar .F. caso não passar na validação
+    @type  Function
+    @author felipe.suetoshi
+    @since  April 07, 2021
+    @version 12.1.27
+/*/
+Method GetDictionaryValidator() class acBasicValidationService
+
+Local bIsValid  := .T.
+Local lD3yExist := AliasIndic('D3Y')
+Local lD3wExist := AliasIndic('D3W')
+Local lD3xExist := AliasIndic('D3X')
+Local lMvCustexc:= Getmv("MV_CUSTEXC")
+Local oResponse := JsonObject():New()
+LOCAL lEnviron:= FindFunction("ACVERVLD")
+::aErrorMsg     := {}
+
+IF(!lD3yExist)
+    AADD(::aErrorMsg, STR0001)
+    bIsValid := .F.
+ENDIF
+
+IF(!lD3xExist)
+    AADD(::aErrorMsg, STR0002)
+    bIsValid := .F.
+ENDIF
+
+IF(!lD3wExist)
+    AADD(::aErrorMsg, STR0004)
+    bIsValid := .F.
+ENDIF
+
+IF lMvCustexc != 'N'
+    AADD(::aErrorMsg, STR0003)
+    bIsValid := .F.
+ENDIF
+
+IF !lEnviron
+    AADD(::aErrorMsg, STR0005)
+    bIsValid := .F.
+ENDIF
+
+
+oResponse["bIsValid"]       := bIsValid
+oResponse["cErrorMsg"]      := ::GetErrorMsg()
+oResponse["nErrorNumber"]   := 500
+Return oResponse
+
+Method GetErrorMsg() class acBasicValidationService
+
+Local cErrorMsg := JsonObject():New()
+Local oResponse := JsonObject():New()
+
+cErrorMsg['errors'] := ::aErrorMsg
+oResponse := cErrorMsg:toJson()
+Return oResponse

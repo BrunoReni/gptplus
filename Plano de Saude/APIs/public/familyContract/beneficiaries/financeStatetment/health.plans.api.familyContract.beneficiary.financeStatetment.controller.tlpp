@@ -1,0 +1,67 @@
+#Include "tlpp-core.th"
+#Include "tlpp-rest.th"
+
+Namespace totvs.protheus.health.plans.api.familyContract.beneficiary.financeStatetment
+
+/*/{Protheus.doc} FinanceStatetmentController
+Classe controladora da API de Extrato Financeiro
+
+@type class
+@author Guilherme Carreiro
+@since 29/05/2023
+@version Protheus 12
+/*/
+Class FinanceStatetmentController
+
+    Private Data oService As Object
+
+    Public Method new() Constructor
+
+    @GET("/totvsHealthPlans/familyContract/v1/beneficiaries/:subscriberId/financeStatetment/base64")
+    Public Method apiFinanceStatetmentBase64()
+
+EndClass
+
+/*/{Protheus.doc} new
+Método construtor da classe
+
+@type method
+@author Guilherme Carreiro
+@since 29/05/2023
+@version Protheus 12
+/*/
+Method new() Class FinanceStatetmentController
+Return Self
+
+/*/{Protheus.doc} apifinanceStatetmentBase64
+Método responsável por retornar o Extrato Financeiro em base64
+Url: /totvsHealthPlans/familyContract/v1/beneficiaries/:subscriberId/financeStatetment
+Verbo: GET
+
+@type method
+@author Guilherme Carreiro
+@since 29/05/2023
+@version Protheus 12
+/*/
+Method apiFinanceStatetmentBase64() Class FinanceStatetmentController
+
+    Local jPath := oRest:getPathParamsRequest() As Json
+    Local jQueryParams := oRest:getQueryRequest() As Json    
+
+    Self:oService := FinanceStatetmentService():new()
+    Self:oService:setPathParams(jPath)
+    Self:oService:setQueryParams(jQueryParams)
+
+    If Self:oService:getFinanceStatetmentBase64()
+        oRest:setResponse(Self:oService:getJsonResult())
+        oRest:setStatusCode(Self:oService:getStatusCode())
+
+        oRest:SetKeyHeaderResponse("content-type", "application/octet-stream")
+    Else
+        oRest:setFault(Self:oService:getJsonResult())
+        oRest:setStatusCode(Self:oService:getStatusCode())
+
+        oRest:setKeyHeaderResponse("Content-Type", "application/json")
+    EndIf
+
+Return

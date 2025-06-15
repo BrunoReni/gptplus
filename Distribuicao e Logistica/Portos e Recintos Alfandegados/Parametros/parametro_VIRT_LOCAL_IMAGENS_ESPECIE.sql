@@ -1,0 +1,1 @@
+exec proc_diu_parametro  'I','VIRT_LOCAL_IMAGENS_ESPECIE', '', 1, 'Diretorio de armazenamento das imagens que representam as especies. Este diret�rio deve estar abaixo da pasta \protheus_data\ da instalacao do Protheus'

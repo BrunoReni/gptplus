@@ -1,0 +1,40 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+
+namespace ac.BasicValidation.Controller
+using namespace ac.BasicValidation.Service
+
+class acBasicValidationController
+
+    public  method New()
+    public  method GetDictionaryValid()
+
+endclass
+
+/*/{Protheus.doc} acBasicValidationController:New()
+    Metodo responsavel por instanciar e iniciar as variaveis da class acBasicValidationController
+    @type  Metodo
+    @author felipe.suetoshi
+    @since  Mai  06, 2021
+    @version 12.1.27
+/*/
+Method new() class acBasicValidationController
+return Self
+
+/*/{Protheus.doc} acConfigProf:getConfigProfile()
+    Metodo responsavel retornar sx1 ou profile do usuário
+    @type  Metodo
+    @author felipe.suetoshi
+    @since  Mai  06, 2021
+    @version 12.1.27
+/*/
+
+Method GetDictionaryValid() class acBasicValidationController
+    Local oResponse as Object
+    Local oService  as Object
+
+    oResponse   := JsonObject():New()
+    oService    := ac.BasicValidation.Service.acBasicValidationService():new()
+    oResponse   := oService:GetDictionaryValidator() 
+ 
+return oResponse

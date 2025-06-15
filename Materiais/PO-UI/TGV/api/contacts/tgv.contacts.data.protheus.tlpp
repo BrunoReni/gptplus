@@ -1,0 +1,190 @@
+#include "tlpp-core.th"
+
+namespace tgv.contacts
+using namespace tgv.util
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} ContactsProtheusData
+	Efetua a consulta de Contatos (SU5) Protheus.
+
+	@author	Squad CRM & Faturamento
+	@since	01/10/2020
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Class ContactsProtheusData from FWAdapterBaseV2
+	Public Method New() as Object
+	Public Method Get()
+EndClass
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} New
+	Cria uma nova instancia do Objeto ContactsProtheusData.
+
+	@sample		ContactsProtheusData():New()
+	@author		Squad CRM & Faturamento
+	@since		01/10/2020
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Method New() as Object Class ContactsProtheusData
+	_Super:New("GET", .T.)
+Return Self
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} Get
+	Obtem uma Lista de Contatos retornando um JSON respeitando a Quantidade de 
+	registro por pagina, especificado no paramentro PageSize.
+
+	@sample		oData:Get( 1, 10, {}, Nil, '-id' )
+	@type		method
+	@param		nPage		, Numeric	, Número da página que será retornada
+	@param		nPageSize	, Numeric	, Quantidade de registros por pagina
+	@param		aURLFilter	, Array		, Lista de Filtros no padrão do FWAdapterBaseV2
+	@param		cFields		, Character	, Lista de campos que devem ser retornados
+	@param		cSort		, Character	, Ordernação do Response
+	@param		cContactId	, Character	, Codigo do contato
+	@author		Danilo Salve
+	@since		20/01/2021
+	@version	12.1.33
+/*/
+//------------------------------------------------------------------------------
+Method get(nPage as Numeric, nPageSize as Numeric, aURLFilter as Array, cFields as Character, cSort as Character, cContactId as Character) CLASS ContactsProtheusData
+	Local aArea		:= GetArea()
+	
+	AddMapFieldsContacts( self, .T. )
+	
+	::setPage( nPage )
+	::setPageSize( nPageSize )
+	::SetQuery( GetQueryContacts(.T.) )	
+
+	If !Empty( aURLFilter ) .And. Len( aURLFilter ) > 0 
+		::SetUrlFilter( aURLFilter )
+	Endif
+	
+	If !Empty( cFields )
+		::SetFields( cFields )
+	Endif
+
+	If !Empty( cSort )
+		::SetOrderQuery( cSort )
+	EndIf
+
+	::SetWhere( GetFilterContacts( cContactId, /*cDateSync*/ ) )
+	::SetOrder( "AC8_FILIAL,AC8_CODCON,AC8_ENTIDA,AC8_FILENT,AC8_CODENT" )
+
+	If ::Execute()
+		::FillGetResponse()
+	EndIf	
+
+	RestArea(aArea)
+	aSize(aArea, 0)
+Return Nil
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} AddMapFieldsContacts
+	Cria o Mapa de campos Protheus x API para os Contatos.
+
+	@param		oSelf	, Object	, Objeto com herança da Classe FWAdapterBaseV2
+	@param		isOnline, Logical	, Adicionar campos no padrão OnLine ou Sync
+	@author		Squad CRM & Faturamento
+	@since		01/10/2020
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Function AddMapFieldsContacts(oSelf as Object, isOnline as Logical)
+	Local aInternalId   := GetInternalId( { "U5_FILIAL", "A1_CGC", "U5_CODCONT" } )
+	Local aContactId	:= GetInternalId( { "U5_FILIAL", "U5_CODCONT" } )
+	Local lFixedId		:= !oSelf:oJsonObj:lList
+
+	If isOnline
+		oSelf:AddMapFields("internalid" , "internalid", .T., .F., { "internalid", 'C', aInternalId[1]			, 0 }, aInternalId[2])
+		oSelf:AddMapFields("contactid"  , "contactid" , .T., lFixedId, { "contactid"	, 'C', aContactId[1]	, 0 }, aContactId[2])
+	else
+		oSelf:AddMapFields("internalid" , "internalid", .T., .F., { "internalid", 'C', aInternalId[1]			, 0 }, "' '")
+		oSelf:AddMapFields("contactid"  , "contactid" , .T., .F., { "contactid"	, 'C', aContactId[1]			, 0 }, "' '")
+		oSelf:AddMapFields("deleted"    , "deleted"   , .T., .F., { "deleted"	, 'C', 1, 0 }, "SU5.D_E_L_E_T_")
+	Endif
+
+	oSelf:AddMapFields("branch"     , "U5_FILIAL" , .T., .F., { "U5_FILIAL"	, 'C', GetFieldLength("U5_FILIAL")	, 0 }, "SU5.U5_FILIAL")
+	oSelf:AddMapFields("code"       , "U5_CODCONT", .T., .F., { "U5_CODCONT", 'C', GetFieldLength("U5_CODCONT")	, 0 }, "SU5.U5_CODCONT")
+	oSelf:AddMapFields("cgcentity"  , "A1_CGC"	  , .T., .F., { "A1_CGC"	, 'C', GetFieldLength("A1_CGC")		, 0 }, "SA1.A1_CGC")
+	oSelf:AddMapFields("name"       , "U5_CONTAT" , .T., .F., { "U5_CONTAT"	, 'C', GetFieldLength("U5_CONTAT")	, 0 })
+	oSelf:AddMapFields("email"      , "U5_EMAIL"  , .T., .F., { "U5_EMAIL"	, 'C', GetFieldLength("U5_EMAIL")	, 0 })
+
+	aSize(aContactId, 0)
+	aSize(aInternalId, 0)
+Return Nil
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} GetQuery
+	Monta a expressão SQL para consulta dos Contatos.
+
+	@author		Squad CRM & Faturamento
+	@since		01/10/2020
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Function GetQueryContacts(lCanFilterExcluded as Logical)
+	Local cQuery AS CHARACTER
+	Local cConcat :=  "||"
+	Local cSubstr := "SUBSTR"
+	LocaL nTamCod := GetFieldLength("A1_COD")
+	Local nTamLoj := GetFieldLength("A1_LOJA")
+
+	If AllTrim( Upper( TcGetDb() ) ) == "MSSQL"
+		cConcat := "+"
+		cSubstr := "SUBSTRING"
+	Endif
+
+	cQuery := " SELECT #QueryFields#"
+	cQuery += " FROM " + RetSqlName("AC8") + " AC8 "
+	cQuery += " INNER JOIN " + RetSqlName("SU5") + " SU5 "
+	cQuery += " ON SU5.U5_CODCONT = AC8.AC8_CODCON "
+	cQuery += " AND SU5.U5_FILIAL = '" + FwxFilial("SU5") + "' "
+
+	If lCanFilterExcluded
+		cQuery += "AND SU5.D_E_L_E_T_ = ' ' "
+	Endif
+
+	cQuery += " INNER JOIN " + RetSqlName("SA1") + " SA1 "
+	cQuery += " ON SA1.A1_FILIAL = '" + FwXFilial("SA1") + "' "
+	cQuery += " AND SA1.A1_COD = " + cSubstr + "(AC8.AC8_CODENT, 1," + CValToChar(nTamCod) + ") "
+	cQuery += " AND SA1.A1_LOJA = " + cSubstr + "(AC8.AC8_CODENT," + CValToChar(nTamCod + 1) + ", " + CValToChar(nTamLoj + 1) + ") "
+
+	If lCanFilterExcluded
+		cQuery += "AND SA1.D_E_L_E_T_ = ' ' "
+	Endif
+
+	cQuery += " WHERE #QueryWhere#"
+
+Return cQuery
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} GetFilterContacts
+	Obtem o filtro de contatos
+
+	@sample		GetFilterContacts("TGVR01", .T.)
+	@param		cContactId	, Character	, Codigo do contato
+	@param		cDateSync	, Character	, Data de Sincronismo
+	@return		Character	, Expressão utilizada na consulta
+	@author		Danilo Salve
+	@since		27/07/2021
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Function GetFilterContacts( cContactId as Character, cDateSync as Character) as Character
+	Local cWhere as Character
+
+	cWhere := " AC8.AC8_FILIAL = '" + FwXFilial("AC8") + "' AND AC8.AC8_ENTIDA = 'SA1' "
+
+	If !Empty(cDateSync) .And. SubStr(cDateSync,1,1) != '-'
+		cWhere += " AND AC8.S_T_A_M_P_ > " + ConvertTimeStamp( cDateSync, "value", "timestamp" )
+	else
+		cWhere += " AND AC8.D_E_L_E_T_ = ' ' "
+	EndIf
+	
+	If !Empty( cContactId )
+		cWhere += " AND SU5.U5_CODCONT = '" + cContactId + "'"
+	Endif
+
+Return cWhere

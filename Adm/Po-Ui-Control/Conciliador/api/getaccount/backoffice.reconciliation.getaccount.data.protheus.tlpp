@@ -1,0 +1,115 @@
+#include "tlpp-core.th"
+
+namespace totvs.protheus.backoffice.reconciliation.getaccount
+using namespace totvs.protheus.backoffice.reconciliation.util
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} GetAccountProtheusData
+Classe responsável pela consulta de dados
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+class GetAccountProtheusData from FWAdapterBaseV2
+    Public method new()
+    Public method getAll()
+    static method getData() As object
+endclass
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} GetAccountProtheusData
+Metodo construtor
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method new(cVerbo as Character, lList as Logical) Class GetAccountProtheusData
+    Default cVerbo := "GET"
+    Default lList  := .T.
+    _Super:New(cVerbo, lList)
+return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} GetAccountProtheusData
+Método para chamada e validação do tratamento de dados
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method getData() class GetAccountProtheusData As Object
+    static __oActiveData As Object
+
+    If ValType(__oActiveData) == "U"
+        __oActiveData := GetAccountProtheusData():new()
+    EndIf
+return __oActiveData
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getAll
+Metodo responsável pela busca das configuracoes do conciliador
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method getAll(cFilters as Character, nPage as Numeric, nPageSize as Numeric) class GetAccountProtheusData
+    Local aArea  := GetArea() As Array
+    Local cWhere := GetBranchiesForConditional("CT1") As Character
+    
+    Default cFilters  := ""
+    Default nPage     := 1
+    Default nPageSize := 10
+
+    addMapFields(self)
+
+    ::setPage(nPage)
+    ::setPageSize(nPageSize)
+    ::SetQuery(getQuery())
+    
+    //Aplica filtros
+    If !Empty(cFilters)
+        cWhere += " AND ( CT1_CONTA LIKE '%" + UPPER( cFilters ) + "%' OR CT1_DESC01 LIKE '%" + UPPER( cFilters ) +"%' ) "
+    EndIf
+    
+    cWhere += " AND CT1_BLOQ = '2' "
+    cWhere += " AND CT1_CLASSE='2' " 
+    cWhere += " AND CT1.D_E_L_E_T_ = ' '"
+
+    ::SetWhere(cWhere)
+    ::SetOrder("CT1.CT1_CONTA")
+
+    If ::Execute()
+        ::FillGetResponse()
+    EndIf
+
+    RestArea(aArea)
+    FwFreeArray(aArea)
+return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} addMapFields
+Realiza o mapeamento dos campos que serão retornados
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+Static Function addMapFields(oSelf as Object)
+    
+    oSelf:addMapFields("Cod Conta", "CT1_CONTA", .T., .F., {"CT1_CONTA", "C", TamSx3("CT1_CONTA")[1], 0}, "CT1.CT1_CONTA")
+    oSelf:addMapFields("Desc", "CT1_DESC01", .T., .F., {"CT1_DESC01", "C", TamSx3("CT1_DESC01")[1], 0}, "CT1.CT1_DESC01")
+
+Return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getQuery
+Realiza a query para busca de informações
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+Static Function getQuery() As Character
+    Local cQuery As Character
+
+    cQuery := " SELECT #QueryFields#"
+    cQuery += " FROM " + RetSqlName("CT1") + " CT1 "
+    cQuery += " WHERE #QueryWhere#"
+Return cQuery

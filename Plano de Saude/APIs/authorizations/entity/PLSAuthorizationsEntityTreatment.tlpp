@@ -1,0 +1,128 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+#DEFINE _tgProc 'procedures'
+#DEFINE _tgRejec 'rejectionCauses'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSAuthorizationsEntityTreatment
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSAuthorizationsEntityTreatment from PLSAuthorizationsEntityLib
+
+    public method new()
+    public method montaCab()
+    public method montaEve()
+    public method montaCri()
+
+endClass
+
+method new(cGuia) class PLSAuthorizationsEntityTreatment
+    
+    _Super:New(cGuia)
+    self:cGuia   := cGuia
+    self:oDaoCab := PLSAuthorizationsDaoB4Q():new(self:cGuia)
+    self:oDaoEve := PLSAuthorizationsDaoBQV():new(self:cGuia)
+    self:oDaoCri := PLSAuthorizationsDaoBQZ():new(self:cGuia)
+
+Return self
+
+method montaCab() class PLSAuthorizationsEntityTreatment
+    
+    Local cAliTrb := ''
+    
+    self:getDao('CAB'):buscaGuia()
+    cAliTrb := self:getAliasTemp('CAB')
+    
+    //Campos B4Q
+    self:oResult["attendanceProtocol"]        := self:maskField( (cAliTrb)->B4Q_PROATE )
+    self:oResult["password"]                  := self:maskField( (cAliTrb)->B4Q_SENHA )
+    self:oResult["mainAuthorizationCode"]     := self:maskField( (cAliTrb)->B4Q_GUIREF )
+    self:oResult["requestedDate"]             := self:maskField( (cAliTrb)->B4Q_DATSOL, .T. )
+    self:oResult["authorizedDate"]            := self:maskField( (cAliTrb)->B4Q_DATPRO, .T. )
+    self:oResult["subscriberId"]              := self:maskField( (cAliTrb)->(B4Q_OPEUSR+B4Q_CODEMP+B4Q_MATRIC+B4Q_TIPREG+B4Q_DIGITO) )
+    self:oResult["healthProviderId"]          := self:maskField( (cAliTrb)->B4Q_CODRDA )
+    self:oResult["professionalCouncil"]       := self:maskField( (cAliTrb)->B4Q_SIGLA )
+    self:oResult["stateAbbreviation"]         := self:maskField( (cAliTrb)->B4Q_ESTSOL )
+    self:oResult["professionalCouncilNumber"] := self:maskField( (cAliTrb)->B4Q_REGSOL )
+    self:oResult["clinicalCondition"]         := self:maskField( (cAliTrb)->B4Q_INDCLI )
+    self:oResult["attendanceNote"]            := self:maskField( (cAliTrb)->B4Q_JUSOBS )
+    self:oResult["authorizationStatus"]       := self:maskField( (cAliTrb)->B4Q_STATUS )
+    self:oResult["requestedRoomType"]         := self:maskField( (cAliTrb)->B4Q_TIPACO )   
+    self:oResult["dailyRequestedQuantity"]    := self:maskField( (cAliTrb)->B4Q_QTDADD )
+	self:oResult["dailyAuthorizedQuantity"]   := self:maskField( (cAliTrb)->B4Q_QTDADA )
+    self:getDao('CAB'):closeQuery()
+
+return
+
+method montaEve() class PLSAuthorizationsEntityTreatment
+
+    local nX := 0
+    local cAliTrb := ''
+
+    self:oResult[_tgProc] := {}
+
+    if self:getDao('EVE'):buscaEve()
+
+        cAliTrb := self:getAliasTemp('EVE')        
+        while !self:getDao('EVE'):isEof()
+            nX ++
+            aAdd(self:oResult[_tgProc], JsonObject():new())
+            
+            self:oResult[_tgProc,nX,'sequence']           := self:maskField( (cAliTrb)->BQV_SEQUEN )
+            self:oResult[_tgProc,nX,'authLevel']          := self:maskField( (cAliTrb)->BQV_NIVAUT )
+            self:oResult[_tgProc,nX,'authLevelKey']       := self:maskField( (cAliTrb)->BQV_CHVNIV )
+            self:oResult[_tgProc,nX,'status']             := self:maskField( (cAliTrb)->BQV_STATUS )
+            self:oResult[_tgProc,nX,'requestedQuantity']  := self:maskField( (cAliTrb)->BQV_QTDSOL )
+            self:oResult[_tgProc,nX,'authorizedQuantity'] := self:maskField( (cAliTrb)->BQV_QTDPRO )
+            self:oResult[_tgProc,nX,'auditing']           := self:maskField( (cAliTrb)->BQV_AUDITO )
+            
+            cCodPad     := Alltrim((cAliTrb)->BQV_CODPAD)
+            cCodPro     := Alltrim((cAliTrb)->BQV_CODPRO)
+            cCodTabela 	:= PLSGETVINC("BTU_CDTERM", "BR4", .F., "87",  cCodPad,.T.)
+			cCodProc 	:= PLSGETVINC("BTU_CDTERM", "BR8", .F., cCodPad, cCodPad+cCodPro, .F. ,self:aTabDup, @cCodTabela)
+
+            self:oResult[_tgProc,nX,'tableCode'] := self:maskField( cCodTabela )
+            self:oResult[_tgProc,nX,'procedureCode'] := self:maskField( cCodProc )
+            
+            self:montaCri(nX,(cAliTrb)->BQV_SEQUEN)         
+                     
+            self:getDao('EVE'):dbSkip()
+        endDo
+
+    endIf
+    self:getDao('EVE'):closeQuery()
+
+return
+
+
+method montaCri(nItem,cSequen) class PLSAuthorizationsEntityTreatment
+
+    local nX := 0
+    local cAliTrb := ''
+
+    self:oResult[_tgProc,nItem,_tgRejec] := {}
+
+    if self:getDao('CRI'):buscaCrit(cSequen)
+        
+        cAliTrb := self:getAliasTemp('CRI')
+        while !self:getDao('CRI'):isEof()
+
+            nX ++
+            aAdd(self:oResult[_tgProc,nItem,_tgRejec], JsonObject():new())
+
+            self:oResult[_tgProc,nItem,_tgRejec,nX,'procedureSequence'] := self:maskField( (cAliTrb)->BQZ_SEQUEN )
+            self:oResult[_tgProc,nItem,_tgRejec,nX,'code']              := self:maskField( (cAliTrb)->BQZ_CODGLO )
+            self:oResult[_tgProc,nItem,_tgRejec,nX,'rejectionSequence'] := self:maskField( (cAliTrb)->BQZ_SEQCRI )
+            self:oResult[_tgProc,nItem,_tgRejec,nX,'description']       := Upper(self:maskField( (cAliTrb)->BQZ_DESGLO ))
+
+            self:getDao('CRI'):dbSkip()
+        endDo
+
+    endIf
+    self:getDao('CRI'):closeQuery()
+
+return

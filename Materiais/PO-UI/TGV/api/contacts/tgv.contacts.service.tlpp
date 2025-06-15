@@ -1,0 +1,117 @@
+#include "tlpp-core.th"
+
+namespace tgv.contacts
+
+static __instance as object
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} ContactsService
+	Disponibiliza um serviço de Contatos
+
+	@author		Squad CRM & Faturamento
+	@since		01/10/2020
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Class ContactsService
+	Public Data jResponse as Json
+	Public Method New() as Object
+	Public Method getInstance() as Object
+	Public Method GetContactsSync() as Json
+	Public Method GetContacts() as Json
+EndClass
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} New
+	Disponibiliza uma nova intancia do serviço Contatos.
+
+	@sample		ContactsService:New()
+	@author		Squad CRM & Faturamento
+	@since		01/10/2020
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Method New() as Object Class ContactsService
+ 	::jResponse := JsonObject():New()
+return Self
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} GetInstance
+	Retorna uma instancia do serviço
+
+	@sample		ContactsService:GetInstance()
+	@author		Squad CRM & Faturamento
+	@since		01/10/2020
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Method getInstance() as Object Class ContactsService
+	If (__instance == NIL)
+		__instance := ContactsService():New()
+	EndIf
+Return __instance
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} GetContactsSync
+	Efetua a consulta de Contatos
+
+	@sample		ContactsService:GetInstance()
+	@param		nPage		, Numeric	, Número da página que será retornada
+	@param		nPageSize	, Numeric	, Quantidade de registros por pagina
+	@param		cDate		, Character , Data de Sincronismo/alteracao
+	@return		Json  		, Reposta da Consulta/Requisição
+	@author		Danilo Salve
+	@since		20/01/2021
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Method GetContactsSync(nPage as Numeric, nPageSize as Numeric, cDate as Character) as Json Class ContactsService
+	Local oContacts := ContactsDataFactory():getDataSync()
+
+	oContacts:Get(nPage, nPageSize, cDate)
+
+	If oContacts:lOk
+		::jResponse := oContacts:getJSONResponse()
+	Else
+		::jResponse := SetRestFault(oContacts:GetCode(), oContacts:GetMessage())
+	EndIf
+
+	oContacts:DeActivate()
+	FreeObj(oContacts)
+Return ::jResponse
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} GetContacts
+	Obtem os Cabeçalhos de Pedidos de Venda (SC5)
+
+	@sample		oService:GetItems(1, 10, '000001', '000001', {}, '', '-orderid')
+	@param		nPage		, Numeric	, Número da página que será retornada
+	@param		nPageSize	, Numeric	, Quantidade de registros por pagina
+	@param		aURLFilter	, Array		, Lista de Filtros no padrão do FWAdapterBaseV2
+	@param		cFields		, Character	, Lista de campos que devem ser retornados
+	@param		cSort		, Character	, Ordernação do Response
+	@param		cContactId	, Character	, Codigo do contato
+	@author		Danilo Salve
+	@since		27/07/2021
+	@version	12.1.27
+/*/
+//------------------------------------------------------------------------------
+Method GetContacts( nPage as Numeric, nPageSize as Numeric, aURLFilter as Array, cFields as Character,;
+ cSort as Character, cContactId as Character) as Json Class ContactsService
+	Local oData := ContactsDataFactory():GetData()	
+
+	If !Empty(cContactId)
+		oData:oJsonObj:lList := .F.
+	Endif
+
+	oData:get(nPage, nPageSize, aURLFilter, cFields, cSort, cContactId)	
+
+	If oData:lOk
+		::jResponse := oData:GetJSONResponse()
+	Else
+		::jResponse := SetRestFault(oData:GetCode(), oData:GetMessage())
+	EndIf
+
+	oData:DeActivate()
+	FreeObj(oData)
+Return ::jResponse

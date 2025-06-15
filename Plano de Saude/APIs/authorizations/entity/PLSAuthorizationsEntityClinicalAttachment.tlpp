@@ -1,0 +1,174 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+#DEFINE _tgProc 'procedures'
+#DEFINE _tgRejec 'rejectionCauses'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSAuthorizationsEntityClinicalAttachment
+
+@author  Lucas Nonato
+@version P12
+@since   29/05/2023
+/*/
+//------------------------------------------------------------------- 
+class PLSAuthorizationsEntityClinicalAttachment from PLSAuthorizationsEntityLib
+
+    public method new()
+    public method montaCab()
+    public method montaEve()
+    public method montaCri()
+
+endClass
+
+method new(cGuia) class PLSAuthorizationsEntityClinicalAttachment
+    
+    _Super:New(cGuia)
+    self:cGuia   := cGuia
+    self:oDaoCab := PLSAuthorizationsDaoB4A():new(self:cGuia)
+    self:oDaoEve := PLSAuthorizationsDaoB4C():new(self:cGuia)
+    self:oDaoCri := PLSAuthorizationsDaoBEG():new(self:cGuia)
+
+Return self
+
+method montaCab() class PLSAuthorizationsEntityClinicalAttachment
+    
+    Local cAliTrb := ''
+    
+    self:getDao('CAB'):buscaGuia()
+    cAliTrb := self:getAliasTemp('CAB')
+    
+    //Campos B4A
+    self:oResult["attendanceProtocol"]          := self:maskField( (cAliTrb)->B4A_PROATE )
+    self:oResult["attachNumber"]                := self:maskField( (cAliTrb)->(B4A_OPEMOV+B4A_ANOAUT+B4A_MESAUT+B4A_NUMAUT))
+    self:oResult["mainAuthorizationCode"]       := self:maskField( (cAliTrb)->B4A_GUIREF )
+    self:oResult["password"]                    := self:maskField( (cAliTrb)->B4A_SENHA )
+    self:oResult["authorizationStatus"]         := self:maskField( (cAliTrb)->B4A_STATUS )
+    self:oResult["passwordExpireDate"]          := self:maskField( (cAliTrb)->B4A_DATPRO,.t. )
+    self:oResult["requestedDate"]               := self:maskField( (cAliTrb)->B4A_DATSOL,.t. )
+    self:oResult["authorizedDate"]              := self:maskField( (cAliTrb)->B4A_DATPRO,.t. )
+    self:oResult["healthProviderId"]            := self:maskField( cvaltochar((cAliTrb)->BEA_CODRDA) )
+    self:oResult["subscriberId"]                := self:maskField( (cAliTrb)->(B4A_OPEUSR+B4A_CODEMP+B4A_MATRIC+B4A_TIPREG+B4A_DIGITO) )
+    self:oResult["phoneNumber"]                 := self:maskField( (cAliTrb)->B4A_TELSOL )
+    self:oResult["email"]                       := self:maskField( (cAliTrb)->B4A_EMASOL )
+    self:oResult["technicalJustification"]      := self:maskField( (cAliTrb)->B4A_JUSTTE )
+    self:oResult["drugAdministrationStartDate"] := self:maskField( (cAliTrb)->B4A_DATIRR )
+    self:oResult["totalCycleDosage"]            := self:maskField( (cAliTrb)->B4A_DOSTOT )
+    self:oResult["attachType"]                  := self:maskField( iIf((cAliTrb)->B4A_TIPANE=="1","14",iIf((cAliTrb)->B4A_TIPANE=="2","13","12"))) 
+    self:oResult["tissSequentialTransaction"]   := self:maskField( (cAliTrb)->B4A_LOTGUI )    
+    self:oResult["beneficiaryWeight"]           := self:maskField( (cAliTrb)->B4A_PESO )
+    self:oResult["beneficiaryHeight"]           := self:maskField( (cAliTrb)->B4A_ALTURA )
+    self:oResult["chemotherapyType"]            := self:maskField( (cAliTrb)->B4A_TIPQUI )
+    self:oResult["tumor"]                       := self:maskField( (cAliTrb)->B4A_TUMOR )
+    self:oResult["nodule"]                      := self:maskField( (cAliTrb)->B4A_NODULO )
+    self:oResult["metastasis"]                  := self:maskField( (cAliTrb)->B4A_METAST )
+    self:oResult["therapeuticPlan"]             := self:maskField( (cAliTrb)->B4A_PLATER )
+    self:oResult["irradiatedArea"]              := self:maskField( (cAliTrb)->B4A_AREA )
+    self:oResult["radioApplicationDate"]        := self:maskField( (cAliTrb)->B4A_DATIRR )
+    self:oResult["expectedCyclesNumber"]        := self:maskField( (cAliTrb)->B4A_NROCIC )
+    self:oResult["currentCycle"]                := self:maskField( (cAliTrb)->B4A_CICATU )
+    self:oResult["intervalBetweenCycles"]       := self:maskField( (cAliTrb)->B4A_INTCIC )
+    self:oResult["diagnosisDate"]               := self:maskField( (cAliTrb)->B4A_DATDIA,.t. )
+    self:oResult["primaryICD"]                  := self:maskField( (cAliTrb)->B4A_CIDPRI )
+    self:oResult["secondaryICD"]                := self:maskField( (cAliTrb)->B4A_CIDSEC )
+    self:oResult["terciaryICD"]                 := self:maskField( (cAliTrb)->B4A_CIDTER )
+    self:oResult["quaternaryICD"]               := self:maskField( (cAliTrb)->B4A_CIDQUA )
+    self:oResult["imageDiagnosis"]              := self:maskField( (cAliTrb)->B4A_DIAIMG )
+    self:oResult["staging"]                     := self:maskField( (cAliTrb)->B4A_ESTADI )
+    self:oResult["ecog"]                        := self:maskField( (cAliTrb)->B4A_ECOG )
+    self:oResult["purpose"]                     := self:maskField( (cAliTrb)->B4A_FINALI )
+    self:oResult["histopathologicalDiagnosis"]  := self:maskField( (cAliTrb)->B4A_DIAGCH )
+    self:oResult["relevantInformations"]        := self:maskField( (cAliTrb)->B4A_INFREL )
+    self:oResult["surgery"]                     := self:maskField( (cAliTrb)->B4A_CIRURG )
+    self:oResult["surgeryDate"]                 := self:maskField( (cAliTrb)->B4A_DATCIR,.t. )
+    self:oResult["chemotherapy"]                := self:maskField( (cAliTrb)->B4A_QUIMIO )
+    self:oResult["chemoApplicationDate"]        := self:maskField( (cAliTrb)->B4A_DATQUI,.t. )
+    self:oResult["radiationFieldsNumber"]       := self:maskField( (cAliTrb)->B4A_NROCAM )
+    self:oResult["dailyDose"]                   := self:maskField( (cAliTrb)->B4A_DOSDIA )
+    self:oResult["totalDosage"]                 := self:maskField( (cAliTrb)->B4A_DOSTOT )
+    self:oResult["numberOfDays"]                := self:maskField( (cAliTrb)->B4A_NRODIA )
+    self:oResult["daysFromCurrentCycle"]        := self:maskField( (cAliTrb)->B4A_DCICAT )
+    self:oResult["attendanceNote"]              := self:maskField( (cAliTrb)->B4A_OBSERV )
+
+    self:getDao('CAB'):closeQuery()
+
+return
+
+method montaEve() class PLSAuthorizationsEntityClinicalAttachment
+
+    local nX := 0
+    local cAliTrb := ''
+
+    self:oResult[_tgProc] := {}
+
+    if self:getDao('EVE'):buscaEve()
+
+        cAliTrb := self:getAliasTemp('EVE')        
+        while !self:getDao('EVE'):isEof()
+            nX ++
+            aAdd(self:oResult[_tgProc], JsonObject():new())
+            
+            self:oResult[_tgProc,nX,'sequence']                    := self:maskField( (cAliTrb)->B4C_SEQUEN )
+            self:oResult[_tgProc,nX,'authLevel']                   := self:maskField( (cAliTrb)->B4C_NIVAUT )
+            self:oResult[_tgProc,nX,'authLevelKey']                := self:maskField( (cAliTrb)->B4C_CHVNIV )
+            self:oResult[_tgProc,nX,'status']                      := self:maskField( (cAliTrb)->B4C_STATUS )
+            self:oResult[_tgProc,nX,'authorizedQuantity']          := self:maskField( (cAliTrb)->B4C_QTDPRO )
+            self:oResult[_tgProc,nX,'auditing']                    := self:maskField( (cAliTrb)->B4C_AUDITO )
+            self:oResult[_tgProc,nX,"optionOrder"]                 := self:maskField( (cAliTrb)->B4C_OPCAO )
+            self:oResult[_tgProc,nX,"requestedQuantity"]           := self:maskField( (cAliTrb)->B4C_QTDSOL )
+            self:oResult[_tgProc,nX,"unitaryWorth"]                := self:maskField( (cAliTrb)->B4C_VLRUNT )
+            self:oResult[_tgProc,nX,"anvisaId"]                    := self:maskField( (cAliTrb)->B4C_REGANV )
+            self:oResult[_tgProc,nX,"manufacturer"]                := self:maskField( (cAliTrb)->B4C_OPCAO )
+            self:oResult[_tgProc,nX,"manufacturerReference"]       := self:maskField( (cAliTrb)->B4C_REFMAF )
+            self:oResult[_tgProc,nX,"operationAuthorizationNumber"]:= self:maskField( (cAliTrb)->B4C_AUTFUN )
+            self:oResult[_tgProc,nX,"unitOfMeasurement"]           := self:maskField( (cAliTrb)->B4C_UNMED )
+            self:oResult[_tgProc,nX,"accessWay"]                   := self:maskField( (cAliTrb)->B4C_VIAADM )
+            self:oResult[_tgProc,nX,"frequency"]                   := self:maskField( (cAliTrb)->B4C_FREQUE )
+
+            self:oResult[_tgProc,nX,"frequency"]                   := self:maskField( (cAliTrb)->B4C_FREQUE )
+            
+            cCodPad     := Alltrim((cAliTrb)->B4C_CODPAD)
+            cCodPro     := Alltrim((cAliTrb)->B4C_CODPRO)
+            cCodTabela 	:= PLSGETVINC("BTU_CDTERM", "BR4", .F., "87",  cCodPad,.T.)
+			cCodProc 	:= PLSGETVINC("BTU_CDTERM", "BR8", .F., cCodPad, cCodPad+cCodPro, .F. ,self:aTabDup, @cCodTabela)
+
+            self:oResult[_tgProc,nX,'tableCode'] := self:maskField( cCodTabela )
+            self:oResult[_tgProc,nX,'procedureCode'] := self:maskField( cCodProc )
+            
+            self:montaCri(nX,(cAliTrb)->B4C_SEQUEN)         
+                     
+            self:getDao('EVE'):dbSkip()
+        endDo
+
+    endIf
+    self:getDao('EVE'):closeQuery()
+
+return
+
+
+method montaCri(nItem,cSequen) class PLSAuthorizationsEntityClinicalAttachment
+
+    local nX := 0
+    local cAliTrb := ''
+
+    self:oResult[_tgProc,nItem,_tgRejec] := {}
+
+    if self:getDao('CRI'):buscaCrit(cSequen)
+        
+        cAliTrb := self:getAliasTemp('CRI')
+        while !self:getDao('CRI'):isEof()
+
+            nX ++
+            aAdd(self:oResult[_tgProc,nItem,_tgRejec], JsonObject():new())
+
+            self:oResult[_tgProc,nItem,_tgRejec,nX,'procedureSequence'] := self:maskField( (cAliTrb)->BEG_SEQUEN )
+            self:oResult[_tgProc,nItem,_tgRejec,nX,'code']              := self:maskField( (cAliTrb)->BEG_CODGLO )
+            self:oResult[_tgProc,nItem,_tgRejec,nX,'rejectionSequence'] := self:maskField( (cAliTrb)->BEG_SEQCRI )
+            self:oResult[_tgProc,nItem,_tgRejec,nX,'description']       := Upper(self:maskField( (cAliTrb)->BEG_DESGLO ))
+
+            self:getDao('CRI'):dbSkip()
+        endDo
+
+    endIf
+    self:getDao('CRI'):closeQuery()
+
+return

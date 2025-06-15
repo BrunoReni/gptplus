@@ -1,0 +1,105 @@
+#Include "tlpp-core.th"
+#Include "tlpp-rest.th"
+
+Namespace totvs.protheus.health.plans.api.familyContract.beneficiary.readjustmentStatement
+
+Using Namespace totvs.protheus.health.plans.api.util
+
+/*/{Protheus.doc} ReadjustmentStatementService
+Classe de serviço do Extrato de Reajuste - Regra de Negócio
+@type class
+@author Gabriela Cattin Gomes
+@since 24/05/2023
+@version Protheus 12
+/*/
+Class ReadjustmentStatementService From BaseService
+
+  	Public Method new() Constructor
+    Public Method getReadjustmentStatementBase64() As Logical
+
+EndClass
+
+/*/{Protheus.doc} new
+Método construtor da classe
+@type method
+@author Gabriela Cattin Gomes
+@since 24/05/2023
+@version Protheus 12
+/*/
+Method new() Class ReadjustmentStatementService
+
+    _Super:new()
+
+Return Self
+
+/*/{Protheus.doc} getReadjustmentStatementBase64
+Método responsavel por retornar o Extrato de Reajuste em Base 64
+
+@type method
+@author Gabriela Cattin Gomes
+@since 24/05/2023
+@version Protheus 12
+/*/
+Method getReadjustmentStatementBase64() As Logical Class ReadjustmentStatementService
+
+    Local lSucess := .F. As Logical
+    Local aFields := {} As Array
+    Local cDiretory := GetMV("MV_RELT")
+
+    aAdd(aFields, {"field" : "subscriberId", "required" : .T., "type" : "C", "size" : tamSX3("BA1_CODINT")[1]+tamSX3("BA1_CODEMP")[1]+tamSX3("BA1_MATRIC")[1]+tamSX3("BA1_TIPREG")[1]+tamSX3("BA1_DIGITO")[1]})
+
+    If Self:checkBodyFields(aFields, "E001", Self:jPath)
+
+        aFields := {} 
+
+        aAdd(aFields, {"field" : "year", "required" : .T., "type" : "C"})
+
+        If Self:checkBodyFields(aFields, "E001",self:jParams) 
+      
+            BA1->(DbSetOrder(2))
+            If BA1->(MsSeek(xFilial("BA1")+Self:jPath["subscriberId"]))
+                Private cMsg := '' As Character
+                Private nLimite := 220 As Numeric
+                Private cTitulo := '                  Extrato de Reajuste' As Character
+                Private cCabec1 := "" As Character
+                Private cCabec2 := ""	As Character
+                Private cCodOpe := BA1->BA1_CODINT As Character
+                Private cMesDe := '01' As Character
+                Private cAnoDe := self:jParams["year"] As Character
+                Private cMesAte := '12' As Character
+                Private cAnoAte := self:jParams["year"] As Character
+                Private cGrupoDe := BA1->BA1_CODEMP As Character
+                Private cGrupoAte := BA1->BA1_CODEMP As Character
+                Private cContDe := '' As Character
+                Private cContAte := 'ZZZ' As Character
+                Private cSubDe := '' As Character
+                Private cSubAte := 'ZZZ' As Character
+                Private nTipoRel := 2 As Numeric
+                Private nMesObs	:= 0 As Numeric
+                Private lWeb := .T. As Logical
+                Private cRel := "PLSR510" As Character
+                Private aReturn := { "Zebrado", 1,"Administracao", 1, 1, 1, "",1 } //"Zebrado"###"Administracao"
+                Private cRelName := "ExtReaj"+CriaTrab(NIL,.F.) As Character
+                Private cMatric := self:jPath["subscriberId"] As Character
+
+                R510Imp()
+                
+                cRelName := cRelName+'.pdf'
+
+                If !Empty(cRelName) .And. File(cDiretory+cRelName)
+                    Self:setAttributeJson({"attribute" : "cRelName", "value" : Lower(cRelName), "type" : "C"})
+                    Self:setAttributeJson({"attribute" : "file", "value" : Self:convertFileToBase64(cDiretory+cRelName), "type" : "C"})                  
+                    lSucess := .T.
+                    Self:nCodeStatus := 200 // Ok      
+                EndIf
+            Else
+                Self:SetError("E001", "Usuário não encontrado",;
+                                "Não foi possível retornar os dados do beneficiário através da matrícula informada.",;
+                                404) // Not found
+            EndIf
+
+        EndIf
+
+    EndIf
+
+Return lSucess

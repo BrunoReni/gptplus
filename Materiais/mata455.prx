@@ -1,0 +1,1496 @@
+#INCLUDE "MATA455.CH"
+#INCLUDE "PROTHEUS.CH"
+#INCLUDE "FWLIBVERSION.CH"
+
+Static __lMetric := Nil
+
+/*/
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Fun‡…o    ³ MATA455  ³ Autor ³ Rosane Luciane Chene  ³ Data ³ 18.01.95 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ Programa de Liberacao de Estoque                           ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Sintaxe e ³ Void MATA455(void)                                         ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Uso       ³ Generico                                                   ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³ ATUALIZACOES SOFRIDAS DESDE A CONSTRUCAO INICIAL.                     ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³ PROGRAMADOR  ³ DATA   ³ BOPS ³  MOTIVO DA ALTERACAO                   ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³ Rogerio F.G. ³26/11/97³12619 ³Inc.de Pergunta para Sel. Registros     ³±±
+±±³ Edson/Rogerio³12/12/97³12619 ³Acerto do Indice Tmp.                   ³±±
+±±³ Edson   M.   ³09/01/98³XXXXX ³Acerto da gravacao do Campo C6_OP       ³±±
+±±³ Marcelo Pime.³28/01/98³12697A³Verificacao do produto se est  bloqueado³±±
+±±³ Edson   M.   ³18/02/98³XXXXX ³Acerto da Pesquisa.                     ³±±
+±±³ Rodrigo Sart.³11/05/98³XXXXXX³Acerto dos Locks Moinho Dias Branco     ³±±
+±±³ Lucas        ³04/08/98³XXXXXX³Inicializacao do Array aArrayAE.        ³±±
+±±³ Edson   M.   ³28/12/98³XXXXX ³Inclusao do PE M455FIL.                 ³±±
+±±³ Viviani      ³08/11/99³Melhor³Nova cria‡Æo de dialogos (Protheus)     ³±±
+±±³ Aline C.Vale ³20/05/99³21712 ³Criacao de PE MTA455I                   ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+/*/
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Define Array contendo as Rotinas a executar do programa      ³
+//³ ----------- Elementos contidos por dimensao ------------     ³
+//³ 1. Nome a aparecer no cabecalho                              ³
+//³ 2. Nome da Rotina associada                                  ³
+//³ 3. Usado pela rotina                                         ³
+//³ 4. Tipo de Transa‡„o a ser efetuada                          ³
+//³    1 - Pesquisa e Posiciona em um Banco de Dados             ³
+//³    2 - Simplesmente Mostra os Campos                         ³
+//³    3 - Inclui registros no Bancos de Dados                   ³
+//³    4 - Altera o registro corrente                            ³
+//³    5 - Remove o registro corrente do Banco de Dados          ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+Function MATA455( nPosArot, lAutomato )
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Define Variaveis                                             ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+Local aArea		    := GetArea()
+Local cPerg		    := "MTA455"
+Local cFilSC9		:= ""
+Local cCondicao	    := ""
+Local aIndSC9		:= {}
+Local aCores		:= {{"C9_BLEST=='  '.And.C9_BLCRED=='  '.And.(C9_BLWMS>='05'.OR.C9_BLWMS='  ').And.Iif(SC9->((FieldPos('C9_BLTMS') > 0)), Empty(C9_BLTMS), .T.)", 'ENABLE' },;		//Item Liberado
+            		    {"(C9_BLCRED=='10'.And.C9_BLEST=='10').Or.(C9_BLCRED=='ZZ'.And.C9_BLEST=='ZZ')",                                                              'DISABLE'},;		//Item Faturado
+            		    {"!C9_BLCRED=='  '.And.C9_BLCRED<>'10'.And.C9_BLCRED<>'ZZ' .And.  C9_BLCRED <> '09' ",                                                        'BR_AZUL'},;		//Item Bloqueado - Credito
+            		    {"C9_BLCRED == '09' .And. C9_BLCRED <> '10'.And. C9_BLCRED <> 'ZZ'",                                                                          'BR_MARROM'},; 	//Item Rejeitado
+            		    {"!C9_BLEST=='  '.And.C9_BLEST<>'10'.And.C9_BLEST<>'ZZ'",                                                                                     'BR_PRETO'},;		//Item Bloqueado - Estoque
+            		    {"C9_BLWMS<='05'.And.!C9_BLWMS=='  '",                                                                                                        'BR_AMARELO'},;	//Item Bloqueado - WMS
+            		    {"Iif(SC9->((FieldPos('C9_BLTMS') > 0)), !Empty(C9_BLTMS), .F.)",                                                                             'BR_LARANJA'}}		//Item Bloqueado - TMS
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Ponto de Entrada para alterar cores do Browse do Cadastro    ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+If ExistBlock("MA455COR")
+	aCores := ExecBlock("MA455COR",.F.,.F.,aCores)
+Endif
+
+Private cCadastro := OemToAnsi(STR0001)		//"Libera‡„o de Estoque"
+If ( cPaisLoc $ "ARG|POR|EUA" )
+	Private aArrayAE:={}
+EndIf
+Private aRotina := MenuDef()
+
+Default nPosArot	:= 0   //Execução direta pelo aRotina
+Default lAutomato	:= .F. //Execução automática de Testes
+If VerSenha(137)
+	//----------------------------------------------------------------------------
+	// Será executada uma opção diretamento do aRotina sem passar pela mBrowse
+	//----------------------------------------------------------------------------
+	If nPosArot > 0
+
+		DbSelectArea( "SC9" )
+		If nPosArot == 2 //Liberação automática
+			bBlock := &( "{ |a,b,c,d,e,f| " + aRotina[ nPosArot, 2 ] + "(a,b,c,d,e,f) }" )
+			Eval( bBlock, "SC9", Nil, Nil, Nil, Nil, lAutomato )
+		Else
+			bBlock := &( "{ |a,b,c,d| " + aRotina[ nPosArot, 2 ] + "(a,b,c,d) }" )
+			Eval( bBlock, Alias(), ( Alias())->( Recno() ), nPosArot, lAutomato )
+		EndIf
+
+	Else
+		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+		//³ So Ped. Bloqueados   mv_par01          Sim Nao               ³
+		//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+		If Pergunte(cPerg,.T.)
+			A455Filtro( @cCondicao , @cFilSC9 ) //-- Cria os filtros da SC9
+			//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+			//³ Endereca a funcao de BROWSE                                  ³
+			//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+			dbSelectArea("SC9")
+			If ( Eof() )
+				HELP(" ",1,"RECNO")
+			Else
+				mBrowse( 7, 4,20,74,"SC9",,,,,,aCores,,,,,,,,,,,,cCondicao) //,,"C9_BLEST"
+			EndIf
+		EndIf
+		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+		//³Restaura a integridade da rotina                                ³
+		//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+		dbSelectArea("SC9")
+		RetIndex("SC9")
+		dbClearFilter()
+		aEval(aIndSc9,{|x| Ferase(x[1]+OrdBagExt())})
+	EndIf
+Else
+	HELP(" ",1,"SEMPERM")
+Endif
+
+RestArea(aArea)
+Return(.T.)
+/*/
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Fun‡…o    ³A455LibAut³ Autor ³ Rosane Luciane Chene  ³ Data ³ 18.01.95 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ Rotina para gerar liberacoes automaticas de estoque        ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Uso       ³ MATA455                                                    ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+/*/
+Function A455LibAut(cAlias,cCampo,nOpcE,cMarca,lInverte, lAutomato)
+
+Local nOpca      := 0
+Local aSays      := {}
+Local aButtons   := {}
+Local cPerg      := "LIBAT2"
+Local aColsLog   := {}
+Local aHeaderLog := {}
+Local cMsgOrdSep := ""
+
+Default lAutomato := .F.
+
+If !ctbValiDt( Nil, dDataBase, .T., Nil, Nil, { "FAT002" }, Nil )
+	Return Nil
+EndIf
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ Utiliza arquivo de liberados para geracao na nota            ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+dbSelectArea(cAlias)
+dbSetOrder(1)
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ mv_par01 Pedido de          ?                                 ³
+//³ mv_par02 Pedido ate         ?                                 ³
+//³ mv_par03 Cliente de         ?                                 ³
+//³ mv_par04 Cliente ate        ?                                 ³
+//³ mv_par05 Dta Liberacao de   ?                                 ³
+//³ mv_par06 Dta Liberacao ate  ?                                 ³
+//³ mv_par07 Quanto ao Estoque  ? Estoque/WMS  WMS                ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+If lAutomato
+
+	If Pergunte( cPerg, .F. )
+		Ma450Proces( "SC9", .F., .T., .F., Nil, MV_PAR07==2)
+	EndIf
+
+Else
+
+	If Pergunte(cPerg,.T.)
+		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+		//³ Nova forma de criar dialogos para processos Batch            ³
+		//³ COMPATIVEL COM PROTHEUS (BOF)                                ³
+		//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+		AADD(aSays,OemToAnsi( STR0006 ) )
+		AADD(aSays,OemToAnsi( STR0007 ) )
+
+		AADD(aButtons, { 5,.T.,{||Pergunte(cPerg) } } )
+		AADD(aButtons, { 1,.T.,{|o| nOpca:= 1, o:oWnd:End() } } )
+		AADD(aButtons, { 2,.T.,{|o| nOpca:= 2, o:oWnd:End() }} )
+
+		FormBatch( cCadastro, aSays, aButtons )
+
+		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+		//³ Ponto de entrada para validar liberações de Estoque          ³
+		//³                                                              ³
+		//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+		If ExistBlock("MTA455E")
+			nOpca := ExecBlock("MTA455E",.F.,.F.,{nOpca})
+		Endif
+
+		If nOpcA == 1
+			Processa({|lEnd| Ma450Proces(cAlias, .F., .T., @lEnd, Nil, MV_PAR07==2, .T.)}, , , .T.)
+			
+			If (FindFunction("MaGetFaLog"))
+				aColsLog := MaGetFaLog()
+			
+				If (!Empty(aColsLog))
+				
+					If (FindFunction("A410MsgLog"))
+						aAdd( aHeaderLog, { STR0053	         , 'C9_ITEM'    , '@!', TAMSX3('C9_ITEM')   [1]	, 0                      , '', 'û', 'C', '', '', '', '', '.T.'})	// #Item
+						aAdd( aHeaderLog, { STR0054          , 'C9_PRODUTO'	, '@!', TAMSX3('C9_PRODUTO')[1]	, 0                      , '', 'û', 'C', '', '', '', '', '.T.'})	// #Cod.Produto
+						aAdd( aHeaderLog, { STR0055          , 'C9_SEQUEN'	, '@!', TAMSX3('C9_SEQUEN') [1]	, 0                      , '', 'û', 'C', '', '', '', '', '.T.'})	// #Seq.Liber.
+						aAdd( aHeaderLog, { STR0056          , 'C9_QTDLIB'	, '@!', TAMSX3('C9_QTDLIB') [1]	, TAMSX3('C9_QTDLIB') [2], '', 'û', 'N', '', '', '', '', '.T.'})	// #Qtd.Liber.
+						aAdd( aHeaderLog, { STR0057          , ''        	, '@!', 150                 	, 0                      , '', 'û', 'C', '', '', '', '', '.T.'})	// #Inconsistencia
+						
+						If (Len(aColsLog) > 1)
+							// Mensagem no plural
+							cMsgOrdSep := STR0061	// #Os itens abaixo não puderam ser liberados pois existem " O r d e n s   d e   S e p a r a ç ã o   e m   A b e r t o " para alguns deles. Verifique a coluna " I n c o n s i s t ê n c i a " das linhas para mais detalhes:
+						Else
+							// Mensagem no singular
+							cMsgOrdSep := STR0059	// #O item abaixo não pode ser liberado pois existe " O r d e m   d e   S e p a r a ç ã o   e m   A b e r t o " para ele. Verifique a coluna " I n c o n s i s t ê n c i a " da linha na grid para mais detalhes:
+						EndIf
+						
+						A410MsgLog(STR0058 , cMsgOrdSep, aHeaderLog, aColsLog)	// #Inconsistência na Liberação
+					Else
+						HELP(" ", 1, STR0058, NIL, STR0060, 1, 1)	// #Inconsistência na Liberação #Inconsistência na Liberação #Foram encontrados itens que não puderam ser liberados conforme os parâmetros informados.
+					EndIf
+					
+                EndIf
+                
+				FreeObj(aHeaderLog)
+				MaCleFaLog()				
+			EndIf
+		EndIf
+		
+	EndIf
+
+EndIf
+
+Return(.T.)
+
+/*/
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Fun‡…o    ³A455LibMan³ Autor ³ Rosane Luciane Chene  ³ Data ³ 18.01.95 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ Rotina para gerar liberacoes manuais                       ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Uso       ³ MATA455                                                    ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+/*/
+Function A455LibMan(cAlias,nReg,nOpcx, lAutomato)
+Local aArea      := GetArea()
+Local aSaldos    := {}
+Local dLimLib    := dDataBase
+Local cDescBloq  := ""
+Local nOpcA      := 0
+Local nQtdVen    := 0
+Local nCntFor    := 0
+Local nX         := 0
+Local lContinua  := .T.
+Local lSelLote   := GetNewPar("MV_SELLOTE","2") == "1"
+Local lRskActive := FindFunction( "RskIsActive" ) .And. RskIsActive()
+Local lRskMTkt	 := FindFunction("RskSetMTkt")
+Local aRet455Sld := Nil  // Trata retorno do Ponto de Entrada Mta455Sld
+Local cFilSC9    := ""
+Local cCondicao  := ""
+Local aPDFields  := {"A1_NOME","A1_RISCO"}
+Local nRecNoAlia := (cAlias)->(RecNo())
+Local oDlg
+Local oBtn
+Local cTicketC	:= ""
+
+Default lAutomato	 := .F.
+
+//Valida a data da LIB para utilização na Telemetria
+If FatLibMetric()
+	//Telemetria - MV_SELLOTE - Seleção Manual de Lote na Liberação de Estoque
+	FwCustomMetrics():setUniqueMetric("MATA455","faturamento-protheus_liberacao-estoque-manual_total", IIf(lSelLote,"1","2"), /*dDateSend*/, /*nLapTime*/,"MATA455")
+EndIf
+
+If !ctbValiDt( Nil, dDataBase, .T., Nil, Nil, { "FAT002" }, Nil )
+	Return Nil
+EndIf
+
+If SC9->C9_BLCRED == "10" .AND. SC9->C9_BLEST == "10"
+	HELP(" ",1,"A450NFISCA")
+	lContinua:= .F.
+EndIf
+
+If !Empty(SC9->C9_BLCRED)
+	If SC9->C9_BLCRED == "09"
+		HELP(" ",1,"A455REJEIT")
+	Else
+		HELP(" ",1,"A455BLCRED")
+	EndIf
+	lContinua:= .F.
+EndIf
+
+If SC9->C9_LOCAL==SuperGetMV("MV_CQ", .F.,"98")
+	HELP(" ",1,"A455NOCQ")
+	lContinua := .F.
+EndIf
+
+If SC9->C9_BLCRED == "  " .And. SC9->C9_BLEST == "  " .And. SC9->C9_BLWMS == "  "
+	Help(" ",1,"A450JALIB")
+	lContinua:= .F.
+EndIf
+
+If !Empty(SC9->C9_BLCRED) .And. Empty(SC9->C9_BLEST)
+	Help(" ",1,"A455CREDIT")
+	lContinua:= .F.
+EndIf
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³Caso os parametros MV_CUSFIFO e MV_FFONLIN estejam habilitados nao sera |
+//|permitida a liberacao manual de estoque.                                |
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+If SuperGetMv("MV_CUSFIFO",.F.,.F.) .And. SuperGetMv("MV_FFONLIN",.F.,.F.)
+	Help(" ",1,"A450FIFO")
+	lContinua := .F.
+EndIf
+
+If lContinua .And. !SoftLock(cAlias)
+	lContinua := .F.
+EndIf
+
+dbSelectArea("SC5")
+dbSetOrder(1)
+
+If lContinua .And. dbSeek(xFilial()+SC9->C9_PEDIDO)
+	If !SoftLock("SC5")
+		lContinua := .F.
+	EndIf
+EndIf
+
+If lContinua
+	//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+	//³Consistência criada para evitar que a mesma liberação de estoque ³
+	//³seja efetuada duas vezes ou mais, multiplos usuários logados.    ³
+	//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+	TCRefresh(RetSqlName(cAlias))
+	A455Filtro( @cCondicao , @cFilSC9 )
+	(cAlias)->( MsGoTo(nRecNoAlia) )
+	lContinua := !( (cAlias)->(Deleted()) ) .And. &(cCondicao)
+EndIf
+
+If ( lContinua )
+	dbSelectArea(cAlias)
+	cMCusto := GetMV("mv_mcusto")
+
+	dbSelectArea("SC5")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC9->C9_PEDIDO)
+
+	dbSelectArea("SC6")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC9->C9_PEDIDO+SC9->C9_ITEM+SC9->C9_PRODUTO)
+
+	If SC5->C5_TIPO $ "DB"
+		dbSelectArea("SA2")
+		dbSetOrder(1)
+		dbSeek(cFilial+SC5->C5_CLIENTE+SC5->C5_LOJACLI)
+	Else
+		dbSelectArea("SA1")
+		dbSetOrder(1)
+		dbSeek(cFilial+SC5->C5_CLIENTE+SC5->C5_LOJACLI)
+	EndIf
+
+	dbSelectArea("SB1")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC9->C9_PRODUTO)
+
+	dbSelectArea("SB2")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC6->C6_PRODUTO+SC6->C6_LOCAL)
+
+	dbSelectArea("NNR")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC6->C6_LOCAL)
+
+	dbSelectArea("SM2")
+	dbSetOrder(1)
+	dbSeek(dDataBase,.T.)
+
+	dbSelectArea(cAlias)
+	If SC9->C9_BLEST == "02"
+		cDescBloq := OemToAnsi(STR0024)
+	EndIf
+	If !lAutomato
+		//Inicializa variaveis com lista de campos que devem ser ofuscados de acordo com usuario.
+		FATPDLoad(/*cUser*/,/*aAlias*/, aPDFields, /*cSource*/)
+		DEFINE MSDIALOG oDlg FROM  177,001 TO 400,607 TITLE OemToAnsi(STR0008) PIXEL			//"Libera‡„o de Estoque"
+		@ 005,011 TO 51, 291 LABEL "" OF oDlg  PIXEL
+		@ 053,144 TO 90, 289 LABEL "" OF oDlg  PIXEL
+		@ 053,011 TO 90, 138 LABEL "" OF oDlg  PIXEL
+		DEFINE SBUTTON FROM 096,220 TYPE 1 ACTION (nOpca := 2,oDlg:End()) ENABLE OF oDlg
+		DEFINE SBUTTON FROM 096,256 TYPE 2 ACTION oDlg:End() ENABLE OF oDlg
+		@ 096,146 BUTTON oBtn PROMPT OemToAnsi(STR0033) SIZE 64,11 ACTION (A455SelLote(@aSaldos,SC9->C9_QTDLIB)) OF oDlg PIXEL WHEN (Rastro(SC9->C9_PRODUTO) .and. lSelLote) //"Lote e Enderecos"
+		oBtn:cTooltip := OemToAnsi(STR0034)	 //"Selecione os Lote e Endereçamento"
+		@ 010,015 SAY OemToAnsi(STR0009)                 SIZE 23, 7 OF oDlg PIXEL		//"Pedido"
+		@ 010,042 SAY SC9->C9_PEDIDO                     SIZE 26, 7 OF oDlg PIXEL
+		@ 011,108 SAY OemToAnsi(STR0010)                 SIZE 38, 7 OF oDlg PIXEL			//"Cond.Pagto."
+		@ 011,145 SAY SC5->C5_CONDPAG                    SIZE 17, 7 OF oDlg PIXEL
+		@ 011,170 SAY OemToAnsi(STR0011)                 SIZE 27, 7 OF oDlg PIXEL				//"Bloqueio"
+		@ 011,199 SAY SC9->C9_BLEST + " - " + cDescBloq  SIZE 87, 7 OF oDlg PIXEL
+		@ 021,015 SAY OemToAnsi(STR0012)                 SIZE 23, 7 OF oDlg PIXEL			//"Cliente"
+		@ 021,044 SAY IIf(SC5->C5_TIPO$"BD",FATPDObfuscate(Substr(SA2->A2_NOME,1,35),"A2_NOME"),FATPDObfuscate(Substr(SA1->A1_NOME,1,35),"A1_NOME"))	SIZE 114,7 OF oDlg PIXEL
+		@ 021,171 SAY OemToAnsi(STR0013)                 SIZE 21, 7 OF oDlg PIXEL			//"Risco"
+		@ 021,199 SAY IIF(SC5->C5_TIPO$"BD",FATPDObfuscate(SA2->A2_RISCO,"A2_RISCO"),FATPDObfuscate(SA1->A1_RISCO,"A1_RISCO")) SIZE 7, 7 OF oDlg PIXEL
+		@ 031,015 SAY OemToAnsi(STR0014)                 SIZE 25, 7 OF oDlg PIXEL				//"Produto"
+		@ 031,043 SAY Substr(SB1->B1_DESC,1,30)          SIZE 98, 7 OF oDlg PIXEL
+		@ 041,171 SAY OemToAnsi(STR0015)                 SIZE 18, 7 OF oDlg PIXEL			//"Saldo"
+		@ 031,199 SAY SC6->C6_Local                      SIZE 20, 7 OF oDlg PIXEL
+		@ 031,171 SAY OemToAnsi(STR0016)                 SIZE 27, 7 OF oDlg PIXEL			//"Almox."
+		@ 041,199 SAY SaldoSB2(,GetNewPar("MV_QEMPV",.T.)) Picture PesqPict("SB2","B2_QATU",14) SIZE 43, 7 OF oDlg PIXEL
+		@ 056,016 SAY OemToAnsi(STR0017)                 SIZE 37, 7 OF oDlg PIXEL			//"N£mero Lote"
+		@ 056,072 SAY SC6->C6_NUMLOTE                    SIZE 23, 7 OF oDlg PIXEL
+		@ 056,151 SAY OemToAnsi(STR0018)                 SIZE 38, 7 OF oDlg PIXEL			//"LOCALIZA‡„o"
+		@ 056,203 SAY  NNR->NNR_DESCRI                   SIZE 45, 7 OF oDlg PIXEL
+		@ 067,016 SAY OemToAnsi(STR0019)                 SIZE 53, 7 OF oDlg PIXEL			//"Qtd.Total Pedido"
+		@ 067,072 SAY SC6->C6_QTDVEN Picture PesqPictQt("C6_QTDVEN",20) SIZE 42, 7 OF oDlg PIXEL
+		@ 067,151 SAY OemToAnsi(STR0020)                 SIZE 46, 7 OF oDlg PIXEL			//"Data Ult.Compra"
+		@ 067,202 SAY RetFldProd(SB1->B1_COD,"B1_UCOM")  SIZE 33, 7 OF oDlg PIXEL
+		@ 078,016 SAY OemToAnsi(STR0021)                 SIZE 50, 7 OF oDlg PIXEL			//"Qtd.Total 2a.UM"
+		@ 078,072 SAY SC6->C6_UNSVEN Picture PesqPictQt("C6_UNSVEN",20)  SIZE 42, 7 OF oDlg PIXEL
+		@ 078,151 SAY OemToAnsi(STR0022)                 SIZE 46, 7 OF oDlg PIXEL			//"Qtd.neste Ötem"
+		@ 078,199 SAY SC9->C9_QTDLIB Picture PesqPictQt("C9_QTDLIB",20) SIZE 53, 7 OF oDlg PIXEL
+		FATPDLogUser("A455LIBMAN")
+		ACTIVATE MSDIALOG oDlg CENTERED
+		FATPDUnload("A455LIBMAN")
+	Else
+		nOpcA := 2
+	EndIf
+	If ( ExistBlock("MTA455P") )
+		If ( !Execblock("MTA455P",.F.,.F.,{ nOpcA }) )
+			nOpcA := 0
+		EndIf
+	EndIf
+	If ExistBlock("MTA455SLD")
+		If ValType(aRet455Sld := Execblock("MTA455SLD",.F.,.F.,{ nOpcA, aSaldos })) == "A"
+			nOpca   := If(nOpca == 2 .And. aRet455Sld[1], 2, 0)
+			aSaldos := aClone(aRet455Sld[2])
+		Endif
+	Endif
+
+	If nOpcA == 2
+		If IntWms(SC9->C9_PRODUTO) .And. !Empty(SC9->C9_SERVIC)
+			lContinua := WmsAvalSC6("4")
+		EndIf
+		
+		If lContinua
+			/* Integração RISK - TOTVS Mais Negócios
+			 Seta o número do ticket de crédito para processamento */
+			If lRskActive .And. lRskMTkt
+				cTicketC := Iif(SC9->(ColumnPos('C9_TICKETC')) > 0,SC9->C9_TICKETC, "")
+				RskSetMTkt( cTicketC )  
+			EndIf
+
+			a450Grava(1,.F.,.T.,Nil,aSaldos)
+			If (Existblock("MTA455I"))
+				ExecBlock("MTA455I",.f.,.f.)
+			EndIf
+	
+			// Integrado ao wms devera avaliar as regras para convocação do serviço
+			// e disponibilizar os registros de atividades do WMS para convocação
+			If IntWms()
+				WmsAvalExe()
+			EndIf
+
+			/* Integração RISK - TOTVS Mais Negócios
+			 Limpa da memoria id do ticket.*/
+            If lRskActive .And. lRskMTkt
+		        RskSetMTkt( "" )
+            EndIf 
+		EndIf
+	EndIf
+EndIf
+MsUnLockAll()
+RestArea(aArea)
+Return(.T.)
+
+
+/*/
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Funcao    ³ A455LibAlt³ Autor ³ Henry Fila           ³ Data ³ 01.09.03 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descricao ³ Retorna de liberacao manual de estoque com alteracao da    ³±±
+±±³          ³ quantidade                                                 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Sintaxe   ³ ExpN1 := A455LibAut(ExpC1,ExpN2,ExpN3)                     ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Parametros³ ExpC1 := Alias                                             ³±±
+±±³          ³ ExpN2 := Registro                                          ³±±
+±±³          ³ ExpN3 := Opcao                                             ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Retorno   ³ Nenhum                                                     ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Uso       ³ A455LibAut()                                               ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+/*/
+Function A455LibAlt(cAlias,nReg,nOpcx, lAutomato)
+
+Local aArea      := GetArea()
+Local aSaldos    := {}
+Local aLib       := {.T.,.T.,.T.,.T.}
+Local dLimLib    := dDataBase
+Local cDescBloq  := ""
+Local cMCusto    := ""
+Local nX         := 0
+Local nOpcA      := 0
+Local nQtdVen    := 0
+Local nCntFor    := 0
+Local nVlrCred   := 0
+Local nTpLiber   := 1
+Local nQtdAnt    := 0
+Local lContinua  := .T.
+Local lSelLote   := GetNewPar("MV_SELLOTE","2") == "1"
+Local lHelp      := .T.
+Local lRskMTkt	 := FindFunction("RskSetMTkt")
+Local lTicketC	 := SC9->(ColumnPos('C9_TICKETC')) > 0
+Local lUseOffBal := FindFunction("RskIsActive") .And. RskIsActive()
+Local nOptLib    := SuperGetMv("MV_OPLBEST",.F.,0)
+Local aRet455Sld := Nil  // Trata retorno do Ponto de Entrada Mta455Sld
+Local oDlg
+Local oRadio
+Local oBtn
+Local cFilSC9    := ""
+Local cCondicao  := ""
+Local nRecNoAlia := (cAlias)->(RecNo())
+Local lBlqRes    := SuperGetMv("MV_FTRESBL",.F.,.T.)
+Local aPDFields  := {"A1_NOME","A1_RISCO"}
+
+Default lAutomato	:= .F.
+
+//- Status dos Bloqueios do pedido de venda. Se .T. DCF gerado, tem que estornar.
+Private lbloqDCF := !Empty(SC9->C9_BLCRED+SC9->C9_BLEST)
+
+//Valida a data da LIB para utilização na Telemetria
+If FatLibMetric()
+	//Telemetria - MV_SELLOTE - Seleção Manual de Lote na Liberação de Estoque
+	FwCustomMetrics():setUniqueMetric("MATA455","faturamento-protheus_liberacao-estoque-manual_total", IIf(lSelLote,"1","2"), /*dDateSend*/, /*nLapTime*/,"MATA455")
+EndIf
+
+If !ctbValiDt( Nil, dDataBase, .T., Nil, Nil, { "FAT002" }, Nil )
+	Return Nil
+EndIf
+
+If SC9->C9_BLCRED == "10" .AND. SC9->C9_BLEST == "10"
+	HELP(" ",1,"A450NFISCA")
+	lContinua:= .F.
+EndIf
+If !Empty(SC9->C9_BLCRED)
+	If SC9->C9_BLCRED == "09"
+		HELP(" ",1,"A455REJEIT")
+	Else
+		HELP(" ",1,"A455BLCRED")
+	EndIf
+	lContinua:= .F.
+EndIf
+If !Empty(SC9->C9_BLCRED) .And. Empty(SC9->C9_BLEST)
+	Help(" ",1,"A455CREDIT")
+	lContinua:= .F.
+EndIf
+
+If lContinua .And. !SoftLock(cAlias)
+	lContinua:= .F.
+EndIf
+
+dbSelectArea("SC5")
+dbSetOrder(1)
+If lContinua .And. dbSeek(xFilial()+SC9->C9_PEDIDO)
+	If !SoftLock("SC5")
+		lContinua := .F.
+	EndIf
+EndIf
+
+//Verifica se o produto foi bloqueado para inventario
+If lContinua .And. BlqInvent(SC9->C9_PRODUTO, SC9->C9_LOCAL)
+	Help(" ",1,"BLQINVENT",,SC9->C9_PRODUTO+STR0062+SC9->C9_LOCAL+STR0063,1,11)
+	lContinua := .F.
+EndIf
+
+If lContinua
+	//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+	//³Consistência criada para evitar que a mesma liberação de estoque³
+	//³seja efetuada duas vezes ou mais, multiplos usuários logados.   ³
+	//³Existem casos de atualização e casos de atualização na SC9.	   ³
+	//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+	TCRefresh(RetSqlName(cAlias))
+	A455Filtro( @cCondicao , @cFilSC9 ) //-- Cria os filtros da SC9
+	(cAlias)->( MsGoTo(nRecNoAlia) )
+	lContinua := !( (cAlias)->(Deleted()) ) .And. &(cCondicao)
+EndIf
+
+If lContinua .And. !(Empty(SC9->C9_REMITO)) .And. cPaisLoc <> "BRA"
+	Help(" ",1,"A450REMI")
+	lContinua:= .F.
+EndIf
+
+If lContinua .And. !Empty(SC9->C9_CARGA)
+	Help( ,1,"A455CARGA",,STR0052,1,0) // "O item em questão está vinculado a uma carga montada. Ao realizar uma nova liberação de estoque este vínculo será perdido e, portanto, será necessário incluir novamente o item na carga."
+Endif
+
+If lUseOffBal .And. lRskMTkt .And. lTicketC
+	RskSetMTkt( SC9->C9_TICKETC )
+EndIf
+
+If ( lContinua )
+	dbSelectArea(cAlias)
+	cMCusto := GetMV("mv_mcusto")
+
+	dbSelectArea("SC5")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC9->C9_PEDIDO)
+
+	dbSelectArea("SC6")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC9->C9_PEDIDO+SC9->C9_ITEM+SC9->C9_PRODUTO)
+
+	If SC5->C5_TIPO $ "DB"
+		dbSelectArea("SA2")
+		dbSetOrder(1)
+		dbSeek(cFilial+SC5->C5_CLIENTE+SC5->C5_LOJACLI)
+	Else
+		dbSelectArea("SA1")
+		dbSetOrder(1)
+		dbSeek(cFilial+SC5->C5_CLIENTE+SC5->C5_LOJACLI)
+	EndIf
+
+	dbSelectArea("SB1")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC9->C9_PRODUTO)
+
+	dbSelectArea("SB2")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC6->C6_PRODUTO+SC6->C6_LOCAL)
+
+	dbSelectArea("NNR")
+	dbSetOrder(1)
+	dbSeek(cFilial+SC6->C6_LOCAL)
+
+	dbSelectArea("SM2")
+	dbSetOrder(1)
+	dbSeek(dDataBase,.T.)
+
+	dbSelectArea(cAlias)
+	If SC9->C9_BLEST == "02"
+		cDescBloq := OemToAnsi(STR0024)
+	EndIf
+	If !lAutomato
+		//Inicializa variaveis com lista de campos que devem ser ofuscados de acordo com usuario.
+		FATPDLoad(/*cUser*/,/*aAlias*/, aPDFields, /*cSource*/)
+		DEFINE MSDIALOG oDlg FROM  177,001 TO 450,600 TITLE OemToAnsi(STR0008) PIXEL			//"Libera‡„o de Estoque"
+		@ 005,011 TO 51, 295 LABEL "" OF oDlg  PIXEL
+		@ 053,144 TO 90, 295 LABEL "" OF oDlg  PIXEL
+		@ 053,011 TO 90, 138 LABEL "" OF oDlg  PIXEL
+		@ 093,011 TO 133, 138 LABEL "" OF oDlg  PIXEL
+
+		@ 122,146 BUTTON oBtn PROMPT OemToAnsi(STR0033) SIZE 64,11 ACTION (A455SelLote(@aSaldos,nQtdNew)) OF oDlg PIXEL WHEN (Rastro(SC9->C9_PRODUTO) .and. lSelLote) //"Lote e Enderecos"
+		oBtn:cTooltip := OemToAnsi(STR0034) //"Selecione os Lote e Endereçamento"
+
+		DEFINE SBUTTON FROM 122,230 TYPE 1 ACTION (If(a455Ok(oRadio:nOption,nQtdNew),Eval({||nOpca := 2,oDlg:End()}),)) ENABLE OF oDlg
+		DEFINE SBUTTON FROM 122,263 TYPE 2 ACTION oDlg:End() ENABLE OF oDlg
+		@ 010,015 SAY OemToAnsi(STR0009)                 SIZE 23, 7 OF oDlg PIXEL		//"Pedido"
+		@ 010,044 SAY SC9->C9_PEDIDO                     SIZE 26, 7 OF oDlg PIXEL
+		@ 010,108 SAY OemToAnsi(STR0010)                 SIZE 38, 7 OF oDlg PIXEL		//"Cond.Pagto."
+		@ 010,145 SAY SC5->C5_CONDPAG                    SIZE 17, 7 OF oDlg PIXEL
+		@ 010,171 SAY OemToAnsi(STR0011)                 SIZE 27, 7 OF oDlg PIXEL		//"Bloqueio"
+		@ 010,199 SAY SC9->C9_BLEST + " - " + cDescBloq  SIZE 87, 7 OF oDlg PIXEL
+		@ 021,015 SAY OemToAnsi(STR0012)                 SIZE 23, 7 OF oDlg PIXEL		//"Cliente"
+		@ 021,044 SAY IIf(SC5->C5_TIPO$"BD",FATPDObfuscate(Substr(SA2->A2_NOME,1,35),"A2_NOME"),FATPDObfuscate(Substr(SA1->A1_NOME,1,35),"A1_NOME"))	SIZE 114,7 OF oDlg PIXEL
+		@ 021,171 SAY OemToAnsi(STR0013)                 SIZE 21, 7 OF oDlg PIXEL		//"Risco"
+		@ 021,199 SAY IIF(SC5->C5_TIPO$"BD",FATPDObfuscate(SA2->A2_RISCO,"A2_RISCO"),FATPDObfuscate(SA1->A1_RISCO,"A1_RISCO")) SIZE 7, 7 OF oDlg PIXEL
+		@ 031,015 SAY OemToAnsi(STR0014)                 SIZE 25, 7 OF oDlg PIXEL		//"Produto"
+		@ 031,044 SAY Substr(SB1->B1_DESC,1,30)          SIZE 98, 7 OF oDlg PIXEL
+		@ 041,171 SAY OemToAnsi(STR0015)                 SIZE 18, 7 OF oDlg PIXEL		//"Saldo"
+		@ 031,199 SAY SC6->C6_Local                      SIZE 20, 7 OF oDlg PIXEL
+		@ 031,171 SAY OemToAnsi(STR0016)                 SIZE 27, 7 OF oDlg PIXEL		//"Almox."
+		@ 041,199 SAY SaldoSB2(,GetNewPar("MV_QEMPV",.T.)) Picture PesqPict("SB2","B2_QATU",14) SIZE 43, 7 OF oDlg PIXEL
+		@ 056,016 SAY OemToAnsi(STR0017)                 SIZE 37, 7 OF oDlg PIXEL		//"N£mero Lote"
+		@ 056,072 SAY SC6->C6_NUMLOTE                    SIZE 23, 7 OF oDlg PIXEL
+		@ 056,151 SAY OemToAnsi(STR0018)                 SIZE 38, 7 OF oDlg PIXEL		//"LOCALIZA‡„o"
+		@ 056,203 SAY  NNR->NNR_DESCRI                   SIZE 35, 7 OF oDlg PIXEL
+		@ 067,016 SAY OemToAnsi(STR0019)                 SIZE 53, 7 OF oDlg PIXEL		//"Qtd.Total Pedido"
+		@ 067,072 SAY SC6->C6_QTDVEN Picture PesqPictQt("C6_QTDVEN",20) SIZE 42, 7 OF oDlg PIXEL
+		@ 067,151 SAY OemToAnsi(STR0020)                 SIZE 46, 7 OF oDlg PIXEL		//"Data Ult.Compra"
+		@ 067,202 SAY RetFldProd(SB1->B1_COD,"B1_UCOM")  SIZE 33, 7 OF oDlg PIXEL
+		@ 078,016 SAY OemToAnsi(STR0021)                 SIZE 50, 7 OF oDlg PIXEL		//"Qtd.Total 2a.UM"
+		@ 078,072 SAY SC6->C6_UNSVEN Picture PesqPictQt("C6_UNSVEN",20)  SIZE 42, 7 OF oDlg PIXEL
+		@ 078,151 SAY OemToAnsi(STR0022)                 SIZE 46, 7 OF oDlg PIXEL		//"Qtd.neste Ötem"
+
+		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+		//³ Get da nova quantidade                                       ³
+		//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+		nQtdNew := SC9->C9_QTDLIB
+		@ 076,199 MSGET nQtdNew Picture PesqPictQt("C9_QTDLIB",20) Valid A455Qtdl(nQtdNew) SIZE 53, 7 OF oDlg PIXEL
+
+		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+		//³ Radio de opcoes de liberacao                                 ³
+		//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+		@ 096,013 RADIO oRadio VAR nTpLiber 3D SIZE 100,011 PROMPT STR0026,STR0027,STR0028 OF odlg PIXEL ;
+			ON CLICK (If(oRadio:nOption==1, aLib := {.T.,.T.,.T.,.T.}, If(oRadio:nOption==2, aLib:={.T.,.T.,.F.,.T.}, aLib:={.T.,.T.,.F.,.F.})))
+
+		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+		//³ Se o parametro for <> 0 desativa o radio                     ³
+		//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+		If nOptLib <> 0
+
+			//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+			//³ Protecao caso o parametro seja preenchido errado             ³
+			//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+			nOptLib := If( nOptLib > 3 ,0 , nOptLib )
+
+			//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+			//³ Escolhe a opcao e desativa o radio                           ³
+			//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+			oRadio:nOption := nOptLib
+			oRadio:Disable()
+		Endif
+		FATPDLogUser("A455LIBALT")
+		ACTIVATE MSDIALOG oDlg CENTERED
+		FATPDUnload("A455LIBALT")
+	Else
+		If FindFunction( "GetParAuto" )
+			aRetAuto 	:= GetParAuto( "MATA455TESTCASE" )
+			nQtdNew 	:= aRetAuto[1]
+			nOptLib 	:= aRetAuto[2]
+			nOpca := 2
+		EndIf
+	EndIf
+	If ( ExistBlock("MTA455P") )
+		If ( !Execblock("MTA455P",.F.,.F.,{ nOpcA }) )
+			nOpcA := 0
+		EndIf
+	EndIf
+
+	If ExistBlock("MTA455SLD")
+		If ValType(aRet455Sld := Execblock("MTA455SLD",.F.,.F.,{ nOpcA, aSaldos })) == "A"
+			nOpca   := If(nOpca == 2 .And. aRet455Sld[1], 2, 0)
+			aSaldos := aClone(aRet455Sld[2])
+		Endif
+	Endif
+
+	If nOpcA == 2
+		//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+		//³ Executa somente se a quantidade nova for diferente da original   ³
+		//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+		If (SC9->C9_QTDLIB <> nQtdNew) .Or. lSelLote
+			If IntWms(SC9->C9_PRODUTO) .And. !Empty(SC9->C9_SERVIC)
+				lContinua := WmsAvalSC6("4")
+			EndIf
+			If lContinua
+				Begin Transaction
+					nVlrCred := 0
+					nQtdAnt  := SC9->C9_QTDLIB - nQtdNew
+
+					//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+					//³ Estorna a liberacao atual                                    ³
+					//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+					If SC9->(A460Estorna(/*lMata410*/,/*lAtuEmp*/,@nVlrCred))					
+						//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+						//³ Libera novamente de acordo com a opcao do radio selecionada  ³
+						//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+						If Len(aSaldos)>0
+							For nX := 1 To Len(aSaldos)
+								If nQtdNew > 0
+									RecLock("SC6")
+									SC6->C6_LOTECTL := aSaldos[nX][1]
+									SC6->C6_NUMLOTE := aSaldos[nX][2]
+									//-- Grava o endereco somente quando NAO ha integracao com o wms
+									If	!(IntDL(SC6->C6_PRODUTO) .And. !Empty(SC6->C6_SERVIC))
+										SC6->C6_LOCALIZ := aSaldos[nX][3]
+									EndIf
+									SC6->C6_NUMSERI := aSaldos[nX][4]
+									SC6->C6_DTVALID := aSaldos[nX][7]
+									SC6->C6_POTENCI := aSaldos[nX][6]
+									MaLibDoFat(SC6->(RecNo()),Min(aSaldos[nX][5],nQtdNew),aLib[1],aLib[2],aLib[3],aLib[4],.F.,.F.,/*aEmpenho*/,/*bBlock*/,/*aEmpPronto*/,/*lTrocaLot*/,/*lOkExpedicao*/,@nVlrCred,/*nQtdalib2*/)
+									nQtdNew -= aSaldos[nX][5]
+									
+									If Len(aSaldos) > 1
+										SC6->C6_LOTECTL := ''
+										SC6->C6_NUMLOTE := ''
+										SC6->C6_LOCALIZ := ''
+										SC6->C6_NUMSERI := ''
+										SC6->C6_DTVALID := Ctod('')
+										SC6->C6_POTENCI := 0
+									EndIf
+								EndIf
+							Next nX
+						Else
+							MaLibDoFat(SC6->(RecNo()),@nQtdNew,aLib[1],aLib[2],aLib[3],aLib[4],.F.,.F.,/*aEmpenho*/,/*bBlock*/,/*aEmpPronto*/,/*lTrocaLot*/,/*lOkExpedicao*/,@nVlrCred,/*nQtdalib2*/)
+						EndIf
+					EndIf	 	
+					If ( SuperGetMv("MV_GRVBLQ2" ) .And. nQtdAnt > 0)
+						MaLibDoFat(SC6->(RecNo()),@nQtdAnt,.T.,.F.,lBlqRes,.F.,.F.,.F.,/*aEmpenho*/,/*bBlock*/,/*aEmpPronto*/,/*lTrocaLot*/,/*lOkExpedicao*/,@nVlrCred,/*nQtdalib2*/)
+					EndIf
+					SC6->(MaLiberOk({SC9->C9_PEDIDO},.F.))
+				End Transaction
+
+				// Integrado ao wms devera avaliar as regras para convocação do serviço
+				// e disponibilizar os registros de atividades do WMS para convocação
+				If IntWms()
+					WmsAvalExe()
+				EndIf
+			EndIf
+		EndIf
+		If (Existblock("MTA455NL"))
+			ExecBlock("MTA455NL",.f.,.f.)
+		EndIf
+	EndIf
+EndIf
+
+If lUseOffBal .And. lRskMTkt .And. lTicketC
+	RskSetMTkt( "" )
+EndIf
+
+MsUnLockAll()
+RestArea(aArea)
+
+Return(.T.)
+
+/*/
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Funcao    ³ A455QtdL  ³ Autor ³ Henry Fila           ³ Data ³ 01.09.03 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descricao ³ Consistencia da quantidade liberada                        ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Sintaxe   ³ ExpL1 := A455QtdL(ExpN1)                                   ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Parametros³ ExpN1 := Quantidade                                        ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Retorno   ³ .T. ou .F.                                                 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Uso       ³ A455Qtdl()                                                 ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+/*/
+
+Function A455Qtdl(nQuant)
+
+Local aTam      := TamSX3("C6_QTDVEN")
+
+Local cProduto  := ""
+Local cAlias    := Alias()
+Local cGrade    := ""
+
+Local nQtdEnt   := 0
+Local nQtdLib   := 0
+Local nQtdVen   := 0
+Local nQtdOri   := SC9->C9_QTDLIB
+
+Local lRsDoFAt  := IIF(SuperGetMv("MV_RSDOFAT") == "S",.F.,.T.)
+Local lBloq     := .F.
+Local lGrade    := MaGrade()
+Local lRet      := .T.
+
+nQtdLib  := nQuant
+
+If (nQtdOri <> nQtdLib)
+
+	If Empty(SC9->C9_RESERVA)
+
+		SC6->(dbsetOrder(1))
+		If SC6->(MsSeek(xFilial("SC6")+SC9->C9_PEDIDO+SC9->C9_ITEM+SC9->C9_PRODUTO))
+
+			cProduto  := SC6->C6_PRODUTO
+			lBloq     := (AllTrim(SC6->C6_BLQ) $ "RS" )
+			nQtdVen   := SC6->C6_QTDVEN
+			nQtdEnt   := SC6->C6_QTDENT
+			cGrade    := SC6->C6_GRADE
+
+			If lGrade
+				MatGrdPrrf(@cProduto)
+			Endif
+
+			If ( lBloq .And. lRsDoFat .and. nQtdLib > 0  )
+				Help(" ",1,"A410ELIM")
+				lRet := .F.
+			Endif
+
+			If lRet
+				If SuperGetMv("MV_LIBACIM")
+					If !lGrade  .Or. cGrade <> "S"
+						If Round(nQtdLib,aTam[2]) > Round(SC6->C6_QTDVEN - (SC6->C6_QTDEMP+SC6->C6_QTDENT)+nQtdOri,aTam[2])
+							Help(" ",1,"A440QTDL")
+							lRet := .F.
+						Endif
+					EndIf
+				Endif
+			Endif
+		Endif
+	Else
+		Help(" ",1,"A455RESERV")//"Alteracao nao permitida pois a liberacao possui reserva."
+		lRet := .f.
+	Endif
+Endif
+
+dbSelectArea(cAlias)
+Return( lRet )
+
+/*/
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Funcao    ³ A455Ok    ³ Autor ³ Henry Fila           ³ Data ³ 01.09.03 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descricao ³ Consistencia se o produto possui rastrabilidade            ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Sintaxe   ³ ExpL1 := A455QtdL(ExpN1,ExpN2)                             ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Parametros³ ExpN1 := Opcao                                             ³±±
+±±³          ³ ExpN2 := Quantidade                                        ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Retorno   ³ .T. ou .F.                                                 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Uso       ³ A455Ok(nOpcao,nQtdNew)                                     ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+/*/
+Function A455Ok(nOpcao,nQtdNew)
+
+Local lRet := .T.
+
+If (Rastro(SC9->C9_PRODUTO) .Or. Localiza(SC9->C9_PRODUTO)) .And. (nQtdNew <> SC9->C9_QTDLIB) .And.;
+	nOpcao == 3
+	Help(" ",1,"A455LOCAL",,STR0032,1,0) //"Liberacao manual nao permitida pois o produto possui rastreabilidade ou localizacao fisica"
+	lRet := .F.
+Endif
+
+Return(lRet)
+
+
+/*/
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Funcao    ³A455SelLote³ Autor ³Eduardo Riera         ³ Data ³16.09.2003³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ Permite ao usuario selecionar ou alterar o Numero do Lote e³±±
+±±³          ³ Localização na Liberacao Manual de Estoque...              ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Parametros³ ExpA1: Array dos saldos a Liberar                          ³±±
+±±³          ³ ExpN2: Quantidade a Liberar                                ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Retorno   ³ ExpA1 := aSaldo, array com elementos alterados...          ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Uso       ³ MATA455                                                    ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+/*/
+Function A455SelLote(aSaldos,nQtdALib)
+
+Local oTempTable	:= NIL
+Local aArea      := GetArea()
+Local aAreaSB2   := SB2->(GetArea())
+Local aBrowse    := {}
+Local aStruTrb   := {}
+Local aSldLote   := {}
+Local aObjects   := {}
+Local aSize      := MsAdvSize( .F. )
+Local aPosObj    := {}
+Local aInfo      := {}
+Local aAux       := {}
+Local nX         := 0
+Local nOpcA      := 0
+Local nQtdSel    := 0
+Local cArquivo   := ""
+Local cCursor    := "TRB"
+Local lUsaVenc   := IIf(!Empty(SC9->C9_LOTECTL+SC9->C9_NUMLOTE),.T.,(SuperGetMv('MV_LOTVENC')=='S'))
+Local lLote      := (SuperGetMv("MV_SELPLOT",.F.,"2") == "1")
+Local lInfoWms   := (IntWms(SC9->C9_PRODUTO) .And. !Empty(SC9->C9_SERVIC))
+Local oDlg
+Local oMark
+Local oQtdSel
+Local lValSel		:= Existblock("MTA455VL")               ///// Variável para validação da tela no ponto de entrada "MTA455VL"
+Local lA455SLT2	:= ExistBlock("A455SLT2")
+Local lSelLtNew	:= SuperGetMv("MV_SELTNEW",.F.,.F.)
+Local lWmsNew		:= SuperGetMV("MV_WMSNEW",.F.,.F.)
+
+//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+//³ MV_VLDLOTE - Utilizado para visualizar somente os lotes que  |
+//| possuem o campo B8_DATA com o valor menor ou igual a database|
+//| do sistema                                                   ³
+//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+Local lVldDtLote := SuperGetMV("MV_VLDLOTE",.F.,.T.)
+
+aSaldos := {}
+
+If SC9->C9_QTDRESE == 0
+
+	//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+	//³ Define arquivo de trabalho                             ³
+	//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+	aadd(aStruTrb,{"TRB_OK",     "C", 02,                      0})
+	aadd(aStruTrb,{"TRB_LOTECT", "C", TamSx3("C6_LOTECTL")[1], TamSx3("C6_LOTECTL")[2]})
+	aadd(aStruTrb,{"TRB_NUMLOT", "C", TamSx3("C6_NUMLOTE")[1], TamSx3("C6_NUMLOTE")[2]})
+	If !(lWmsNew .And. lInfoWms)
+		aadd(aStruTrb,{"TRB_LOCALI", "C", TamSx3("C6_LOCALIZ")[1], TamSx3("C6_LOCALIZ")[2]})
+	EndIf
+	aadd(aStruTrb,{"TRB_POTENC", "N", TamSx3("C6_POTENCI")[1], TamSx3("C6_POTENCI")[2]})
+	aadd(aStruTrb,{"TRB_NUMSER", "C", TamSx3("C6_NUMSERI")[1], TamSx3("C6_NUMSERI")[2]})
+	aadd(aStruTrb,{"TRB_QTDLIB", "N", TamSx3("BF_QUANT")[1],   TamSx3("BF_QUANT")[2]})
+	If lSelLtNew
+		aadd(aStruTrb,{"TRB_QTDSEL", "N", TamSx3("C6_QTDLIB")[1], TamSx3("C6_QTDLIB")[2]})
+	EndIf
+	aadd(aStruTrb,{"TRB_DTVALI", "D", TamSx3("C6_DTVALID")[1], TamSx3("C6_DTVALID")[2]})
+	aadd(aStruTrb,{"TRB_RECNO",  "N", 15,                      0})
+
+	aadd(aBrowse,{"TRB_OK",,""})
+	aadd(aBrowse,{"TRB_LOTECT",,RetTitle("C6_LOTECTL")})
+	aadd(aBrowse,{"TRB_NUMLOT",,RetTitle("C6_NUMLOTE")})
+	If !(lWmsNew .And. lInfoWms)
+		aadd(aBrowse,{"TRB_LOCALI",,RetTitle("C6_LOCALIZ")})
+	EndIf
+	aadd(aBrowse,{"TRB_POTENC",,RetTitle("C6_POTENCI")})
+	aadd(aBrowse,{"TRB_NUMSER",,RetTitle("C6_NUMSERI")})
+	If lSelLtNew
+		aadd(aBrowse,{"TRB_QTDLIB",,STR0049}) //-- Qtde Disponível
+		aadd(aBrowse,{"TRB_QTDSEL",,STR0050}) //-- Qtde Selecionada
+	Else
+		aadd(aBrowse,{"TRB_QTDLIB",,RetTitle("C6_QTDLIB")})
+	EndIf
+	aadd(aBrowse,{"TRB_DTVALI",,RetTitle("C6_DTVALID")})
+
+	If ExistBlock("A455SLT1")
+		aAux := ExecBlock("A455SLT1",.F.,.F.,{aStruTrb,aBrowse})
+		aStruTrb := aAux[1]
+		aBrowse  := aAux[2]
+	EndIf
+
+	oTempTable := FWTemporaryTable():New( "TRB" )
+	oTempTable:SetFields( aStruTrb )
+	oTempTable:AddIndex("1", {"TRB_RECNO"} )
+	oTempTable:Create()
+
+	If ExistBlock("A455VENC")
+		lUsaVenc := ExecBlock("A455VENC",.F.,.F.)
+	EndIf
+
+	dbSelectArea("SB2")
+	dbSetOrder(1)
+	MsSeek(xFilial("SB2")+SC9->C9_PRODUTO+SC9->C9_LOCAL)
+
+	//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+	//³Deve-se obter o saldo do produto pela funcao SaldoSB2 sem considerar os empenhos.³
+	//³A funcao SldPorLote fara o tratamento correto dos lotes/enderecos ja empenhados, ³
+	//³exibindo todos os enderecos/numeros de serie disponiveis.                        ³
+	//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+	aSldLote := SldPorLote(SC9->C9_PRODUTO,SC9->C9_LOCAL,SaldoSb2(nil,.F.),0,Iif(lLote,Nil,SC9->C9_LOTECTL),Iif(lLote,Nil,SC9->C9_NUMLOTE),IIf(!(lWmsNew .And. lInfoWms) .And. !lLote,SC6->C6_LOCALIZ, Nil),NIL,NIL,NIL,NIL,lUsaVenc,,,IIf(lVldDtLote,dDataBase,Nil),lInfoWms)
+	//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+	//³ Monta o arquivo de trabalho                            ³
+	//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+	For nX := 1 To Len(aSldLote)
+		RecLock("TRB",.T.)
+		TRB->TRB_OK := ""
+		TRB->TRB_LOTECT := aSldLote[nX][01]
+		TRB->TRB_NUMLOT := aSldLote[nX][02]
+		If !(lWmsNew .And. lInfoWms)
+			TRB->TRB_LOCALI := aSldLote[nX][03]
+		EndIf
+		TRB->TRB_NUMSER := aSldLote[nX][04]
+		TRB->TRB_QTDLIB := aSldLote[nX][05]
+		TRB->TRB_POTENC := aSldLote[nX][12]
+		TRB->TRB_DTVALI := aSldLote[nX][07]
+		TRB->TRB_RECNO  := nX
+		If lA455SLT2
+			ExecBlock("A455SLT2",.F.,.F.)
+		EndIf
+		MsUnLock()
+	Next nX
+	TRB->(dbGotop())
+
+
+	//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+	//³Passo parametros para calculo da resolucao da tela                        ³
+	//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+	aObjects := {}
+	aadd( aObjects, { 100, 030, .T., .F. } )
+	aadd( aObjects, { 100, 090, .T., .T. } )
+	aInfo    := { aSize[ 1 ], aSize[ 2 ], aSize[ 3 ], aSize[ 4 ], 0, 0 }
+	aPosObj  := MsObjSize( aInfo, aObjects, .T. )
+
+	DEFINE MSDIALOG oDlg FROM aSize[7], 000 TO aSize[6], aSize[5] TITLE OemToAnsi(STR0035) PIXEL //"Escolha de Lotes"
+	DEFINE SBUTTON FROM aPosObj[1,1]+010,aPosObj[1,4]-070 TYPE 1 ACTION (nOpcA:=1,Iif(lValSel,(ExecBlock("MTA455VL",.f.,.f.,{"TRB"}),(lSelecao := .T., oDlg:End(),.T.),.F.),oDlg:End()))  ENABLE OF oDlg
+	DEFINE SBUTTON FROM aPosObj[1,1]+010,aPosObj[1,4]-035 TYPE 2 ACTION (nOpcA:=2,oDlg:End()) ENABLE OF oDlg
+	@ aPosObj[1,1],aPosObj[1,2] TO aPosObj[1,3],aPosObj[1,4] LABEL "" OF oDlg  PIXEL
+	@ aPosObj[1,1]+010,010 SAY OemToAnsi(STR0022)	SIZE 46, 7 OF oDlg PIXEL //"Qtd.neste Item"
+	@ aPosObj[1,1]+010,072 SAY nQtdALib PICTURE PesqPictQt("BF_QUANT",20) SIZE 53, 7 OF oDlg PIXEL
+
+	@ aPosObj[1,1]+010,120 SAY OemToAnsi(STR0036) SIZE 46, 7 OF oDlg PIXEL 		  //"Qtd.Selecionada"
+	@ aPosObj[1,1]+010,160 SAY oQtdSel	 VAR nQtdSel Picture PesqPictQt("BF_QUANT",20) SIZE 53, 7 OF oDlg PIXEL
+
+	oMark := MsSelect():New("TRB","TRB_OK",Nil,aBrowse,.F.,Nil,{aPosObj[2,1]+3,aPosObj[2,2],aPosObj[2,3]-3,aPosObj[2,4]})
+	If lSelLtNew
+		oMark:bAval := {|| MarkLote(@oQtdSel,nQtdALib,@nQtdSel)}
+	Else
+		oMark:bAval := {|| lOk := nQtdSel>nQtdALib.And.!TRB->(IsMark("TRB_OK",ThisMark(),ThisInv())),;
+		                   TRB->TRB_OK:=IIf(TRB->(IsMark("TRB_OK",ThisMark(),ThisInv())).Or.lOk,"",ThisMark()),;
+		                   nQtdSel := IIf(lOk,nQtdSel,IIf(TRB->(IsMark("TRB_OK",ThisMark(),ThisInv())),nQtdSel+TRB->TRB_QTDLIB,nQtdSel-TRB->TRB_QTDLIB)),;
+		                   oQtdSel:SetText(nQtdSel) }
+	EndIf
+	oMark:oBrowse:lHasMark    := .T.
+	oMark:oBrowse:lCanAllmark := .F.
+
+	If (Existblock("MTA455ML"))
+		nQtdSel := ExecBlock("MTA455ML",.f.,.f.,{"TRB"})
+	EndIf
+
+	ACTIVATE MSDIALOG oDlg VALID nQtdSel >= nQtdALib
+
+	//ÚÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+	//³Verifico os lotes escolhidos                                              ³
+	//ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+	If nOpcA == 1
+		dbSelectArea("TRB")
+		dbGotop()
+		While !Eof()
+			If IsMark("TRB_OK",ThisMark(),ThisInv())
+				If lSelLtNew
+					aadd(aSaldos,{TRB->TRB_LOTECT,TRB->TRB_NUMLOT,Iif(!(lWmsNew .And. lInfoWms),TRB->TRB_LOCALI,''),TRB->TRB_NUMSER,TRB->TRB_QTDSEL,TRB->TRB_POTENC,TRB->TRB_DTVALI})
+				Else
+					aadd(aSaldos,{TRB->TRB_LOTECT,TRB->TRB_NUMLOT,Iif(!(lWmsNew .And. lInfoWms),TRB->TRB_LOCALI,''),TRB->TRB_NUMSER,TRB->TRB_QTDLIB,TRB->TRB_POTENC,TRB->TRB_DTVALI})
+				EndIf
+			EndIf
+			dbSelectArea("TRB")
+			dbSkip()
+		EndDo
+	EndIf
+	dbSelectArea("TRB")
+	dbCloseArea()
+	oTempTable:Delete()
+Else
+    Help(" ",1,"MT455RESV",,OemtoAnsi(STR0048),1,0)
+Endif
+
+RestArea(aArea)
+Return(nOpcA)
+
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÉÍÍÍÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍ»±±
+±±ºPrograma  ³ MarkLote ºAutor  ³ Andre Anjos        º Data ³  16/08/12   º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºDescricao ³ No duplo clique da selecao de lote exibe tela para informarº±±
+±±º          ³ quantidade a selecionar.                                   º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºParametros³ oQtdSel: say da quantidade total selecionada.			  º±±
+±±º			 ³ nQtdALib: quantidade do item da liberacao.				  º±±
+±±º			 ³ nQtdSel: quantidade selecionada para o item da liberacao.  º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºUso       ³ MATA455                                                    º±±
+±±ÈÍÍÍÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+*/
+Static Function MarkLote(oQtdSel,nQtdALib,nQtdSel)
+Local lOk     := nQtdSel > nQtdALib .And. !TRB->(IsMark("TRB_OK",ThisMark(),ThisInv()))
+Local nQtde   := 0
+Local oDlg    := NIL
+Local lMarcou := .F.
+
+TRB->TRB_OK := If(TRB->(IsMark("TRB_OK",ThisMark(),ThisInv())) .Or. lOk,"",ThisMark())
+If !lOk
+	If TRB->TRB_OK == ThisMark()
+		nQtde := Min(TRB->TRB_QTDLIB,nQtdALib - nQtdSel)
+		oDlg := MSDialog():New(0,0,80,155,STR0050,,,,,,,,oMainWnd,.T.) //-- Qtde Selecionada
+		TGet():Create(oDlg,{|u| If(PCount()>0,nQtde:= u,nQtde)},5,5,70,10,PesqPictQt("C6_QTDLIB",20),{|| MarkVldQtd(nQtdALib,nQtdSel,nQtde)},,,,,,.T.,,,,,,,,,,"nQtde")
+		TButton():Create(oDlg,20,5,"OK",{|| lMarcou := .T.,oDlg:End()},70,10,,,,.T.)
+		oDlg:Activate(,,,.T.)
+
+		If lMarcou .And. nQtde > 0
+			TRB->TRB_QTDSEL := nQtde
+			nQtdSel += TRB->TRB_QTDSEL
+		Else
+			TRB->TRB_OK := ""
+		EndIf
+	Else
+		nQtdSel -= TRB->TRB_QTDSEL
+		TRB->TRB_QTDSEL := 0
+	EndIf
+EndIf
+oQtdSel:SetText(nQtdSel)
+Return lOk
+
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÉÍÍÍÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍ»±±
+±±ºPrograma  ³MarkVldQtdºAutor  ³ Andre Anjos		 º Data ³  17/08/12   º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºDescricao ³ Funcao que valida a quantidade de selecionada do lote/end. º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºParametros³ nQtdALib: quantidade do item da liberacao.				  º±±
+±±º			 ³ nQtdSel: quantidade selecionada para o item da liberacao.  º±±
+±±º			 ³ nQtde: quantidade digitada na selecao do lote/endereco.	  º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºUso       ³ MATA455                                                    º±±
+±±ÈÍÍÍÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+*/
+Static Function MarkVldQtd(nQtdALib,nQtdSel,nQtde)
+Local lRet
+
+lRet	:= nQtde >= 0 .And.;						//-- Qtde deve ser positiva
+    	   nQtde <= TRB->TRB_QTDLIB .And.; 	//-- Qtde deve ser menor ou igual ao saldo do lote
+    	   nQtde <= nQtdALib - nQtdSel			//-- Qtde deve ser menor ou igual ao saldo a selecionar
+If !lRet
+	Help(" ",1,"QTDNVLD",,STR0051,1,1) //-- Quantidade inválida. A quantidade não pode ser maior que o saldo do lote/endereço ou saldo a selecionar.
+EndIf
+Return lRet
+
+/*/
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÚÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄ¿±±
+±±³Programa  ³MenuDef   ³ Autor ³ Marco Bianchi         ³ Data ³01/09/2006³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Descri‡…o ³ Utilizacao de menu Funcional                               ³±±
+±±³          ³                                                            ³±±
+±±³          ³                                                            ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Retorno   ³Array com opcoes da rotina.                                 ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³Parametros³Parametros do array a Rotina:                               ³±±
+±±³          ³1. Nome a aparecer no cabecalho                             ³±±
+±±³          ³2. Nome da Rotina associada                                 ³±±
+±±³          ³3. Reservado                                                ³±±
+±±³          ³4. Tipo de Transa‡„o a ser efetuada:                        ³±±
+±±³          ³    1 - Pesquisa e Posiciona em um Banco de Dados           ³±±
+±±³          ³    2 - Simplesmente Mostra os Campos                       ³±±
+±±³          ³    3 - Inclui registros no Bancos de Dados                 ³±±
+±±³          ³    4 - Altera o registro corrente                          ³±±
+±±³          ³    5 - Remove o registro corrente do Banco de Dados        ³±±
+±±³          ³5. Nivel de acesso                                          ³±±
+±±³          ³6. Habilita Menu Funcional                                  ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³   DATA   ³ Programador   ³Manutencao efetuada                         ³±±
+±±ÃÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´±±
+±±³          ³               ³                                            ³±±
+±±ÀÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+/*/
+
+Static Function MenuDef()
+
+Private aRotina := {	{ STR0002,"PesqBrw"		, 0 , 1,0,.F.},;	// "Pesquisar"
+						{ STR0004,"A455LibAut"	, 0 , 3,0,.T.},;	// "Automática"
+						{ STR0005,"A455LibMan"	, 0 , 4,0,.T.},;	// "Manual"
+						{ STR0025,"A455LibAlt"	, 0 , 4,0,.T.},;	// "Nova Liberacao"
+						{ STR0023,"A450Legend"	, 0 , 2,0,.F.} }	// "Legenda"
+
+If ExistBlock("MA455MNU")
+	ExecBlock("MA455MNU",.F.,.F.)
+EndIf
+
+Return(aRotina)
+
+/*
+ÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜÜ
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+±±ÉÍÍÍÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍËÍÍÍÍÍÍÑÍÍÍÍÍÍÍÍÍÍÍÍÍ»±±
+±±ºPrograma  ³ A455Filtro ºAutor  ³ Daniel Mendes    º Data ³  01/07/14   º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÊÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºDescricao ³ Cria o filtro para os registros da tela na tabela SC9.     º±±
+±±º          ³ Utilizada também após o SoftLock na liberação.             º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºParametros³ cCondicao: Condição/Filtro da SC9.                         º±±
+±±º          ³ cFilSC9: Filtro adicional por ponto de entrada.            º±±
+±±º          ³ Os parâmetros devem ser informados por referência |@|      º±±
+±±ÌÍÍÍÍÍÍÍÍÍÍØÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¹±±
+±±ºUso       ³ MATA455                                                    º±±
+±±ÈÍÍÍÍÍÍÍÍÍÍÏÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍ¼±±
+±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±±
+ßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßßß
+*/
+Static Function A455Filtro( cCondicao , cFilSC9 )
+Local aArea := GetArea()
+Local cPerg      := "MTA455"
+Local aMvPar     := {}
+Local nContMvPar := 1
+
+//Guarda os valores do pergunte atual
+While Type( "MV_PAR" + StrZero( nContMvPar , 2 ) ) <> "U"
+	aAdd( aMvPar , &("MV_PAR" + StrZero( nContMvPar , 2 )) )
+	nContMvPar++
+EndDo
+
+Pergunte( cPerg , .F. )
+
+If ( ExistBlock("M455FIL") )
+	cFilSC9 := ExecBlock( "M455FIL" , .F. , .F. )
+EndIf
+
+cFilSC9 := If( Empty(cFilSC9) , ".T." , cFilSC9 ) //Caso o filtro fique vazio
+dbSelectArea( "SC9" )
+dbSetOrder( 1 )
+SC9->( MsSeek( xFilial("SC9") ) )
+
+Do Case
+	Case MV_PAR01 == 1 //Somente de Estoque
+		cCondicao := "SC9->C9_FILIAL=='" + xFilial("SC9") + "' .And. "
+		cCondicao += "SC9->C9_BLEST<>'  ' .And. "
+		cCondicao += "SC9->C9_BLCRED=='  ' .And. "
+		cCondicao += cFilSC9
+	Case MV_PAR01 == 2 //Sem Restricao
+		cCondicao := cFilSC9
+	Case MV_PAR01 == 3 //Somente WMS
+		cCondicao := "SC9->C9_FILIAL=='" + xFilial("SC9") + "' .And."
+		cCondicao += "SC9->C9_BLEST=='  ' .And. "
+		cCondicao += "SC9->C9_BLCRED=='  ' .And. "
+		cCondicao += "SC9->C9_BLWMS=='03' .And. "
+		cCondicao += cFilSC9
+	OtherWise //Todos os Bloqueios
+		cCondicao := "SC9->C9_FILIAL=='" + xFilial("SC9") + "' .And. "
+		cCondicao += "((SC9->C9_BLEST<>'  ' .And. "
+		cCondicao += "SC9->C9_BLCRED=='  ') .Or. "
+		cCondicao += "SC9->C9_BLWMS=='03') .And. "
+		cCondicao += cFilSC9
+EndCase
+
+//Restaura os valores do pergunte
+For nContMvPar := 1 To Len( aMvPar )
+  &("MV_PAR" + StrZero( nContMvPar , 2 )) := aMvPar[ nContMvPar ]
+Next nContMvPar
+
+RestArea( aArea )
+
+Return .T.
+
+
+
+
+//-----------------------------------------------------------------------------------
+/*/{Protheus.doc} FATPDLoad
+    @description
+    Inicializa variaveis com lista de campos que devem ser ofuscados de acordo com usuario.
+	Remover essa função quando não houver releases menor que 12.1.27
+
+    @type  Function
+    @author Squad CRM & Faturamento
+    @since  05/12/2019
+    @version P12.1.27
+    @param cUser, Caractere, Nome do usuário utilizado para validar se possui acesso ao 
+        dados protegido.
+    @param aAlias, Array, Array com todos os Alias que serão verificados.
+    @param aFields, Array, Array com todos os Campos que serão verificados, utilizado 
+        apenas se parametro aAlias estiver vazio.
+    @param cSource, Caractere, Nome do recurso para gerenciar os dados protegidos.
+    
+    @return cSource, Caractere, Retorna nome do recurso que foi adicionado na pilha.
+    @example FATPDLoad("ADMIN", {"SA1","SU5"}, {"A1_CGC"})
+/*/
+//-----------------------------------------------------------------------------------
+Static Function FATPDLoad(cUser, aAlias, aFields, cSource)
+	Local cPDSource := ""
+
+	If FATPDActive()
+		cPDSource := FTPDLoad(cUser, aAlias, aFields, cSource)
+	EndIf
+
+Return cPDSource
+
+
+//-----------------------------------------------------------------------------------
+/*/{Protheus.doc} FATPDUnload
+    @description
+    Finaliza o gerenciamento dos campos com proteção de dados.
+	Remover essa função quando não houver releases menor que 12.1.27
+
+    @type  Function
+    @author Squad CRM & Faturamento
+    @since  05/12/2019
+    @version P12.1.27
+    @param cSource, Caractere, Remove da pilha apenas o recurso que foi carregado.
+    @return return, Nulo
+    @example FATPDUnload("XXXA010") 
+/*/
+//-----------------------------------------------------------------------------------
+Static Function FATPDUnload(cSource)    
+
+    If FATPDActive()
+		FTPDUnload(cSource)    
+    EndIf
+
+Return Nil
+
+
+//-----------------------------------------------------------------------------
+/*/{Protheus.doc} FATPDObfuscate
+    @description
+    Realiza ofuscamento de uma variavel ou de um campo protegido.
+	Remover essa função quando não houver releases menor que 12.1.27
+
+    @type  Function
+    @sample FATPDObfuscate("999999999","U5_CEL")
+    @author Squad CRM & Faturamento
+    @since 04/12/2019
+    @version P12
+    @param xValue, (caracter,numerico,data), Valor que sera ofuscado.
+    @param cField, caracter , Campo que sera verificado.
+    @param cSource, Caractere, Nome do recurso que buscar dados protegidos.
+    @param lLoad, Logico, Efetua a carga automatica do campo informado
+
+    @return xValue, retorna o valor ofuscado.
+/*/
+//-----------------------------------------------------------------------------
+Static Function FATPDObfuscate(xValue, cField, cSource, lLoad)
+    
+    If FATPDActive()
+		xValue := FTPDObfuscate(xValue, cField, cSource, lLoad)
+    EndIf
+
+Return xValue   
+
+
+//-----------------------------------------------------------------------------
+/*/{Protheus.doc} FATPDLogUser
+    @description
+    Realiza o log dos dados acessados, de acordo com as informações enviadas, 
+    quando a regra de auditoria de rotinas com campos sensíveis ou pessoais estiver habilitada
+	Remover essa função quando não houver releases menor que 12.1.27
+
+   @type  Function
+    @sample FATPDLogUser(cFunction, nOpc)
+    @author Squad CRM & Faturamento
+    @since 06/01/2020
+    @version P12
+    @param cFunction, Caracter, Rotina que será utilizada no log das tabelas
+    @param nOpc, Numerico, Opção atribuída a função em execução - Default=0
+
+    @return lRet, Logico, Retorna se o log dos dados foi executado. 
+    Caso o log esteja desligado ou a melhoria não esteja aplicada, também retorna falso.
+
+/*/
+//-----------------------------------------------------------------------------
+Static Function FATPDLogUser(cFunction, nOpc)
+
+	Local lRet := .F.
+
+	If FATPDActive()
+		lRet := FTPDLogUser(cFunction, nOpc)
+	EndIf 
+
+Return lRet  
+
+//-----------------------------------------------------------------------------
+/*/{Protheus.doc} FATPDActive
+    @description
+    Função que verifica se a melhoria de Dados Protegidos existe.
+
+    @type  Function
+    @sample FATPDActive()
+    @author Squad CRM & Faturamento
+    @since 17/12/2019
+    @version P12    
+    @return lRet, Logico, Indica se o sistema trabalha com Dados Protegidos
+/*/
+//-----------------------------------------------------------------------------
+Static Function FATPDActive()
+
+    Static _lFTPDActive := Nil
+  
+    If _lFTPDActive == Nil
+        _lFTPDActive := ( GetRpoRelease() >= "12.1.027" .Or. !Empty(GetApoInfo("FATCRMPD.PRW")) )  
+    Endif
+
+Return _lFTPDActive
+
+/*/{Protheus.doc} FatLibMetric
+Função utilizada para validar a data da LIB para ser utilizada na Telemetria
+@type       Function
+@author     CRM/Faturamento
+@since      Maio/2021
+@version    12.1.27
+@return     __lMetric, lógico, se a LIB pode ser utilizada para Telemetria
+/*/
+Static Function FatLibMetric()
+
+If __lMetric == Nil 
+	__lMetric := FWLibVersion() >= "20210517"
+EndIf
+
+Return __lMetric

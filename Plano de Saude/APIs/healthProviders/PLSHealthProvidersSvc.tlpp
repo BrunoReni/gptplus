@@ -1,0 +1,101 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSHealthProvidersSvc
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSHealthProvidersSvc
+
+    Data oError as Object
+    Data oJsonReq as Object
+    Data oDao as Object
+    Data oEntity as Object
+
+    public method new()
+
+    public method vldExiRda()    
+    public method getError()
+    public method getJsonRda()
+    public method setError(nStatus, cCode, cMessage, cDetailedMessage)
+            
+endClass
+
+method new(cCodRda) class PLSHealthProvidersSvc
+
+    self:oError  := JsonObject():new()
+    self:oDao    := PLSHealthProvidersDao():new(cCodRda)
+    self:oEntity := PLSHealthProvidersEntity():new()
+    
+Return self
+
+
+method vldExiRda() class PLSHealthProvidersSvc
+
+    Local lRet    := self:oDao:getRda()
+    
+    self:oDao:closeQuery()
+    if !lRet
+        self:setError(400,"0003","Prestador informado nao encontrado","Entre em contato com o Suporte")
+    endIf
+        
+Return lRet
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Metodos auxiliares
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+method setError(nStatus, cCode, cMessage, cDetailedMessage) class PLSHealthProvidersSvc
+
+    Default nStatus  := 400
+    Default cCode    := '0002'
+    Default cMessage := 'Bad Request'
+    Default cDetailedMessage := 'O servidor nao foi capaz de entender a solicitacao'
+
+    self:oError['status'] := nStatus
+    self:oError['code'] := cCode
+    self:oError['message'] := cMessage
+    self:oError['detailedMessage'] := cDetailedMessage
+
+return
+
+method getError() class PLSHealthProvidersSvc
+return self:oError
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Metodos que montam o json de resposta
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+method getJsonRda() class PLSHealthProvidersSvc
+
+    Local aRet := {}
+
+    //Monta raiz do Json
+    self:oDao:getRda()
+    self:oEntity:montaRda(self:oDao)
+    self:oDao:closeQuery()
+
+    //Monta Locais e Especialidades
+    self:oDao:getLocEsp()
+    self:oEntity:montaLocEsp(self:oDao)
+    self:oDao:closeQuery()
+
+    //Encerra Json
+    aadd(aRet,self:oEntity:getResult())
+    aadd(aRet,self:oEntity:getStatusCode())
+
+return aRet

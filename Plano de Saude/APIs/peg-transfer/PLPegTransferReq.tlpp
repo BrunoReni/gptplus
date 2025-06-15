@@ -1,0 +1,89 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLPegTransferReq
+Realiza a transferencia de guias em PEGS temporarias para PEGS de faturamento
+
+@author  sakai
+@version P12
+@since   04/10/2022
+/*/
+//------------------------------------------------------------------- 
+class PLPegTransferReq from CenRequest 
+
+    Data oSvc as Object 
+
+    Public Method New()
+    Public Method valida()
+    Public Method processa()
+    
+endClass
+
+Method New(oRest) class PLPegTransferReq
+
+    _Super:New(oRest)
+    self:oSvc := PLPegTransferSvc():new()
+    self:oSvc:setObjRequest(self:jRequest)
+
+Return self
+
+
+Method valida() class PLPegTransferReq
+
+    Local lValid := .T.
+    _Super:checkBody()
+    
+    if self:lSuccess
+
+        if lValid
+            lValid := self:oSvc:existField('BCI','BCI_LOTHAT')
+        endIf
+
+        if lValid
+            lValid := self:oSvc:vldQtdGuias()
+        endif
+        
+        if lValid 
+            self:lSuccess  := .T.
+            self:cResponse := self:oSvc:getResult()
+            self:nStatus   := self:oSvc:getStatusCode()
+        else
+            oErrorAux         := self:oSvc:getError()
+            self:lSuccess     := .F.
+            self:nFault       := oErrorAux['status']
+            self:nStatus      := oErrorAux['status']
+            self:cFaultDesc   := oErrorAux['message']
+            self:cFaultDetail := oErrorAux['detailedMessage']
+        endIf
+       
+    else
+        self:lSuccess   := .F.
+        self:nFault     := 400
+        self:nStatus    := 400
+        self:cFaultDesc := "Requisição invalida."
+    endif
+
+Return self:lSuccess
+
+
+Method processa() class PLPegTransferReq
+
+    if self:lSuccess
+        
+        if self:oSvc:processa()
+            self:lSuccess  := .T.
+            self:cResponse := self:oSvc:getResult()
+            self:nStatus   := self:oSvc:getStatusCode()
+        else
+            oErrorAux         := self:oSvc:getError()
+            self:lSuccess     := .F.
+            self:nFault       := oErrorAux['status']
+            self:nStatus      := oErrorAux['status']
+            self:cFaultDesc   := oErrorAux['message']
+            self:cFaultDetail := oErrorAux['detailedMessage']
+        endIf
+
+    endIf
+
+Return

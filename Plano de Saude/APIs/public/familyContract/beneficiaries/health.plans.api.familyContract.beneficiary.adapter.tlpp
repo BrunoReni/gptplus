@@ -1,0 +1,262 @@
+#Include "tlpp-core.th"
+
+Namespace totvs.protheus.health.plans.api.familyContract.beneficiary
+
+Using Namespace totvs.protheus.health.plans.api.util
+
+/*/{Protheus.doc} BeneficiaryAdapter
+Classe adaptadora de collenction de Beneficiarios - Base de dados
+
+@type class
+@author Vinicius Queiros Teixeira
+@since 09/02/2023
+@version Protheus 12
+/*/
+Class BeneficiaryAdapter From BaseAdapter
+
+	Public Method new() Constructor
+	Public Method getPageBeneficiaries() As Logical
+
+	Private Method mapFieldsBeneficiaries() As Logical
+	Private Method getQueryBeneficiaries() As Character
+	Private Method getWhereBeneficiaries() As Character
+	Private Method getOrderBeneficiaries() As Character
+
+EndClass
+
+/*/{Protheus.doc} new
+Método construtor da classe
+
+@type method
+@author Vinicius Queiros Teixeira
+@since 09/02/2023
+@version Protheus 12
+/*/
+Method new() class BeneficiaryAdapter
+
+	_Super:new()
+
+Return Self
+
+/*/{Protheus.doc} getPageBeneficiaries
+Método responsavel por retornar a pagina de beneficiarios
+
+@type method
+@author Vinicius Queiros Teixeira
+@since 09/02/2023
+@version Protheus 12
+/*/
+Method getPageBeneficiaries() As Logical Class BeneficiaryAdapter
+
+	Local lSucess := .F. As Logical
+    Local cQuery := Self:getQueryBeneficiaries() As Character
+    Local cWhere := Self:getWhereBeneficiaries() As Character
+    Local cOrder := Self:getOrderBeneficiaries() As Character
+	
+	Self:mapFieldsBeneficiaries()
+
+	If Self:executeQueryAdapter(cQuery, cWhere, cOrder)
+		lSucess := .T.
+	EndIf
+
+Return lSucess
+
+/*/{Protheus.doc} mapFieldsBeneficiaries
+Método responsavel por mapear os atributos do json com os campos da tabela de beneficiarios
+
+@type method
+@author Vinicius Queiros Teixeira
+@since 09/02/2023
+@version Protheus 12
+/*/
+Method mapFieldsBeneficiaries() As Logical Class BeneficiaryAdapter
+
+	Self:oAdapterBase:addMapFields("company-code", "BA1_CODEMP", .T., .F., {"BA1_CODEMP", "C", TamSX3("BA1_CODEMP")[1], 0})
+	Self:oAdapterBase:addMapFields("contract-code", "BA1_CONEMP", .T., .F., {"BA1_CONEMP", "C", TamSX3("BA1_CONEMP")[1], 0})
+	Self:oAdapterBase:addMapFields("contract-version-code", "BA1_VERCON", .T., .F., {"BA1_VERCON", "C", TamSX3("BA1_VERCON")[1], 0})
+	Self:oAdapterBase:addMapFields("subcontract-code", "BA1_SUBCON", .T., .F., {"BA1_SUBCON", "C", TamSX3("BA1_SUBCON")[1], 0})
+	Self:oAdapterBase:addMapFields("subcontract-version-code", "BA1_VERSUB", .T., .F., {"BA1_VERSUB", "C", TamSX3("BA1_VERSUB")[1], 0})
+	Self:oAdapterBase:addMapFields("family-code", "BA1_MATRIC", .T., .F., {"BA1_MATRIC", "C", TamSX3("BA1_MATRIC")[1], 0})
+	Self:oAdapterBase:AddMapFields("subscriber-id", "BA1KEY", .T., .F., {"BA1KEY", "C",;
+								   TamSX3("BA1_CODINT")[1]+TamSX3("BA1_CODEMP")[1]+TamSX3("BA1_MATRIC")[1]+TamSX3("BA1_TIPREG")[1]+TamSX3("BA1_DIGITO")[1], 0},;
+								   "BA1_CODINT "+self:concatOperator()+"BA1_CODEMP "+self:concatOperator()+"BA1_MATRIC "+self:concatOperator()+"BA1_TIPREG "+self:concatOperator()+"BA1_DIGITO")
+    Self:oAdapterBase:addMapFields("name", "BA1_NOMUSR", .T., .F., {"BA1_NOMUSR", "C", TamSX3("BA1_NOMUSR")[1], 0})
+	Self:oAdapterBase:addMapFields("social-name", "BA1_NOMSOC", .T., .F., {"BA1_NOMSOC", "C", TamSX3("BA1_NOMSOC")[1], 0})
+	Self:oAdapterBase:addMapFields("birth-date", "BA1_DATNAS", .T., .F., {"BA1_DATNAS", "C", TamSX3("BA1_DATNAS")[1], 0}, self:getFormatDate("BA1_DATNAS"))
+	Self:oAdapterBase:addMapFields("effective-date", "BA1_DATINC", .T., .F., {"BA1_DATINC", "C", TamSX3("BA1_DATINC")[1], 0}, self:getFormatDate("BA1_DATINC"))
+	Self:oAdapterBase:addMapFields("beneficiary-type", "BA1_TIPUSU", .T., .F., {"BA1_TIPUSU", "C", TamSX3("BA1_TIPUSU")[1], 0})
+	Self:oAdapterBase:AddMapFields("situation", "SITUACAO", .T., .F., {"SITUACAO", "C", 1, 0},;
+                      			   " CASE WHEN BA1_DATINC > '"+DToS(dDataBase)+"' THEN '2'"+; // Inclusão Futura
+								   " WHEN BA1_DATBLO = '' THEN '1'"+; // Ativo
+								   " WHEN BA1_DATBLO > '"+DToS(dDataBase)+"' THEN '3'"+; // Bloqueio Futuro
+								   " ELSE '4' END") // Bloqueado
+	Self:oAdapterBase:addMapFields("block-date", "BA1_DATBLO", .T., .F., {"BA1_DATBLO", "C", TamSX3("BA1_DATBLO")[1], 0}, self:getFormatDate("BA1_DATBLO"))
+	Self:oAdapterBase:addMapFields("beneficiary-cpf", "BA1_CPFUSR", .T., .F., {"BA1_CPFUSR", "C", TamSX3("BA1_CPFUSR")[1], 0})
+
+Return .T.
+
+/*/{Protheus.doc} getQueryBeneficiaries
+Método responsavel por retornar o corpo da query que busca os beneficiarios
+
+@type Method
+@author Vinicius Queiros Teixeira
+@since 09/02/2023
+@version Protheus 12
+/*/
+Method getQueryBeneficiaries() As Character Class BeneficiaryAdapter
+
+	Local cQuery As Character
+	Local cTypePortal As Character
+	
+	cQuery := "SELECT #QueryFields# FROM "+RetSqlName("BA1")+" BA1 "
+
+	If Self:jParams:hasProperty("login-user")
+
+		cTypePortal := Posicione("BSW", 1, xFilial("BSW")+Upper(Self:jParams["login-user"]), "BSW_TPPOR")
+
+		If cTypePortal == "2" // 2 = Empresa
+			// Usuario Portal x Empresa
+			cQuery += " INNER JOIN "+RetSqlName("B40")+" B40 "
+			cQuery += "   ON B40.B40_FILIAL = '"+xFilial("B40")+"' "
+			cQuery += "  AND B40.B40_CODINT = BA1.BA1_CODINT "
+			cQuery += "  AND B40.B40_CODEMP = BA1.BA1_CODEMP "
+			cQuery += "  AND B40.B40_NUMCON = BA1.BA1_CONEMP "
+			cQuery += "  AND B40.B40_VERCON = BA1.BA1_VERCON "
+			cQuery += "  AND B40.B40_SUBCON = BA1.BA1_SUBCON "
+			cQuery += "  AND B40.B40_VERSUB = BA1.BA1_VERSUB "
+			cQuery += "  AND B40.D_E_L_E_T_ = ' ' "
+		Else // 3 = Beneficiario  
+			// Usuário Portal x Beneficiário
+			cQuery += " INNER JOIN "+RetSqlName("B49")+" B49 "
+			cQuery += "   ON B49.B49_FILIAL = '"+xFilial("B49")+"' "
+
+			If Self:jParams:hasProperty("all-family") .And. Self:jParams["all-family"] == "1" // 1 = Sim
+				cQuery += "  AND "+self:substrOperator()+"(B49_BENEFI, 1, 14) = BA1.BA1_CODINT "+self:concatOperator()+" BA1.BA1_CODEMP "+self:concatOperator()+" BA1.BA1_MATRIC"
+			Else
+				cQuery += "  AND "+self:substrOperator()+"(B49_BENEFI, 1, 17) = BA1.BA1_CODINT "+self:concatOperator()+" BA1.BA1_CODEMP "+self:concatOperator()+" BA1.BA1_MATRIC "+self:concatOperator()+" BA1.BA1_TIPREG "+self:concatOperator()+" BA1.BA1_DIGITO"
+			EndIf
+
+			cQuery += "  AND B49.D_E_L_E_T_ = ' ' "
+		EndIf
+		// Usuarios do Portal
+		cQuery += " INNER JOIN "+RetSqlName("BSW")+" BSW "
+		cQuery += "   ON BSW.BSW_FILIAL = '"+xFilial("BSW")+"' "
+		cQuery += "  AND BSW.BSW_CODUSR = "+IIf(cTypePortal == "2", "B40.B40_CODUSR", "B49.B49_CODUSR")
+		cQuery += "  AND BSW.D_E_L_E_T_ = ' ' "
+	EndIf	
+
+  	cQuery += " WHERE #QueryWhere#"
+
+Return cQuery
+
+/*/{Protheus.doc} getWhereBeneficiaries
+Método responsavel por retornar o WHERE da query que busca os beneficiarios
+
+@type Method
+@author Vinicius Queiros Teixeira
+@since 09/02/2023
+@version Protheus 12
+/*/
+Method getWhereBeneficiaries() As Character Class BeneficiaryAdapter
+
+	Local cQuery As Character
+	
+	cQuery := " BA1.BA1_FILIAL = '"+xFilial("BA1")+"' AND "
+    cQuery += " BA1.BA1_CODINT = '"+Self:jParams["health-insurer-code"]+"' AND "
+
+	// Filtros simples da api (propriedade=valor)
+	If Self:jParams:hasProperty("company-code")
+		cQuery += " BA1.BA1_CODEMP = '"+Self:jParams["company-code"]+"' AND "
+	EndIf
+
+	If Self:jParams:hasProperty("contract-code")
+		cQuery += " BA1.BA1_CONEMP = '"+Self:jParams["contract-code"]+"' AND "
+	EndIf
+
+	If Self:jParams:hasProperty("contract-version-code")
+		cQuery += " BA1.BA1_VERCON = '"+Self:jParams["contract-version-code"]+"' AND "
+	EndIf
+
+	If Self:jParams:hasProperty("subcontract-code")
+		cQuery += " BA1.BA1_SUBCON = '"+Self:jParams["subcontract-code"]+"' AND "
+	EndIf
+
+	If Self:jParams:hasProperty("subcontract-version-code")
+		cQuery += " BA1.BA1_VERSUB = '"+Self:jParams["subcontract-version-code"]+"' AND "
+	EndIf
+
+	If Self:jParams:hasProperty("family-code")
+		cQuery += " BA1.BA1_MATRIC = '"+Self:jParams["family-code"]+"' AND "
+	EndIf
+
+	If Self:jParams:hasProperty("name")
+		cQuery += " UPPER(BA1.BA1_NOMUSR) LIKE '%"+Upper(Self:jParams["name"])+"%' AND "
+	EndIf
+
+	If Self:jParams:hasProperty("social-name")
+		cQuery += " UPPER(BA1.BA1_NOMSOC) LIKE '%"+Upper(Self:jParams["social-name"])+"%' AND "
+	EndIf
+
+	If Self:jParams:hasProperty("beneficiary-type")
+		cQuery += " BA1.BA1_TIPUSU = '"+Self:jParams["beneficiary-type"]+"' AND "
+	EndIf
+
+	If Self:jParams:hasProperty("situation")
+		Do Case
+			Case Self:jParams["situation"] == "1" // Ativo
+				cQuery += " BA1.BA1_DATBLO = ' ' AND BA1.BA1_DATINC <= '"+DToS(dDataBase)+"' AND "
+
+			Case Self:jParams["situation"] == "2" // Inclusão Futura
+				cQuery += " BA1.BA1_DATINC > '"+DToS(dDataBase)+"' AND "
+
+			Case Self:jParams["situation"] == "3" // Bloqueio Futuro
+				cQuery += " BA1.BA1_DATBLO > '"+DToS(dDataBase)+"' AND "
+
+			Case Self:jParams["situation"] == "4" // Bloqueado
+				cQuery += " BA1.BA1_DATBLO <> ' ' AND BA1.BA1_DATBLO <= '"+DToS(dDataBase)+"' AND "
+		EndCase		
+	EndIf
+
+	If Self:jParams:hasProperty("login-user")
+		cQuery += " UPPER(BSW.BSW_LOGUSR) = '"+Upper(Self:jParams["login-user"])+"' AND "
+
+		// Verifica se os beneficiários bloqueados permitem o login através do motivo de bloqueio (XXX_LOGIN igual a 1)
+		cQuery += " ( "
+		cQuery += " BA1.BA1_DATBLO = '' " // Beneficiário ativo
+		cQuery += " OR (BA1.BA1_DATBLO <> ' ' AND BA1.BA1_DATBLO <= '"+DToS(dDataBase)+"' AND " // Beneficiarios Bloqueados
+		cQuery += "      (" // Se o bloqueio foi realizado no Familia verifica a tabela BG1
+		cQuery += " 	  (BA1.BA1_CONSID = 'F' AND EXISTS(SELECT BG1.BG1_CODBLO FROM "+RetSqlName("BG1")+" BG1 "+; 
+															" WHERE BG1_FILIAL = '"+xFilial("BG1")+"' "+;
+															"   AND BG1.BG1_CODBLO = BA1.BA1_MOTBLO "+;
+															"   AND BG1.BG1_LOGIN = '1' "+;
+		 													"   AND BG1.D_E_L_E_T_ = ' ')) "
+		cQuery += " 	   OR " // ou se foi realizado no usuário (beneficiário) verifica a tabela BG3
+		cQuery += " 	  (BA1.BA1_CONSID = 'U' AND EXISTS(SELECT BG3.BG3_CODBLO FROM "+RetSqlName("BG3")+" BG3 "+;
+															" WHERE BG3_FILIAL = '"+xFilial("BG3")+"' "+;
+															"   AND BG3.BG3_CODBLO = BA1.BA1_MOTBLO "+;
+															"   AND BG3.BG3_LOGIN = '1' "+;
+															"   AND BG3.D_E_L_E_T_ = ' ')) "
+		cQuery += "      ) "
+		cQuery += "    ) "
+  		cQuery += " ) AND "
+	EndIf
+
+	cQuery += " BA1.D_E_L_E_T_ = ' '"
+
+Return cQuery
+
+/*/{Protheus.doc} getOrderBeneficiaries
+Método responsavel por retornar a ORDEM da query que busca os beneficiarios
+
+@type Method
+@author Vinicius Queiros Teixeira
+@since 09/02/2023
+@version Protheus 12
+/*/
+Method getOrderBeneficiaries() As Character Class BeneficiaryAdapter
+
+	Local cOrdemQuery As Character
+	
+	cOrdemQuery := "BA1.BA1_CODINT, BA1.BA1_CODEMP, BA1.BA1_MATRIC, BA1.BA1_TIPREG, BA1.BA1_DIGITO"
+
+Return cOrdemQuery

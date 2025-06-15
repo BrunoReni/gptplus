@@ -1,0 +1,202 @@
+#INCLUDE "TLPP-CORE.TH"
+#INCLUDE "PROTHEUS.CH"
+#INCLUDE "SHPWIZ.CH"
+
+namespace totvs.protheus.retail.rmi.wizard.configuracao.servicos
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} TelaServicos
+    Construtor de tela de serviços do Wizard
+/*/
+//-------------------------------------------------------------------
+Function TelaServicos(oPanel,oConfigWiz) as Variant
+
+Local oSay1     as Object
+Local oSay2     as Object
+Local oSay3     as Object
+Local oSay4     as Object
+Local oSay5     as Object
+Local oSay6     as Object
+Local oSay7     as Object
+Local oSay8     as Object
+Local oSay9     as Object
+Local oGet1     as Object
+Local oGet2     as Object
+Local oGet3     as Object
+Local oGet4     as Object
+Local oGet5     as Object
+Local oSayMsg   as Object
+
+If !oConfigWiz:HasProperty("cIP")
+	oConfigWiz['cIP'] := Padr(getServerIP(),15)
+EndIf
+If !oConfigWiz:HasProperty("cPorta")
+	oConfigWiz['cPorta'] := Padr(Alltrim(Str(GetPort(1))),10)
+EndIf
+If !oConfigWiz:HasProperty("cAmb")
+	oConfigWiz['cAmb'] := Padr(GetEnvServer(),50)
+EndIf
+If !oConfigWiz:HasProperty("cEmpresa")
+	oConfigWiz['cEmpresa'] := FWCodEmp()
+EndIf
+
+
+oSay1:= TSay():New(30,20,{||STR0004},oPanel,,oConfigWiz['oTBold'],,,,.T.,,,200,20)//'Configuração de Serviços'
+
+oSay2:= TSay():New(60,20,{||STR0014},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,300,20)//"Os serviços do Smarthub Protheus serão configurados no ambiente abaixo:"
+
+oSay3:= TSay():New(82,20,{||STR0015},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//"IP: "
+oGet1:= TGet():New(80,50,{|u| if( PCount() > 0, oConfigWiz['cIP'] := u,   oConfigWiz['cIP'])   } ,oPanel,110,010,,,0,,,.F.,,.T.,,.F.,,.F.,.F.,,.F.,.F.,,oConfigWiz['cIP'],,,,,,,,,,,"999.999.999.999" )
+
+oSay4:= TSay():New(102,20,{||STR0016},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//"Porta: "
+oGet2:= TGet():New(100,50,{|u| if( PCount() > 0, oConfigWiz['cPorta'] := u, oConfigWiz['cPorta'] ) } ,oPanel,110,010, ,,0,,,.F.,,.T.,,.F.,,.F.,.F.,,.F.,.F.,,oConfigWiz['cPorta'],,,,)
+
+oSay5:= TSay():New(122,20,{||STR0017},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//"Ambiente: "
+oGet3:= TGet():New(120,50,{|u| if( PCount() > 0, oConfigWiz['cAmb'] := u, oConfigWiz['cAmb'] ) } ,oPanel,110,010, ,,0,,,.F.,,.T.,,.F.,,.F.,.F.,,.F.,.F.,,oConfigWiz['cAmb'],,,,)
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------------
+
+oSay6:= TSay():New(82,200,{||STR0018},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//"Empresa: "
+oGet4:= TGet():New(80,230,{|u| if( PCount() > 0, oConfigWiz['cEmpresa'] := u, oConfigWiz['cEmpresa']) } ,oPanel,110,010,,,0,,,.F.,,.T.,,.F.,,.F.,.F.,,.F.,.F.,,oConfigWiz['cEmpresa'],,,, )
+oGet4:cF3 := "SM0MRP"
+
+oSay7:= TSay():New(102,200,{||STR0019},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//"Filial: "
+oGet5:= TGet():New(100,230,{|u| if( PCount() > 0, oConfigWiz['cFil'] := u, oConfigWiz['cFil'] ) } ,oPanel,110,010, ,,0,,,.F.,,.T.,,.F.,,.F.,.F.,,.F.,.F.,,"oConfigWiz['cFil']",,,,)
+oGet5:cF3 := "SM0EMP"
+
+oConfigWiz["mensagem"] := ""
+oSayMsg := TSay():New(142,20,{||oConfigWiz["mensagem"]},oPanel,,oConfigWiz['oTFont'],,,,.T.,CLR_HRED,,250,20)
+
+oSay8:= TSay():New(230,20,{||STR0007},oPanel,,oConfigWiz['oTFont'],,,,.T.,,,200,20)//'Em caso de dúvidas acesse a documentação:'
+oSay9:= TSay():New(240,20,{||'https://tdn.totvs.com/pages/releaseview.action?pageId=516633428'},oPanel,,oConfigWiz['oTSubl'],,,,.T.,CLR_CYAN,,200,20)
+oSay9:bLClicked := {|| ShellExecute("open","https://tdn.totvs.com/pages/releaseview.action?pageId=516633428","","",1) }
+
+Return
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Validaservicos
+    Função de validação da tela de serviços do Wizard
+/*/
+//-------------------------------------------------------------------
+Function Validaservicos(oConfigWiz)
+
+Local aSessions := GetIniSessions("TOTVSAPPSERVER.INI")
+Local aJobs     := {'RMIPUBLICA','RMIDISTRIB','RMIENVIA','RMIBUSCA','RMICONTROL'}
+Local nI        := 0
+Local cIni      := ""
+Local cOnStart  := ""
+Local cRate     := ""
+Local oRPCSrv   := Nil
+Local cJobs     := ''
+
+Local cIP       := AllTrim(getServerIP())
+Local cPorta    := AllTrim(Str(GetPort(1)))
+Local cAmb      := AllTrim(GetEnvServer())
+
+If cIP == Alltrim(oConfigWiz['cIP']) .And. cPorta == Alltrim(oConfigWiz['cPorta']) .And. cAmb == Alltrim(oConfigWiz['cAmb'])  //ambiente local 
+
+    cIni      := GetAdv97()
+    cOnStart  := GetPvProfString( "OnStart", "JOBS", "", cIni)
+    cRate     := GetPvProfString( "OnStart", "RefreshRate", "", cIni)
+    aSessions := GetIniSessions(cIni)
+
+    For nI := 1 To Len(aJobs)
+        If AScan(aSessions,{|x| UPPER(x) == aJobs[nI]}) == 0 //Se não existir o Job cadastrado no appserver
+
+            WritePProString(aJobs[nI], 'Main', aJobs[nI], cIni)
+            WritePProString(aJobs[nI], 'Environment', oConfigWiz['cAmb'], cIni)
+            
+            If aJobs[nI] == "RMICONTROL"
+                WritePProString(aJobs[nI], 'nParms', "3", cIni)
+                WritePProString(aJobs[nI], 'Parm1', "CUPOM", cIni)
+                WritePProString(aJobs[nI], 'Parm2', oConfigWiz['cEmpresa'], cIni)
+                WritePProString(aJobs[nI], 'Parm3', oConfigWiz['cFil'], cIni)
+            ElseIf aJobs[nI] == "RMIPUBLICA"
+                WritePProString(aJobs[nI], 'nParms', "3", cIni)
+                WritePProString(aJobs[nI], 'Parm1', oConfigWiz['cEmpresa'], cIni)
+                WritePProString(aJobs[nI], 'Parm2', oConfigWiz['cFil'], cIni)    
+                WritePProString(aJobs[nI], 'Parm3', "1", cIni)    
+            Else
+                WritePProString(aJobs[nI], 'nParms', "2", cIni)
+                WritePProString(aJobs[nI], 'Parm1', oConfigWiz['cEmpresa'], cIni)
+                WritePProString(aJobs[nI], 'Parm2', oConfigWiz['cFil'], cIni)
+            EndIf
+            If !(aJobs[nI] $ cOnStart)
+                cJobs += ","+aJobs[nI]
+            EndIf 
+        else
+            If !(aJobs[nI] $ cOnStart)
+                cJobs += ","+aJobs[nI]
+            EndIf     
+        EndIf
+    Next nI
+
+    If Empty(cOnStart)
+        WritePProString("OnStart","JOBS",Substr(cJobs,2,Len(cJobs)),cIni)
+    else
+        WritePProString("OnStart","JOBS",cOnStart+cJobs,cIni)       
+    EndIf    
+    If Empty(cRate)
+        WritePProString("OnStart","RefreshRate","600",cIni)
+    EndIf
+    oConfigWiz["mensagem"] := ""
+Else //ambiente remoto
+
+    oRpcSrv := TRpc():New( oConfigWiz['cAmb'] ) // cria o objeto que realizará a conexão com servidor externo
+
+    If oRpcSrv:Connect(oConfigWiz['cIP'],Val(oConfigWiz['cPorta'])) //realiza a conexão com o servidor externo
+        cIni        := oRpcSrv:CallProc("GetAdv97")
+        cOnStart    := oRpcSrv:CallProc("GetPvProfString", "OnStart", "JOBS", "", cIni)
+        cRate       := oRpcSrv:CallProc("GetPvProfString", "OnStart", "RefreshRate", "", cIni)
+        aSessions   := oRpcSrv:CallProc("GetIniSessions",cIni)
+
+        For nI := 1 To Len(aJobs)
+            If AScan(aSessions,{|x| UPPER(x) == aJobs[nI]}) == 0 //Se não existir o Job cadastrado no appserver
+
+                oRpcSrv:CallProc("WritePProString",aJobs[nI], "Main", aJobs[nI], cIni)
+                oRpcSrv:CallProc("WritePProString",aJobs[nI], "Environment", oConfigWiz["cAmb"], cIni)
+                
+                If aJobs[nI] == "RMICONTROL"
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "nParms", "3", cIni)
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "Parm1", "CUPOM", cIni)
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "Parm2", oConfigWiz["cEmpresa"], cIni)
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "Parm3", oConfigWiz["cFil"], cIni)
+                ElseIf aJobs[nI] == "RMIPUBLICA"                    
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "nParms", "3", cIni)                    
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "Parm1", oConfigWiz["cEmpresa"], cIni)
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "Parm2", oConfigWiz["cFil"], cIni)
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "Parm3", "1", cIni)
+                Else
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "nParms", "2", cIni)
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "Parm1", oConfigWiz["cEmpresa"], cIni)
+                    oRpcSrv:CallProc("WritePProString",aJobs[nI], "Parm2", oConfigWiz["cFil"], cIni)
+                EndIf
+                If !(aJobs[nI] $ cOnStart)
+                    cJobs += ","+aJobs[nI]
+                EndIf
+            else
+                If !(aJobs[nI] $ cOnStart)
+                    cJobs += ","+aJobs[nI]
+                EndIf                
+            EndIf
+        Next nI
+        
+        If Empty(cOnStart)
+            oRpcSrv:CallProc("WritePProString","OnStart","JOBS",Substr(cJobs,2,Len(cJobs)),cIni)   
+        else
+            oRpcSrv:CallProc("WritePProString","OnStart","JOBS",cOnStart+cJobs,cIni)      
+        EndIf 
+        
+        
+        If Empty(cRate)
+            oRpcSrv:CallProc("WritePProString","OnStart","RefreshRate","600",cIni)
+        EndIf
+        oRpcSrv:Disconnect()
+        FwFreeObj(oRpcSrv)
+        oConfigWiz["mensagem"] := ""
+    Else
+        oConfigWiz["mensagem"] := STR0037 //"Não foi possível estabelecer conexão com o ambiente remoto. Verifique as configurações e tente novamente."
+        Return .F.
+    EndIf
+
+EndIf
+Return .T.

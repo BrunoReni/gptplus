@@ -1,0 +1,436 @@
+#INCLUDE 'tlpp-core.th'
+#INCLUDE 'tlpp-rest.th'
+
+NAMESPACE totvs.protheus.backoffice.ngf.bills.payments
+
+/*/{Protheus.doc} Payments
+	Classe para transmissão de documentos a pagar
+	@type class
+	@author renato.ito
+	@since 29/12/2022
+/*/
+Class Payments
+	Public  Data cEnvironment     As Character // Ambiente para Transmissão
+	Public  Data cFebraban        As Character // Código do Banco, Febraban
+	Public  Data jCredentials     As Json      // Credenciais de Acesso
+	Public  Data jToken           As Json      // Token de acesso
+	Private Data cResult          As Character // Resultado
+	Private Data cStatus          As Character // Resultado
+	Private Data cLog             As Character // Resultado
+	Private Data jErrors	      As Json //Erros no token de acesso
+	Private Data lAutomato		  As Logical //Esta sendo executado pelos testes
+	Private Data jResponseMock	  As Json //Resposta que sera mockado pelo teste
+
+	Public  Method new()                       // Construtor
+	Public  Method setCredentials()            // 1-Definir Credenciais
+	Public  Method getBody()                   // 2-Gera o body com base no layout
+	Public  Method send()                      // 3-Realiza a transmissão
+	Public  Method getResult()    As Character // 4-Retorna o resultado da transmissão
+	Public  Method getStatus()    As Character // 5-Status da transmissão F=falha
+	Public  Method getLog()       As Character // 6-mensagem que será apresentada no monitor
+	Public  Method writeOff()     			   // 7-processa a baixa dos titulos
+	Public  Method consult()     			   // 8-consulta a situação do título no banco
+	Public  Method cancel()     			   // 9-Realiza o cancelamento do pagamento
+
+	Public 	Method setAutomato()				// Configura a classe para execução automatica (Testes)
+	Public  Method getToken()                  // Gera token
+	Private Method destroyToken()              // Limpar token
+	Private Method reset()                    // inicializa as variáveis
+
+EndClass
+
+/*/{Protheus.doc} new
+	Método para criação da instância da classe
+	@type method
+	@version 12.1.33
+	@author renato.ito
+	@since 29/12/2021
+/*/
+Method new() Class Payments
+	::lAutomato := .F.
+	::jResponseMock := JsonObject():new()
+Return Self
+
+/*/{Protheus.doc} setCredentials
+	Método para definir as credenciais de acesso para a transmissão
+	@type method
+	@author renato.ito
+	@since 27/12/2021
+	@param cCredentials, Character, credenciais de acesso (json em texto)
+/*/
+Method setCredentials(cCredentials as Character, cFebraban as Character) Class Payments
+	Local lRet := .F. as Logical
+	::reset()
+	::jCredentials:FromJson(cCredentials)
+	::cFebraban := cFebraban
+
+	Do Case
+		Case cFebraban == "001"
+			lRet := totvs.protheus.backoffice.ngf.bills.bb.validCredentials(::jCredentials)
+	EndCase
+
+	If lRet
+		::cEnvironment := ::jCredentials["environment"]
+	EndIf
+
+Return lRet
+
+/*/{Protheus.doc} reset
+	inicializa as variáveis
+	@author renati.ito
+	@since 29/12/2022
+/*/
+Method reset() Class Payments
+	If ValType(::jCredentials) <> 'U'
+		FreeObj(::jCredentials)
+	EndIf
+	::destroyToken()
+	::jCredentials := JsonObject():New()
+	::cResult      := ""
+	::cStatus      := ""
+	::cLog         := ""
+Return
+
+/*/{Protheus.doc} destroyToken
+	Método para limpar o token
+	@type method
+	@author renato.ito
+	@since 29/12/2022
+/*/
+Method destroyToken() Class Payments
+	If ValType(::jToken) <> "U"
+		FreeObj(::jToken)
+	EndIf
+	::jToken := JsonObject():New()
+Return
+
+/*/{Protheus.doc} getBody
+	Geta o bady para envio com base no layout
+	@author renato.ito
+	@since 29/12/2022
+	@param cLayout, Character, layout
+	@param nIdTrans, Numeric, id de transmissão
+	@return cBody, Character, resultado com base no layout
+	/*/
+Method getBody(cLayout as Character) Class Payments
+	Local jLayout := JsonObject():new() as Json
+	Local cBody   := "" as Character
+
+	::cStatus := "F"
+	::cResult := ""
+	::cLog    := ""
+
+	If Empty(jLayout:fromJson(cLayout))
+		Do Case
+			Case ::cFebraban == "001"
+				cBody := totvs.protheus.backoffice.ngf.bills.bb.getBody(jLayout)
+		Endcase
+	Else
+		::cStatus := "F"
+		::cLog    := "Problema no layout - A6_CFGBOLP"
+	EndIf
+
+Return cBody
+
+/*/{Protheus.doc} send
+	Método para transmissão de boletos
+	@type method
+	@author renato.ito
+	@since 29/12/2022
+	@return logical, transmissão realizada com sucesso (.T. - Sim, .F. - Não)
+/*/
+Method send(cBody as Character) Class Payments
+	Local lResponse    := .F.                as Logical
+	Local lContinua    := .T.                as Logical
+	Local jToken       := ::getToken()       as Json
+	Local nTentativas  := 1                  as Numeric
+	Local jResponse    := JsonObject():New() as Json
+
+	::cStatus := "F"
+	::cResult := ""
+	If !::lAutomato
+		If len(jToken:getnames()) > 0
+			While lContinua
+				lContinua := .F.
+				// tratamento de envio por banco
+				Do Case
+					Case ::cFebraban == "001"
+						// padrão da resposta = "{transmitted: .T., response: retorno da api, statuCode: GetHTTPCode}"
+						jResponse["register"] := totvs.protheus.backoffice.ngf.bills.bb.send(::cEnvironment, cBody, ::jCredentials["appKey"], ::jCredentials["certificate"]["cert"], ::jCredentials["certificate"]["key"], jToken["access_token"] )
+
+						If jResponse["register"]:hasProperty("statusCode") .And. jResponse["register"]["statusCode"] == 401
+							If nTentativas < 4
+								::destroyToken()
+								jToken := ::getToken()
+								nTentativas ++
+								lContinua := .T.
+							EndIf
+						EndIf
+				EndCase
+			EndDo
+			lResponse := jResponse["register"]["transmitted"]
+			::cStatus := jResponse["register"]["seaStatus"]
+			::cLog    := jResponse["register"]["seaLog"]
+			jResponse["register"]:delName("seaLog")
+
+			// Liberacao de pagamento
+			jResponse["liberationConfig"] := SEE->EE_LIBEAUT == '1'
+			If lResponse .And. SEE->EE_LIBEAUT == '1'
+				nTentativas := 1
+				lContinua   := .T.
+				While lContinua
+					lContinua := .F.
+					Do Case
+						Case ::cFebraban == "001"
+							jResponse["liberation"] := totvs.protheus.backoffice.ngf.bills.bb.liberation(::cEnvironment, SEA->EA_IDTRANS, ::jCredentials["appKey"], ::jCredentials["certificate"]["cert"], ::jCredentials["certificate"]["key"], jToken["access_token"] )
+
+							If jResponse["liberation"]:hasProperty("statusCode") .And. jResponse["liberation"]["statusCode"] == 401
+								If nTentativas < 4
+									::destroyToken()
+									jToken := ::getToken()
+									nTentativas ++
+									lContinua := .T.
+								EndIf
+							EndIf
+					EndCase
+				EndDo
+				::cStatus := jResponse["liberation"]["seaStatus"]
+				::cLog    := jResponse["liberation"]["seaLog"]
+				jResponse["register"]:delName("seaLog")
+			EndIf
+
+			::cResult :=  jResponse:toJson()
+		Else
+			lResponse := .F.
+			::cLog := decodeUTF8(::jErrors:ToJson())
+			::cStatus := "F"
+		EndIf
+	Else
+		lResponse := ::jResponseMock["register"]["transmitted"]
+		::cStatus := ::jResponseMock["register"]["seaStatus"]
+		::cLog    := ::jResponseMock["register"]["seaLog"]
+		::jResponseMock["register"]:delName("seaLog")
+
+		::cStatus := ::jResponseMock["liberation"]["seaStatus"]
+		::cLog    := ::jResponseMock["liberation"]["seaLog"]
+		::jResponseMock["register"]:delName("seaLog")
+
+		::cResult :=  ::jResponseMock:toJson()
+	Endif	
+Return lResponse
+
+/*/{Protheus.doc} Bills::getResult
+	Método para obter o resultado
+	@type method
+	@version 12.1.33
+	@author daniel.muniz
+	@since 09/04/2021
+	@return character, resultado da transmissão
+/*/
+Method getResult() Class Payments As Character
+Return ::cResult
+
+/*/{Protheus.doc} getLog
+	Método para obter o resultado
+	@type method
+	@version 12.1.33
+	@author daniel.muniz
+	@since 09/04/2021
+	@return character, resultado da transmissão
+/*/
+Method getLog() Class Payments As Character
+Return ::cLog
+
+/*/{Protheus.doc} getStatus
+	Método para obter o resultado
+	@type method
+	@version 12.1.33
+	@author daniel.muniz
+	@since 09/04/2021
+	@return character, resultado da transmissão
+/*/
+Method getStatus() Class Payments As Character
+Return ::cStatus
+
+/*/{Protheus.doc} getToken
+	Método para obter o token de acesso
+	@type method
+	@author renato.ito
+	@since 27/12/2022
+	@return jToken, json, resposta da api com o token ou NIL caso de erro
+/*/
+Method getToken() class Payments
+	If !::lAutomato
+		If len(::jToken:getNames()) < 1
+			Do Case
+				Case ::cFebraban == "001"
+					::jToken := totvs.protheus.backoffice.ngf.bills.bb.getToken(::cEnvironment, ::jCredentials["appKey"], ::jCredentials["clientId"], ::jCredentials["clientSecret"])
+			EndCase
+			If ::jToken:hasProperty("error")
+				::jErrors := JsonObject():new()
+				::jErrors := ::jToken
+				::destroyToken()
+			EndIf
+		EndIf
+	Endif	
+Return ::jToken
+
+/*/{Protheus.doc} prepareResult
+	padrao de retorno para as comuniaçãoes de api na classe
+	@type  Function
+	@author renato.ito
+	@since 03/01/2023
+	@param nCode, numeric, número do codigo
+	@return cErro, character, mensagem de erro
+/*/
+Function prepareResult(cRequest as Character, cResponse as Character, nCode as Numeric, cSEATransf as Character, cSEALog as Character)
+	Local jResult   := JsonObject():New() as Json
+	Default cSEALog := cResponse
+
+	jResult["request"]    := cRequest
+	jResult["response"]   := cResponse
+	jResult["statusCode"] := nCode
+
+	jResult["seaLog"]     := cSEALog
+	jResult["seaStatus"]  := UPPER(cSEATransf)
+	jResult["statusCode"] := nCode
+
+	If jResult["seaStatus"] == "F"
+		jResult["transmitted"] := .F.
+	Else
+		jResult["transmitted"] := .T.
+	EndIf
+
+Return jResult
+
+/*/{Protheus.doc} consult
+	Realiza a consulta do titulo no banco
+	@type  Function
+	@author jailton.urbano
+	@since 16/01/2023
+	@param 
+	@return .t. ou .f.
+/*/
+Method consult() Class Payments
+	Local lResponse    := .F.                as Logical
+	Local lContinua    := .T.                as Logical
+	Local jToken       := ::getToken()       as Json
+	Local nTentativas  := 1                  as Numeric
+	Local jResponse    := JsonObject():New() as Json
+	Local jLancamento  := JsonObject():New() as Json
+
+  	::cStatus := "F"
+	::cResult := ""
+	If !::lAutomato
+		If len(jToken:getnames()) > 0
+			nTentativas := 1
+			lContinua   := .T.
+			While lContinua
+				lContinua := .F.
+				Do Case
+					Case ::cFebraban == "001"
+						jResponse:fromjson(SEA->EA_APIMSG)
+						jLancamento:fromjson(jResponse["log"])
+						jLancamento["consult"] := totvs.protheus.backoffice.ngf.bills.bb.consult(::cEnvironment, ::jCredentials["appKey"], ::jCredentials["certificate"]["cert"], ::jCredentials["certificate"]["key"], jToken["access_token"] )
+
+						If jLancamento["consult"]:hasProperty("statusCode") .And. jLancamento["consult"]["statusCode"] == 401
+							If nTentativas < 4
+								::destroyToken()
+								jToken := ::getToken()
+								nTentativas ++
+								lContinua := .T.
+							EndIf
+						EndIf
+				EndCase
+			EndDo
+			::cStatus := jLancamento["consult"]["seaStatus"]
+			::cLog    := jLancamento["consult"]["seaLog"]
+			lResponse := jLancamento["consult"]["transmitted"]
+			jLancamento["consult"]:delName("seaLog")
+			::cResult :=  jLancamento:toJson()
+		Else
+			lResponse := .F.
+			::cLog := ::jErrors:ToJson()
+			::cStatus := "F"
+		EndIf
+	Else
+		::cStatus := ::jResponseMock["consult"]["seaStatus"]
+		::cLog    := ::jResponseMock["consult"]["seaLog"]
+		lResponse := ::jResponseMock["consult"]["transmitted"]
+		::jResponseMock["consult"]:delName("seaLog")
+		::cResult :=  ::jResponseMock:toJson()
+	Endif	
+
+	FreeObj(jLancamento)
+ 
+Return lResponse
+
+/*/{Protheus.doc} writeOff
+	Processo de baixa dos titulos a pagar
+	@type  Function
+	@author jailton.urbano 
+	@since 03/01/2023
+	@param cLayout, Character, Layout das perguntas que serão utilizadas no retorno bancario - A6_CFGBOLP["retornoBancario"]
+	@return lResponse, Logical, Define se a operação ocorreu com sucesso
+/*/
+Method writeOff(cLayout as Character) Class Payments
+  	Local jResponse    := JsonObject():new() As Json
+	Local jConsult	   := JsonObject():New() As Json
+	Local jRespConsult := JsonObject():new() As Json
+
+	jResponse["gravaf79"] := .F.
+	jResponse["baixa"] := .F.
+
+	Do Case
+		Case ::cFebraban == "001"
+			//Realiza a consulta no titulo para verificar o estado do pagamento
+			::consult()	
+			jConsult["writeoff"] := JsonObject():new()		
+			jConsult["writeoff"]:FromJson(::cResult)
+			jConsult["writeoff"]["consult"]["error"] := ::cLog
+			jRespConsult:FromJson(jConsult["writeoff"]["consult"]["response"])
+			If Alltrim(jRespConsult["estadoPagamento"]) <> "AGENDADO"
+				jResponse["gravaf79"] := .T.
+				jResponse["baixa"] := totvs.protheus.backoffice.ngf.bills.recurrence.bb.processWriteOff(jConsult["writeoff"]["consult"], cLayout)
+			Endif
+	EndCase
+
+Return jResponse:ToJson()
+
+/*/{Protheus.doc} cancel
+	Realiza o cancelamento dos pagamentos
+	@author Vitor Duca
+	@since 08/03/2023
+	@version 1.0
+	@param param_name, param_type, param_descr
+	@return jResponse["transmitted"], Logical, Determina se o cancelamento ocorreu com sucesso
+/*/
+Method cancel() Class Payments
+	Local jResponse := JsonObject():new() 	As Json
+	Local jToken    := ::getToken()    		As Json
+
+	Do Case
+		Case ::cFebraban == "001"
+			jResponse := totvs.protheus.backoffice.ngf.bills.bb.cancelPayment(::cEnvironment, ::jCredentials["appKey"], ::jCredentials["certificate"]["cert"], ::jCredentials["certificate"]["key"], jToken["access_token"] )
+	EndCase
+
+	::cResult :=  jResponse:toJson()
+	::cStatus := jResponse["seaStatus"]
+	::cLog    := jResponse["seaLog"]
+
+Return jResponse["transmitted"]
+
+/*/{Protheus.doc} setAutomato
+	Configura a classe para testes
+	@author Vitor Duca
+	@since 26/05/2023
+	@version 1.0
+	@param lAutomato, Logical, Define se é teste ou não
+/*/
+Method setAutomato(lAutomato As Logical, jResponseMock As Json) Class Payments
+	::lAutomato := lAutomato
+
+	If ::lAutomato
+		::jResponseMock:FromJson(jResponseMock:toJson())
+	Endif
+Return 

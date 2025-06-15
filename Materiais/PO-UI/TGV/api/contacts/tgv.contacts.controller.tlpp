@@ -1,0 +1,139 @@
+#include "tlpp-core.th"
+#include "tgv.contacts.controller.ch"
+
+namespace tgv.contacts
+using namespace tgv.util
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvContacts
+	API para consulta de Contatos do TOTVS Gestão de Vendas
+	@type		class
+	@version	12.1.27
+	@author		Danilo Salve / Squad CRM & Faturamento
+	@since		27/08/2021
+/*/
+//------------------------------------------------------------------------------
+Class tgvContacts
+	Data jResponse  as Json
+	Data nPage      as Numeric
+	Data nPageSize  as Numeric
+	Data oService   as Object
+
+	Public Method new() as Object
+
+	@Get("/api/tgv/contacts/sync")
+	Public Method getContactsSync() as Logical
+
+	@Get("/api/tgv/contacts/sync/diff/:dateSync")
+	Public Method getContactsDiff() as Logical
+
+	@Get("/api/tgv/contacts/")
+	Public Method getContacts() as Logical
+
+	@Get("/api/tgv/contacts/:contactId")
+	Public Method getContactsById() as Logical
+EndClass
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvContacts::new() as object
+	Método para nova instância da classe tgvContacts
+	@type		method
+	@since		01/10/2020
+	@author		Danilo Salve / Squad CRM & Faturamento
+	@version	12.1.27
+	@return		object, Nova instancia da classe
+/*/
+//------------------------------------------------------------------------------
+Method new() as Object Class tgvContacts
+	::nPage     := 1
+	::nPageSize := 10
+	::oService  := ContactsService():getInstance()
+	::jResponse := JsonObject():New()
+return self
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvContacts::getContactsSync() as logical
+	Efetua o GET de todas os Contatos
+	@type		method
+	@since		01/10/2020
+	@author		Danilo Salve / Squad CRM & Faturamento
+	@version	12.1.27
+	@return		logical, Verdadeiro
+/*/
+//------------------------------------------------------------------------------
+Method getContactsSync() as Logical Class tgvContacts
+	getPageAndPageSize(@::nPage, @::nPageSize)
+	::jResponse:fromJson(::oService:GetContactsSync(::nPage, ::nPageSize, /*cData*/))
+	AnswerRest(::jResponse)
+return .T.
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvContacts::getContactsDiff() as logical
+	Efetua o GET de todas os Contatos alteradas/incluídas e não sincronizadas
+	@type		method
+	@since		01/10/2020
+	@author		Danilo Salve / Squad CRM & Faturamento
+	@version	12.1.27
+	@return		logical, Verdadeiro
+/*/
+//------------------------------------------------------------------------------
+Method getContactsDiff() as Logical Class tgvContacts
+	getPageAndPageSize(@::nPage, @::nPageSize)
+	::jResponse:fromJson(::oService:GetContactsSync(::nPage, ::nPageSize, GetSyncDate()))
+	AnswerRest(::jResponse)
+return .T.
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvContacts::getContacts() as logical
+	Efetua o GET de todas os Contatos
+	@type		method
+	@author		Danilo Salve / Squad CRM & Faturamento
+	@since		27/07/2021
+	@version	12.1.33
+	@return		logical, Verdadeiro
+/*/
+//------------------------------------------------------------------------------
+Method getContacts() as Logical Class tgvContacts
+	Local aItems		as Array
+	Local aURLFilter	:= getFilterParam() as Array
+	Local cFields		:= getQueryParam('FIELDS') as Character
+	Local cSort			:= getQueryParam('SORT') as Character
+
+	getPageAndPageSize(@::nPage, @::nPageSize)
+	::jResponse:fromJson(::oService:GetContacts(::nPage, ::nPageSize, aURLFilter, cFields, cSort))
+	aItems := ::jResponse:GetJsonObject( "items" )
+
+	If Empty( aURLFilter ) .Or. ( !Empty( aItems ) .And. Len( aItems ) > 0 )
+		AnswerRest( ::jResponse )
+		aSize(aItems, 0)
+	Else
+		SetRestFault(404, STR0001 ) //"Contato nao localizado"
+	Endif
+
+	aSize(aURLFilter, 0)
+return .T.
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvContacts::getContactsById() as logical
+	Obtem um contato especifico
+	@type		method
+	@author		Danilo Salve / Squad CRM & Faturamento
+	@since		28/07/2021
+	@version	12.1.33
+	@return		logical, Verdadeiro
+/*/
+//------------------------------------------------------------------------------
+Method getContactsById() as Logical Class tgvContacts	
+	Local cFields	:= getQueryParam('FIELDS') as Character
+
+	oRest:setKeyHeaderResponse('Content-Type','application/json')
+	
+	::jResponse:fromJson(::oService:GetContacts(1, 1, /*aURLFilter*/, cFields, /*cSort*/,  GetPathParams("contactId")))
+
+	If Empty(::jResponse["contactid"])
+		SetRestFault(404, STR0001 ) //"Contato nao localizado"
+	Else
+		oRest:setResponse(::jResponse)
+	Endif	
+	
+return .T.

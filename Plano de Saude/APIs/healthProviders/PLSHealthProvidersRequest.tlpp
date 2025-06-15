@@ -1,0 +1,77 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSHealthProvidersRequest
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSHealthProvidersRequest from CenRequest 
+
+    Data oRest as Object
+    Data oService as Object
+    
+    Public Method New()
+    Public Method valida()
+    Public Method getError()
+    Public Method getRda()
+
+endClass
+
+Method New(oRest) class PLSHealthProvidersRequest
+
+    _Super:New(oRest)
+    self:oService  := PLSHealthProvidersSvc():New(oRest:healthProviderCode)
+
+Return self
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Valida se pode gerar o json de resposta
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+Method valida() class PLSHealthProvidersRequest
+    
+    self:lSuccess := self:oService:vldExiRda()
+    
+    if !self:lSuccess
+        self:getError()
+    endIf
+
+Return self:lSuccess
+
+Method getError() class PLSHealthProvidersRequest
+    
+    Local oErrorAux   := self:oService:getError()
+
+    self:lSuccess     := .F.
+    self:nFault       := oErrorAux['status']
+    self:nStatus      := oErrorAux['status']
+    self:cFaultDesc   := oErrorAux['message']
+    self:cFaultDetail := oErrorAux['detailedMessage']
+
+Return self:lSuccess
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Monta json com a guia
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+Method getRda() class PLSHealthProvidersRequest
+
+    Local aRet := self:oService:getJsonRda()
+   
+    self:cResponse := aRet[1]:toJson()
+    self:nStatus   := aRet[2]
+
+Return

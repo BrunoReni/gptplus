@@ -1,0 +1,79 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSClinicalStaffDao
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSClinicalStaffDao from PLSDaoAux
+
+    Public Method New()
+    Public Method block()
+
+    //Metodos de busca de dados
+    Public Method getClinical(cCodRda,cCodLoc,cCodEsp)
+
+EndClass
+
+Method New() class PLSClinicalStaffDao
+    _Super:New()
+Return self
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Metodos de busca de dados
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+Method getClinical(cCodRda,cCodLoc,cCodEsp) class PLSClinicalStaffDao
+    
+    Local cQuery := ""
+    Local lFound := .F.
+
+    self:setAlias("BC1QRY")
+
+    cQuery += self:getRowControl("BC1_CODIGO")
+    cQuery += " BC1_CODIGO, BC1_NUMCR, BC1_CODRDA, BC1_SIGLCR, BC1_ESTCR, BC1_NOMPRF, R_E_C_N_O_ AS RECNO "
+    cQuery += " FROM " + RetSqlName("BC1")
+    cQuery += " WHERE BC1_FILIAL = '"+xFilial("BC1")+"' "
+    cQuery += " AND BC1_CODIGO = '"+cCodRda+"' "
+    cQuery += " AND BC1_CODLOC = '"+cCodLoc+"' "
+    cQuery += " AND BC1_CODESP = '"+cCodEsp+"' "
+    cQuery += " AND (BC1_DATBLO = ' ' OR BC1_DATBLO > '"+Dtos(dDataBase)+"') "
+    cQuery += " AND D_E_L_E_T_ = ' ' "
+    
+    cQuery += self:getWhereRow()
+    self:setQuery(cQuery)
+    lFound := self:executaQuery()
+    
+Return lFound
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Bloqueia o profissional
+
+@author  Lucas Nonato
+@version P12
+@since   24/05/2023
+/*/
+Method block(nRecno) class PLSClinicalStaffDao
+    
+    Local lFound := .F.
+
+    BC1->(dbGoTo(nRecno))
+    if !BC1->(Eof())
+        RecLock('BC1', .F.)
+        BC1_CODBLO := getNewPar("MV_PLBLQCC", "   ")
+        BC1_MOTBLO := Posicione("BAP", 1, xFilial("BAP") + BC1->BC1_CODBLO, "BAP_DESCRI")
+        BC1_DATBLO := date()
+        BC1_OBSERV := "Bloqueio via Portal"
+        BC1->(msUnlock())
+        lFound := .T.
+    endIf
+
+Return lFound

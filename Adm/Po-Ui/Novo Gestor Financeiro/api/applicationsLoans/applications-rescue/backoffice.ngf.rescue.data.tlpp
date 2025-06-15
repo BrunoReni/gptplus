@@ -1,0 +1,124 @@
+#include 'tlpp-core.th'
+#include 'totvs.ch'
+#include 'backoffice.ngf.rescue.data.ch'
+
+NAMESPACE totvs.protheus.backoffice.ngf.rescue
+using namespace gfin.util
+using NAMESPACE totvs.protheus.backoffice.ngf.util
+
+/*/{Protheus.doc} ReverseRescueApplication
+  Estorna o resgate da aplicação posicionada
+  @type  Function
+  @author Vitor Duca
+  @since 15/12/2021
+  @version 1.0
+  @param cPathParam, Character, PathParam da requisição, deve conter essas informações
+  @param oBodyRequest, Json, Corpo da requisição que deve conter os campos referente a contabilização
+  (EI_FILIAL, EI_NUMERO, EI_REVISAO, EI_SEQ) na mesma ordem
+  @return jResponse, Json, Json de resposta que sera enviado
+/*/
+Function ReverseRescueApplication(cPathParam As Character, oBodyRequest As Json) As Json
+  Local jResponse As Json
+  Local aRescueID := {} As Array
+  Local cNumber   := "" As Character
+  Local cRevision := "" As Character
+  Local aParams   := {} As Array
+
+  PRIVATE lMsErroAuto As Logical
+
+  jResponse := JsonObject():new()
+  lMsErroAuto := .F.
+
+  aParams := oBodyRequest["param"]
+  aRescueID := STRtokARR(cPathParam, '|')
+  cNumber := Padr(aRescueID[2], TamSx3("EH_NUMERO")[1])
+  cRevision := Padr(aRescueID[3], TamSx3("EH_REVISAO")[1])
+
+  SEH->(DbSetOrder(1))
+  If SEH->(DBSeek(xFilial("SEH") + cNumber + cRevision))
+    SetFunName("FINA181")
+
+    MsExecAuto({|v,w,x,y,z| FinA181(v,w,x,y,z)}, 4, .T., aRescueID[4],,aParams)
+
+    If lMsErroAuto
+      jResponse := answerErrorFormat(500, 'Internal server error', totvs.protheus.backoffice.ngf.util.GetError())
+    Else
+      jResponse["response"]	:= JsonObject():new()
+      jResponse["statusCode"] := 200
+    EndIf
+  Else
+    jResponse := answerErrorFormat(400, 'Bad request', STR0001) // "Resgate não encontrado na base de dados"
+  EndIf  
+
+Return jResponse
+
+/*/{Protheus.doc} RescueApplication
+  Efetua o resgate da aplicação posicionada
+  @type  Function
+  @author user
+  @since 04/01/2022
+  @version version
+  @param param_name, param_type, param_descr
+  @return return_var, return_type, return_description
+  @example
+  (examples)
+  @see (links_or_references)
+  /*/
+Function RescueApplication(oBodyRequest As Json)
+  Local jResponse As Json
+  Local oError    As Object 
+  Local nX        As Numeric
+  Local cError    := ""  As Character
+  Local aJsonBody := {} As Array
+  Local aExecAuto := {} As Array
+  Local cField    := "" As Character
+  Local cIndex    := "" As Character
+  Local aParams   := {} As Array
+
+  PRIVATE lMsErroAuto As Logical
+
+  jResponse := JsonObject():new()
+  lMsErroAuto := .F.
+
+  aParams := oBodyRequest["param"]
+  cIndex := Padr(oBodyRequest["eh_filial"],TamSx3("EH_FILIAL")[1])
+  cIndex += Padr(oBodyRequest["eh_numero"],TamSx3("EH_NUMERO")[1])
+  cIndex += Padr(oBodyRequest["eh_revisao"],TamSx3("EH_REVISAO")[1])
+
+  aJsonBody := oBodyRequest["paramExecAuto"]
+
+  // Trata os campos enviados
+  For nX := 1 to len(aJsonBody)
+    cField := oBodyRequest["paramExecAuto"][nX]["field"]
+    If cField == "dA181Cred"
+      Aadd(aExecAuto, { cField, STOD(oBodyRequest["paramExecAuto"][nX]["value"]), NIL } )
+    Elseif cField == "cA181Histor"
+      Aadd(aExecAuto, { cField, FwNoAccent(DecodeUtf8(oBodyRequest["paramExecAuto"][nX]["value"])), NIL } )
+    Else
+      Aadd(aExecAuto, { cField, oBodyRequest["paramExecAuto"][nX]["value"], NIL } )
+    Endif  
+  Next
+
+  If SEH->(DBSeek(cIndex))
+    SetFunName("FINA181")
+    oError := ErrorBlock( { |e| AplEmpErr(e, 'FINA181', 'ExecAutoFINA181', @cError) } )
+
+    Begin Transaction
+      MsExecAuto({|v,w,x,y,z| FinA181(v,w,x,y,z)}, 3, .T.,, aExecAuto, aParams)
+    End Transaction
+
+    ErrorBlock(oError)
+    
+    If Empty(cError)
+      If lMsErroAuto
+        jResponse := answerErrorFormat(500, 'Internal server error', totvs.protheus.backoffice.ngf.util.GetError())
+      Else
+        jResponse["response"]	:= JsonObject():new()
+        jResponse["statusCode"] := 200
+      Endif
+    Else
+      jResponse := answerErrorFormat(500, 'Internal server error', cError)
+      DisarmTransaction()
+    EndIf
+  Endif  
+Return jResponse

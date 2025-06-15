@@ -1,0 +1,63 @@
+#include "tlpp-core.th"
+
+namespace totvs.protheus.backoffice.accounting.accountingentry
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} AccountingEntryService
+Classe de serviço, realizada instância e chamada de métodos de serviços
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+class AccountingEntryService
+    public method new()
+    public method getInstance()
+    public method getAccountingEntry()
+endclass
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} AccountingEntryService
+Metodo construtor
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method new() class AccountingEntryService
+return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} AccountingEntryService
+Responsável por instanciar a classe controller
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method getInstance() class AccountingEntryService
+    static __instance as object
+    
+    If ValType(__instance) == "U"
+        __instance := AccountingEntryService():new()
+    EndIf
+return
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getAccountingEntry
+Responsável por chamar a consulta e parsear o retorno no formato JSON
+
+@author Totvs
+/*/
+//-------------------------------------------------------------------
+method getAccountingEntry(cIdProces as character, cType as character, cCurrency as character,; 
+                            nPage as numeric, nPageSize as numeric) class AccountingEntryService
+    Local oSettings := AccountingEntryProtheusData():getData() as object
+    Local jResponse := JsonObject():new() as Json
+   
+    oSettings:getAllAccountingEntry(cIdProces, cType, cCurrency, nPage, nPageSize)
+
+    IIf(oSettings:lOk,;
+        jResponse := oSettings:getJSONResponse(),;    
+        jResponse := SetRestFault(oSettings:GetCode(), oSettings:getMessage()))
+
+    oSettings:DeActivate()
+    FreeObj(oSettings)
+return jResponse

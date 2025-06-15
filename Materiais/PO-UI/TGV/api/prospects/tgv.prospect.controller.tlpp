@@ -1,0 +1,142 @@
+#include 'tlpp-core.th'
+#include 'tlpp-rest.th'
+#include 'tgv.prospect.controller.ch'
+
+namespace totvs.protheus.backoffice.tgvProspects
+using namespace tgv.util
+
+Static lExistIsSellerFilterInDB := FindFunction("tgv.util.isSellerFilterInDB")
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvProspects
+	API para integração de Prospects - Utilizada no Portal Gestão de Vendas
+	@type class
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 03/03/2021
+/*/
+//------------------------------------------------------------------------------
+class tgvProspects
+	data jResponse  as json
+	data nPage      as numeric
+	data nPageSize  as numeric
+	data oService   as object
+
+	public method new() as object
+
+	@Get("/api/tgv/prospects/sync/")
+	public method getAllSync() as logical
+
+	@Get("/api/tgv/prospects/sync/diff/:dateSync")
+	public method getDiffSync() as logical
+
+	@Get("/api/tgv/prospects/")
+	public method getAll() as logical
+
+	@Get("/api/tgv/prospects/:code/:store")
+	public method getById() as logical
+endClass
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvProspects::New() as Object
+	Obtem uma nova instancia da classe tgvProspects
+	@type method
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 03/03/2021
+	@return object, retorna uma nova instancia da classe
+/*/
+//------------------------------------------------------------------------------
+method new() as object class tgvProspects
+	::nPage         := 1
+	::nPageSize     := 10
+	::oService      := ProspectService():getInstance()
+	::jResponse     := jsonObject():New()
+return self
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvProspects::getAllSync() as logical
+	Obtem uma lista de prospects, utilizando o mesmo padrão do PO-SYNC
+	@type method
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 03/03/2021
+	@return logical, este metódo sempre retorna verdadeiro
+/*/
+//------------------------------------------------------------------------------
+method getAllSync() as logical class tgvProspects
+	getPageAndPageSize(@::nPage, @::nPageSize)
+	If lExistIsSellerFilterInDB .And. isSellerFilterInDB()
+		::jResponse:fromJson(::oService:getProspectsSync(::nPage, ::nPageSize, /*cDateSync*/))
+	Else
+		::jResponse:fromJson('{"items": [], "hasNext": false}')
+	EndIf
+	AnswerRest(::jResponse)
+Return .T.
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvProspects::getDiffSync() as logical
+	Retorna somente os Prospects alterados, conforme data informado no parametro DateSync
+	@type method
+	@version 12.1.3
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 03/03/2021
+	@return logical, este metódo sempre retorna verdadeiro
+/*/
+//------------------------------------------------------------------------------
+method getDiffSync() as logical class tgvProspects
+	getPageAndPageSize(@::nPage, @::nPageSize)
+	If lExistIsSellerFilterInDB .And. isSellerFilterInDB()
+		::jResponse:fromJson(::oService:getProspectsSync(::nPage, ::nPageSize, GetSyncDate()))
+	Else
+		::jResponse:fromJson('{"items": [], "hasNext": false}')
+	EndIf
+	AnswerRest(::jResponse)
+Return .T.
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvProspects::getAll() as logical
+	Obtem uma Lista de prospects (Utilizado no PGV Online)
+	@type method
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 19/01/2022
+	@return logical, este metódo sempre retorna verdadeiro
+/*/
+//------------------------------------------------------------------------------
+method getAll() as logical class tgvProspects
+	Local aURLFilter	:= getFilterParam()        as array
+	Local cFields		:= getQueryParam('FIELDS') as character
+	Local cSort			:= getQueryParam('SORT')   as character
+	Local cQuickFilter  := ""                      as Character
+
+	GetPageAndPageSize(@::nPage, @::nPageSize)
+	cQuickFilter := getQueryParam('QUICKFILTER')
+	::jResponse:FromJson(::oService:getProspects(::nPage, ::nPageSize, aURLFilter, cFields, cSort, /*cCode*/, /*cStore*/, cQuickFilter))
+	AnswerRest(::jResponse)
+
+	aSize(aURLFilter, 0)
+return .T.
+
+//------------------------------------------------------------------------------
+/*/{Protheus.doc} tgvProspects::getById() as logical
+	Obtem um Prospect utilizando o código e loja como identificador
+	@type method
+	@version 12.1.33
+	@author Danilo Salve / Squad CRM & Faturamento
+	@since 19/01/2022
+	@return logical, este metódo sempre retorna verdadeiro
+/*/
+//------------------------------------------------------------------------------
+method getById() as logical class tgvProspects
+	Local cFields := getQueryParam('FIELDS') as character
+
+	oRest:setKeyHeaderResponse('Content-Type','application/json')
+	::jResponse:FromJson(::oService:getProspects(1, 1, {}, cFields, /*cSort*/, getPathParams('code'), getPathParams('store')))
+
+	If len(::jResponse:GetNames()) > 0
+		oRest:setResponse(::jResponse)
+	Else
+		SetRestFault(404, FWhttpEncode(STR0001) ) //"Prospect não localizado"
+	EndIf
+return .T.

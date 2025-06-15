@@ -1,0 +1,28 @@
+#INCLUDE "PROTHEUS.CH"
+#include "FILEIO.CH"
+#INCLUDE "FWMVCDEF.CH"
+#INCLUDE "FWLIBVERSION.CH"
+
+
+//----------------------------------------------------------------------------------
+/*/{Protheus.doc} FA474WHEN
+	Define a ativação dos campos referentes ao Job de Importação de Extratos
+
+	@type  Function
+	@author pequim
+	@since 22/07/2022
+	@version 12.1.2310
+
+	@return lRet, Logical, Ativa ou não o uso dos campos
+/*/
+//----------------------------------------------------------------------------------
+Function FA474WHEN(lExtJob)
+	
+	Local lRet As Logical
+	
+	Default lExtJog := .F.
+
+	lRet := .F.
+
+Return lRet	
+

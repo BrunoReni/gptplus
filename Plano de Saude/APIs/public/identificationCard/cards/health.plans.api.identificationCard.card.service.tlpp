@@ -1,0 +1,136 @@
+#Include "tlpp-core.th"
+
+Namespace totvs.protheus.health.plans.api.identificationCard.card
+
+Using Namespace totvs.protheus.health.plans.api.util
+
+/*/{Protheus.doc} cardService
+Classe de serviço de cartão avulso dos Beneficiarios - Regra de Negócio
+
+@type class
+@author José Paulo
+@since 01/03/2023
+@version Protheus 12
+/*/
+Class CardService From BaseService
+
+    Protected Data nMatricQuantity As Numeric
+
+    Public Method new() Constructor
+    Public Method getcard() As Logical
+
+    private Method processcardData(jBody As Json) As Logical
+
+EndClass
+
+/*/{Protheus.doc} new
+Método construtor da classe
+
+@type method
+@author José Paulo
+@since 01/03/2023
+@version Protheus 12
+/*/
+Method new() Class CardService
+
+    Self:nMatricQuantity := 17
+    _Super:new()
+
+Return Self
+
+/*/{Protheus.doc} getcard
+Método responsavel por retornar os dados da cartão avulso do Beneficiario
+
+@type method
+@author José Paulo
+@since 01/03/2023
+@version Protheus 12
+/*/
+Method getcard() As Logical Class CardService
+
+    Local lSucess := .F. As Logical
+    Local aKeys   := {}  As Array
+
+    BA1->(DbSetOrder(2))
+    BPX->(DbSetOrder(1))
+
+    // Chaves do path Params obrigatórios na api
+    aAdd(aKeys, {"type" : "body", "key" : "subscriberId"})
+    aAdd(aKeys, {"type" : "body", "key" : "reason"})
+    aAdd(aKeys, {"type" : "body", "key" : "expirationDate"})
+    aAdd(aKeys, {"type" : "body", "key" : "cardNameType"})
+
+    If Self:checkRequiredKeys(aKeys, "E001")
+
+        Do Case
+
+            Case Len(Self:jBody["subscriberId"]) < Self:nMatricQuantity
+                Self:setError("E002","Matrícula inválida.", "A matrícula informada deve conter 17 caractereres.", 400)
+
+            Case !BA1->(MsSeek(xFilial("BA1")+Self:jBody["subscriberId"]))
+                Self:setError("E003","Usuário não encontrado", "Não foi possível retornar os dados do beneficiário através da matrícula informada.",404)
+
+            Case Empty(Self:jBody["expirationDate"]) .Or. Len(Self:jBody["expirationDate"]) <> 10
+                Self:setError("E004","Data não informada ou incorreta", "Favor informar a data de validade do Cartão Avulso com o seguinte formado: aaaa-mm-dd.",400)
+
+            Case !BPX->( MsSeek(xFilial("BPX")+SubStr(Self:jBody["subscriberId"],1,4)+Self:jBody["reason"]) ) .Or. Len(Self:jBody["reason"]) > 1
+                Self:setError("E005","Motivo de Geração de Cartão não encontrado", "Favor enviar um motivo de geração de cartão válido",400)
+
+            Case Empty(Self:jBody["cardNameType"]) .Or. !(Self:jBody["cardNameType"] $ "1/2")
+                Self:setError("E006","Tipo do Nome do Cartão não encontrado", "Favor informar 1-Nome Cartão e 2-Nome Usuário",400)
+
+            Case Self:processcardData(Self:jBody)
+                lSucess := .T.
+                Self:nCodeStatus:= 201
+
+        EndCase
+
+    EndIf
+
+Return lSucess
+
+/*/{Protheus.doc} processcardData
+Método responsavel por processar os dados da cartão avulso do Beneficiario
+
+@type method
+@author José Paulo
+@since 14/02/2023
+@version Protheus 12
+/*/
+Method processcardData(jBody As Json) As Logical Class CardService
+
+    Local aRetorno := {}  As Array
+    Local lRetorno := .T. As Logical
+
+    aRetorno := PLSA261INC(SubStr(jBody["subscriberId"],1,4),jBody["subscriberId"],jBody["reason"],.f.,STOD(STRTRAN(jBody["expirationDate"],"-","")),.t.,,,jBody["cardNameType"])
+
+    If aRetorno[1]
+
+        Self:setAttributeJson({"attribute" : "protocol", "value" : SubStr(aRetorno[3,2],Len(aRetorno[3,2])-12,12), "type" : "C"})
+        Self:setAttributeJson({"attribute" : "subscriberId", "value" : aRetorno[3,3], "type" : "C"})
+        Self:setAttributeJson({"attribute" : "name", "value" : aRetorno[3,4], "type" : "C"})
+        Self:setAttributeJson({"attribute" : "cardCopy", "value" : aRetorno[3,5], "type" : "N"})
+        Self:setAttributeJson({"attribute" : "expirationDate", "value" : aRetorno[3,6], "type" : "D"})
+        Self:setAttributeJson({"attribute" : "requestDate", "value" : aRetorno[3,7], "type" : "D"})
+        Self:setAttributeJson({"attribute" : "billing", "value" : aRetorno[3,8], "type" : "C"})
+        Self:setAttributeJson({"attribute" : "Value", "value" : aRetorno[3,9], "type" : "N"})
+        Self:nCodeStatus:= 201
+
+    Else
+
+        If Len(aRetorno[3]) > 0
+
+            If !Empty(aRetorno[3,1,1]) .And. SubStr(aRetorno[3,1,2],1,16) == SubStr(jBody["subscriberId"],1,16)
+                lRetorno:= .F.
+                Self:setError("E007",Alltrim(aRetorno[3,1,1]),SubStr(StrTran(Alltrim(aRetorno[3,1,2]),Chr(13) + Chr(10),""),tamSX3("BA1_NOMUSR")[1] + 20,Len(aRetorno[3,1,2])),400)
+            EndIf
+
+            If lRetorno .And. Len(aRetorno[3,1]) == 2
+                lRetorno:= .F.
+                Self:setError("E007",IIF(!Empty(aRetorno[3,1,1]),aRetorno[3,1,1],aRetorno[3,1,2]), aRetorno[3,1,2],400)
+            EndIf
+        EndIf
+
+    EndIf
+
+Return lRetorno

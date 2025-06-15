@@ -1,0 +1,305 @@
+#Include 'tlpp-core.th'
+
+Namespace backoffice.ngf.preload
+USING NAMESPACE gfin.api.tables
+USING NAMESPACE totvs.protheus.backoffice.ngf.report
+USING NAMESPACE totvs.protheus.backoffice.fin.functions
+
+/*/{Protheus.doc} NGFPreload
+	apresenta os parâmetros e o versionamento desejado
+	@type  Static Function
+	@daniele.ferreira
+	@since 05/04/2022
+	@param jPreLoad, Json, pré carregamento da página
+	@param jVersion, Json, número da versão
+	@param jParams, Json, parâmetros desejados
+	@return jPreLoad, Json, apresenta o json montado com os parâmetros e com o versionamento
+/*/
+Function NGFPreload() as Json
+	Local jPreLoad as Json
+
+	Set(_SET_DATEFORMAT, 'dd/mm/yyyy') 
+	
+	jPreLoad := JsonObject():new()
+	jPreLoad["result"]					:= .T.
+	jPreLoad["response"]				:= JsonObject():New()
+	jPreLoad["response"]['versions']	:= versionsNGF()
+	jPreLoad["response"]['params']		:= paramsNGF()
+	jPreLoad["response"]['jobs']		:= jobsNGF()
+Return jPreLoad
+
+/*/{Protheus.doc} jobsNGF
+	retorna os jobs configurados no ambiente
+	@type  Static Function
+	@author renato.ito
+	@since 06/05/2022
+	@return jJobs, json, lista de jobs e status ativo ou inativo
+/*/
+Static Function jobsNGF() as Json
+	Local jJobs as Json
+	Local aJobsRoutines := {} As Array
+	Local nRoutines := 0 As Numeric
+	Local cCodeSchedule := "" As Character
+
+	jJobs := JsonObject():new()
+	Aadd(aJobsRoutines, "FINA713")
+	Aadd(aJobsRoutines, "FINA715")
+	Aadd(aJobsRoutines, "FINA717")
+	Aadd(aJobsRoutines, "FINA718")
+
+	For nRoutines := 1 to len(aJobsRoutines)
+		jJobs[Lower(aJobsRoutines[nRoutines])] := JsonObject():new()
+		cCodeSchedule := FwSchdByFunction(aJobsRoutines[nRoutines]+"('" + cEmpAnt + "')")
+
+		If Empty(cCodeSchedule)
+			cCodeSchedule := FwSchdByFunction(aJobsRoutines[nRoutines]+'("' + cEmpAnt + '")')
+		Endif
+
+		If Empty(cCodeSchedule)
+			jJobs[Lower(aJobsRoutines[nRoutines])]["config"] := 'no'
+		Else
+			jJobs[Lower(aJobsRoutines[nRoutines])]["config"] := 'yes'
+		Endif
+
+		If FindFunction("totvs.protheus.backoffice.fin.functions.LastExecSched()") .and. !Empty(cCodeSchedule)
+			jJobs[Lower(aJobsRoutines[nRoutines])]["exec"] := LastExecSched(cCodeSchedule)
+		Endif
+	Next nRoutines
+	
+Return jJobs
+
+/*/{Protheus.doc} paramsNGF
+	retorna os parâmetros utilizados
+	@type  Static Function
+	@author renato.ito
+	@since 06/05/2022
+	@return jJobs, json, lista de parametros e conteúdo
+/*/
+Static Function paramsNGF() as Json
+	Local jParams  as Json
+
+	jParams := JsonObject():new()
+
+	// Aplicação Empréstimos
+	jParams['MV_APLCAL1'] := SuperGetMV('MV_APLCAL1', , "")
+	jParams['MV_APLCAL2'] := SuperGetMV('MV_APLCAL2', , "")
+	jParams['MV_APLCAL3'] := SuperGetMV('MV_APLCAL3', , "")
+	jParams['MV_APLCAL4'] := SuperGetMV('MV_APLCAL4', , "")
+	jParams['MV_APLCAL5'] := SuperGetMV('MV_APLCAL5', , "")
+	jParams['MV_EMPCAL1'] := SuperGetMV('MV_EMPCAL1', , "")
+	jParams['MV_EMPCAL2'] := SuperGetMV('MV_EMPCAL2', , "")
+	jParams['MV_EMPCAL3'] := SuperGetMV('MV_EMPCAL3', , "")
+	jParams['MV_EMPCAL4'] := SuperGetMV('MV_EMPCAL4', , "")
+Return jParams
+
+/*/{Protheus.doc} versionsNGF
+	retorna as versões dos componentes
+	@type  Static Function
+	@author renato.ito
+	@since 06/05/2022
+	@return jJobs, json, lista de componentes e versão
+/*/
+Static Function versionsNGF() as Json
+	Local jVersion  as Json
+
+	jVersion := JsonObject():new()
+	// template
+	jVersion["ngf.applicationsLoans.template"]	:= applicationsLoansTemplate()
+	jVersion["ngf.cashFlow.simulation"] := cashFlowSimulation()
+
+	// balance
+	jVersion["ngf.balances.period"] := balancePeriod()
+	// cashflow
+	jVersion["ngf.cashFlow.consolidated"] := cashFlowConsolidated()
+	// cashflow
+	jVersion["ngf.cashFlow.sales.purchases"] := cashFlowSalesPurchases()
+	// orders
+	jVersion["ngf.orders.sales.purchases"] := ordersSalesPurchases()
+	// orders machine
+	jVersion["gfin.api.orders.machine"] := ordersSalesPurchasesMachine()
+	// Tables
+	jVersion["ngf.tables"] := ngfTables()
+	// Report
+	jVersion["ngf.report"] := ngfReport()
+	// API pagar
+	jVersion["ngf.api.payables"] := ngfAPIPayables()
+	// Boleto Hibrido
+	jVersion["ngf.bol.hybrid"] := ngfHybridBills()
+	// Monitor de boletos
+	jVersion["ngf.monitor.bills"] := ngfMonitorBills()
+
+Return jVersion
+
+
+/*/{Protheus.doc} applicationsLoansTemplate
+	verifica a versão para uso dos templates
+	@author renato.ito
+	@since 05/04/2022
+	@return nVersion, numeric, versão
+/*/
+Static Function applicationsLoansTemplate() as Numeric
+	Local nVersion := 0 as Numeric
+
+	If AliasInDic('F7B') .And. FindFunction('gfin.api.tables.getVersion') .And. SEH->(FieldPos("EH_TEMPLT")) > 0
+		nVersion := gfin.api.tables.getVersion()
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} cashFlowSimulation
+	verifica a versão para uso do simulação do fluxo de caixa
+	@author daniel.muniz
+	@since 06/07/2022
+	@return nVersion, numeric, versão
+/*/
+Static Function cashFlowSimulation() as Numeric
+	Local nVersion := 0 as Numeric
+
+	If AliasInDic('F7D') .And. AliasInDic('F7E') .And. FindFunction('gfin.api.tables.getVersion')
+		nVersion := gfin.api.tables.getVersion()
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} balancePeriod
+	verifica a versão para uso do endpoint de balances
+	@author vinicius.prado
+	@since 28/07/2022
+	@return nVersion, numeric, versão
+/*/
+Static Function balancePeriod() as Numeric
+	Local nVersion := 0 as Numeric
+
+	If FindFunction('gfin.api.balances.getVersion') .And. F76->(FieldPos("F76_BLQLIB")) > 0
+		nVersion := gfin.api.balances.getVersion()
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} cashFlowSalesPurchases
+	verifica a versão para uso uso do endpoint de cashflow
+	@author vinicius.prado
+	@since 28/07/2022
+	@return nVersion, numeric, versão
+/*/
+Static Function cashFlowSalesPurchases() as Numeric
+	Local nVersion := 0 as Numeric
+
+	If FindFunction('gfin.api.cashFlow.getVersion') .And. F76->(FieldPos("F76_BLQLIB")) > 0
+		nVersion := gfin.api.cashFlow.getVersion()
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} ordersSalesPurchases
+	verifica a versão para uso do endpoint de orders
+	@author vinicius.prado
+	@since 28/07/2022
+	@return nVersion, numeric, versão
+/*/
+Static Function ordersSalesPurchases() as Numeric
+	Local nVersion := 0 as Numeric
+
+	If FindFunction('gfin.api.orders.getVersion') .And. F76->(FieldPos("F76_BLQLIB")) > 0
+		nVersion := gfin.api.orders.getVersion()
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} ordersSalesPurchasesMachine
+	verifica a versão para uso do endpoint de ordersMachine
+	@author vinicius.prado
+	@since 06/12/2022
+	@return nVersion, numeric, versão
+/*/
+Static Function ordersSalesPurchasesMachine() as Numeric
+	Local nVersion := 0 as Numeric
+
+	If FindFunction('gfin.api.orders.machine.getVersion') .And. SuperGetMV("MV_VEICULO",,"N") == "S"
+		nVersion := gfin.api.orders.machine.getVersion()
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} ngfTables
+	verifica a versão para uso do endpoint de tables
+	@author vinicius.prado
+	@since 08/08/2022
+	@return nVersion, numeric, versão
+/*/
+Static Function ngfTables() as Numeric
+	Local nVersion := 0 as Numeric
+
+	If FindFunction('gfin.api.tables.getVersion')
+		nVersion := gfin.api.tables.getVersion()
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} cashFlowConsolidated
+	verifica a versão para uso do consolidado
+	@author renato.ito
+	@since 30/08/2022
+	@return nVersion, numeric, versão
+/*/
+Static Function cashFlowConsolidated() as Numeric
+	Local nVersion := 0 as Numeric
+	If FindFunction('gfin.api.cashFlow.getVersion') .And. FindFunction('totvs.protheus.backoffice.ngf.cashFlow.consolidated')
+		nVersion := gfin.api.cashFlow.getVersion()
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} ngfReport
+	verifica a versão para uso do endpoint de Report
+	@author Vitor Duca
+	@since 19/10/2022
+	@return nVersion, numeric, versão
+/*/
+Static Function ngfReport() as Numeric
+	Local nVersion := 0 as Numeric
+
+	If FindFunction('totvs.protheus.backoffice.ngf.report.getVersion')
+		nVersion := totvs.protheus.backoffice.ngf.report.getVersion()
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} ngfAPIPayables
+	verifica a versão para uso dos recursos da API de pagamentos
+	@author Renato Ito
+	@since 21/12/2023
+	@return nVersion, numeric, versão
+/*/
+Static Function ngfAPIPayables() as Numeric
+	Local nVersion := 0 as Numeric
+
+	If FindFunction('F717VldUso') .And. F717VldUso()
+		nVersion := 1
+	EndIf
+Return nVersion
+
+
+/*/{Protheus.doc} ngfHybridBills
+	verifica a versão para uso dos recursos da API de pagamentos
+	@author pequim
+	@since 21/12/2023
+	@return nVersion, numeric, versão
+/*/
+Static Function ngfHybridBills() as Numeric
+	Local cUseHybridBills := "" as Character
+	Local nVersion := 0 as Numeric
+
+	cUseHybridBills := GetPvProfString(GetEnvServer(), "HybridBillsHomolog", "0", GetSrvIniName())
+	If cUseHybridBills == '1'
+		nVersion := 1
+	EndIf
+Return nVersion
+
+/*/{Protheus.doc} ngfMonitorBills
+	Verifica versão do monitor de pendencias para boletos	
+	@type  Static Function
+	@author Vitor Duca
+	@since 04/05/2023
+	@version 1.0
+	@return nVersion, Numeric, Versão compativel para utilização do recurso
+/*/
+Static Function ngfMonitorBills() As Numeric
+	Local nVersion := 0 as Numeric
+
+	If FindFunction("F713VldAlCa") .and. F713VldAlCa()
+		nVersion := 1
+	Endif
+
+Return nVersion

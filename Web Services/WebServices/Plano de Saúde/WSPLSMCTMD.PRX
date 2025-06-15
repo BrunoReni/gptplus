@@ -1,0 +1,498 @@
+#INCLUDE "APWEBSRV.CH"
+#INCLUDE 'APWEBEX.CH'             
+#INCLUDE "PROTHEUS.CH"
+/*/
+эээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээ
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+╠╠зддддддддддбддддддддддбдддддддбдддддддддддддддддддддддбддддддбдддддддддддд©╠╠
+╠╠ЁFun┤┘o    ЁPLSMCTMD  Ё Autor ЁAlexander Santos       Ё Data Ё07.03.2006  Ё╠╠
+╠╠цддддддддддеддддддддддадддддддадддддддддддддддддддддддаддддддадддддддддддд╢╠╠
+╠╠ЁDescri┤┘o Ё Web Service das funcionalidades do Plano de Saude            Ё╠╠
+╠╠юддддддддддадддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды╠╠
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+ъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъ
+/*/
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+//ЁDefinicao da estruturas utilizadas para profissiona de saude			   Ё
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды
+WSSTRUCT EspRda
+	WSDATA CodEsp			AS String OPTIONAL //Codigo da especialidade
+	WSDATA DesEsp			AS String OPTIONAL //Nome da especialidade
+	WSDATA CodCBOS			AS String OPTIONAL //Codigo CBOS
+	WSDATA DesCBOS			AS String OPTIONAL //Descricao CBOS
+ENDWSSTRUCT 
+WSSTRUCT PesqEsp
+	WSDATA Rda  			AS String OPTIONAL 
+	WSDATA CodLoc  			AS String OPTIONAL 
+	WSDATA Tp	  			AS String OPTIONAL 
+ENDWSSTRUCT   
+
+
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+//ЁDefinicao da estruturas utilizadas para mostrar os planos utilizados	   Ё
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды
+WSSTRUCT PlanosRda
+	WSDATA CodPlano			AS String OPTIONAL //Codigo do plano
+	WSDATA DesPlano			AS String OPTIONAL //Nome do plano
+ENDWSSTRUCT
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+//ЁDefinicao da estruturas utilizadas pelas RDA                            Ё
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды
+WSSTRUCT RDAView
+	
+	WSDATA TissVer			AS String OPTIONAL 			//VersЦo TISS
+	WSDATA Code				AS String OPTIONAL 			//Codigo da RDA
+	WSDATA Name				AS String OPTIONAL 			//Nome da RDA
+	WSDATA RegAtend			AS String OPTIONAL 			//Regime de Atendimento
+	WSDATA TpPrest			AS String OPTIONAL 			//Tipo de Prestador
+	WSDATA CnpfCpf			AS String OPTIONAL 			//Cnpj ou Cpf
+	WSDATA Cnes				AS String OPTIONAL 			//Codigo CNES
+	WSDATA TpLograd 		AS String OPTIONAL 			//Tp Logradouro
+	WSDATA Address			AS String OPTIONAL 			//Endereco
+	WSDATA Numero			AS String OPTIONAL 			//Numero
+	WSDATA Complen			AS String OPTIONAL 			//Complemento
+	WSDATA District			AS String OPTIONAL 			//Municipio
+	WSDATA Zone				AS String OPTIONAL 			//Bairro
+	WSDATA State			AS String OPTIONAL 			//Estado
+	WSDATA IBGE				AS String OPTIONAL 			//Codigo IBGE
+	WSDATA Cep				AS String OPTIONAL 			//Cep
+	WSDATA RegAns			AS String OPTIONAL 			//Registro ANS
+	WSDATA Local			AS String OPTIONAL 			//Local de Atend.
+	WSDATA Speciality		AS String OPTIONAL 			//Especialidade
+	WSDATA PhoneNumber		AS String OPTIONAL 			//Telefone
+	WSDATA SigCr			AS String OPTIONAL 			//Sigla CRM
+	WSDATA CodCr	 		AS String OPTIONAL 			//Codigo CRM
+	WSDATA EstCr			AS String OPTIONAL 			//Estado CRM
+	WSDATA TipPE			AS String OPTIONAL 			//Pessoa juridica ou fisica
+	WSDATA CodBB0			AS String OPTIONAL 			//Codigo do profissional de saude
+	WSDATA CodOpe			AS String OPTIONAL 			//Codigo da Operadora da Rda
+	WSDATA CodLoc			AS String OPTIONAL 			//Codigo Local de Atendimento
+	WSDATA DesLoc			AS String OPTIONAL 			//Descricao do local de atendiento
+	WSDATA CarSol			AS String OPTIONAL 			//Carater da Solicitacao
+	WSDATA MEspRda		    AS Array Of EspRda OPTIONAL //Especialidade da rda conforme local de atendimento
+	WSDATA RdaPlanos	    AS Array Of PlanosRda OPTIONAL //Planos
+	WSDATA RdaRecno         AS Integer OPTIONAL		//Recno RDA
+ENDWSSTRUCT
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//ЁDefinicao da estruturas utilizadas pelas Familia
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+WSSTRUCT SFamilia
+	WSDATA Code				AS String 	OPTIONAL //Matricula
+	WSDATA Description		AS String 	OPTIONAL //Nome do beneficiario
+	WSDATA Benefi			AS String 	OPTIONAL //Numero da Carteirinha
+	WSDATA NomBen			AS String 	OPTIONAL //Nome
+	WSDATA Familia 			AS String 	OPTIONAL //Familia
+	WSDATA DatNas 			AS Date 	OPTIONAL //Dt Nascimento
+	WSDATA Idade			AS String	OPTIONAL //Idade
+	WSDATA Sexo				AS String 	OPTIONAL //Sexo
+	WSDATA TipUsu			AS String 	OPTIONAL //Tipo de Usuario
+	WSDATA DesUsu 			AS String 	OPTIONAL //Descricao do Tipo
+	WSDATA EstCiv			AS String 	OPTIONAL //Estado Civil
+	WSDATA Graupa			AS String 	OPTIONAL //Grau de parentesco
+	WSDATA DatInc 			AS Date 	OPTIONAL //Data de Inclusao
+	WSDATA CodPla			AS String 	OPTIONAL //Plano
+	WSDATA DesPla 			AS String 	OPTIONAL //Descricao do Plano
+	WSDATA Verpla			AS String 	OPTIONAL //Versao do Plano
+	WSDATA DatCar			AS Date 	OPTIONAL //Data de Carencia
+	WSDATA ResFam			AS String	OPTIONAL //ResponsАvel financeiro da famМlia
+ENDWSSTRUCT
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//ЁDefinicao da estruturas subcontrato
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+WSSTRUCT SSubContrato
+	WSDATA Code				AS String 					OPTIONAL //SubContrato + Versao
+	WSDATA Description		AS String 					OPTIONAL //Sub-Contrato Formatado
+	WSDATA SubCon			AS String 					OPTIONAL //SubContrato
+	WSDATA VerSub 			AS String 					OPTIONAL //Versao SubContrato
+	WSDATA NomSub			AS String 					OPTIONAL //Descricao SubContrato
+	WSDATA DtVSub			AS Date	  					OPTIONAL //Data de Validade Subcontrato
+	WSDATA Familia			AS Array of SFamilia		OPTIONAL //Familia
+ENDWSSTRUCT
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//ЁDefinicao da estruturas contrato
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+WSSTRUCT SContrato
+	WSDATA Code				AS String 					OPTIONAL //Contrato + Versao
+	WSDATA Description		AS String 					OPTIONAL //Contrato Formatado
+	WSDATA TipCon			AS String 					OPTIONAL //Tipo Contrato
+	WSDATA NumCon			AS String 					OPTIONAL //Contrato
+	WSDATA VerCon			AS String 					OPTIONAL //Versao
+	WSDATA NomCon			AS String 					OPTIONAL //Descricao Contrato
+	WSDATA DatCon			AS Date 					OPTIONAL //Data Contrato
+	WSDATA SubContrato		AS Array of SSubContrato	OPTIONAL //SubContrato
+ENDWSSTRUCT
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//ЁDefinicao da estruturas utilizadas pelas Empresa
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+WSSTRUCT SEmpresa
+	WSDATA Code				AS String 				OPTIONAL //Codigo da Empresa
+	WSDATA Description		AS String 				OPTIONAL //Nome da Empresa
+	WSDATA Contrato			AS Array of SContrato 	OPTIONAL //Contrato
+ENDWSSTRUCT
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//ЁDefinicao da estruturas utilizadas pelas Empresa
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+WSSTRUCT SOperadora
+	WSDATA Code				AS String 				OPTIONAL 	//Codigo da Operadora
+	WSDATA Description		AS String 				OPTIONAL 	//Nome da Operadora
+	WSDATA Empresa			AS Array of SEmpresa 	OPTIONAL 	//Empresa
+ENDWSSTRUCT
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+//ЁDefinicao da estruturas utilizadas para Produtos Guia Medico		     Ё
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды
+WSSTRUCT ProdutosGM
+	WSDATA cCode				AS String OPTIONAL 	//Codigo do Produto
+	WSDATA cDescription 		AS String OPTIONAL 	//Versao do Produto
+	WSDATA nValue				AS Integer OPTIONAL	//Valor
+ENDWSSTRUCT
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+//ЁDefinicao do Web Service de Controle do Usuario                         Ё
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды
+WSSERVICE PLSMCTMD					DESCRIPTION "Rotinas referente ao Guia MEDICO"
+	WSDATA UserCode					AS String
+	WSDATA FunName					AS String
+	WSDATA Tp						AS Integer OPTIONAL
+	WSDATA CodEsp					AS String OPTIONAL
+	WSDATA CodEst					AS String OPTIONAL
+	WSDATA CodMun					AS String OPTIONAL
+	WSDATA Recno					AS String OPTIONAL
+	WSDATA LatLon					AS String OPTIONAL
+	WSDATA WSNULL					AS String
+
+	WSDATA ListParGM				AS Array Of GenericStruct
+	WSDATA SigConselho				AS Array Of GenericStruct
+	WSDATA ListEsp  				AS Array Of GenericStruct
+	WSDATA Espec                    AS PesqEsp
+	
+	WSMETHOD getParGM				DESCRIPTION "Parametros para montagem do guia medico"
+	WSMETHOD setLatLon				DESCRIPTION "Seta latitudo e longitude no endereco"
+	WSMETHOD getEndLL				DESCRIPTION "Retorna endereco formatado e latitude longitude"
+	WSMETHOD GetSigCon				DESCRIPTION "Lista a Sigla do Conselho"
+	WSMETHOD GetSigEsp   			DESCRIPTION "Lista as Especialidades"
+ENDWSSERVICE
+
+/*/
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+╠╠зддддддддддбддддддддддбдддддддбдддддддддддддддддддддддбддддддбддддддддддд©╠╠
+╠╠ЁFun┤└o    ЁgetParGM  ЁAutor  Ё Alexander             Ё Data Ё24.03.2012 Ё╠╠
+╠╠цддддддддддеддддддддддадддддддадддддддддддддддддддддддаддддддаддддддддддд╢╠╠
+╠╠Ё          ЁParametros para montagem do guia medico					   Ё╠╠
+╠╠юддддддддддаддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды╠╠
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+ъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъ
+/*/
+WSMETHOD getParGM WSRECEIVE UserCode, FunName, Tp, CodEsp, CodEst, CodMun WSSEND ListParGM WSSERVICE PLSMCTMD
+LOCAL lRetorno 	:= .T.
+LOCAL aArea 	:= GetArea()
+LOCAL nI 	   	:= 1
+LOCAL cSql		:= ""
+//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//ЁAcesso ao metodo
+//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+If PrtChkUser( ::UserCode, "PLSMCTMD","getParGM" )
+	//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	//ЁExecuta consulta
+	//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	cSql := ExecBlock(::FunName, .F., .F., { ::Tp, ::CodEsp, ::CodEst ,::CodMun } )
+	//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	//ЁExecuta query														   
+	//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	cSql := ChangeQuery(cSql)
+	dbUseArea(.T.,"TOPCONN",TCGENQRY(,,cSql),"Trb",.F.,.T.)
+	//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	//Ё Alimenta a matriz														
+	//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	If !Trb->( Eof() )
+		::ListParGM := {}
+		//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+		//Ё Monta matriz
+		//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+		While !Trb->( Eof() )      
+			AaDd( ::ListParGM, WsClassNew( "GenericStruct" ) )
+			::ListParGM[nI]:Code		:= AllTrim(Trb->Codigo)
+			::ListParGM[nI]:Description	:= AllTrim(Trb->Descricao)
+			nI++
+		Trb->( DbSkip() )	
+		EndDo
+	Else
+		lRetorno := .F.
+		SetSoapFault( "", "Nenhum registro encontrado" )
+	EndIf
+	//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	//Ё Fecha area
+	//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	Trb->( DbCloseArea() )
+Else
+	lRetorno := .F.
+	SetSoapFault( "", "UsuАrio nЦo autorizado" )
+EndIf
+
+RestArea( aArea )
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//Ё Fim da Rotina
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+Return lRetorno       
+
+/*/
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+╠╠зддддддддддбддддддддддбдддддддбдддддддддддддддддддддддбддддддбддддддддддд©╠╠
+╠╠ЁFun┤└o    ЁsetLatLon ЁAutor  Ё Alexander             Ё Data Ё24.03.2012 Ё╠╠
+╠╠цддддддддддеддддддддддадддддддадддддддддддддддддддддддаддддддаддддддддддд╢╠╠
+╠╠Ё          ЁSeta latitude e longitude									   Ё╠╠
+╠╠юддддддддддаддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды╠╠
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+ъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъ
+/*/
+WSMETHOD setLatLon WSRECEIVE UserCode, Recno, LatLon WSSEND WSNULL WSSERVICE PLSMCTMD
+LOCAL lRetorno 	:= .T.
+LOCAL aArea 	:= GetArea()                               
+::WSNULL 		:= ""
+//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//ЁAcesso ao metodo
+//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+If PrtChkUser( ::UserCode, "PLSMCTMD","setLatLon" )
+
+	If BB8->( FieldPos("BB8_LATLON") ) > 0
+		//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+		//ЁPosiciona no registro
+		//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	    BB8->( DbGoTo( Val(::Recno) ) )
+		//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+		//ЁAltera a latitude
+		//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+		BB8->( Reclock("BB8",.F.) )
+			BB8->BB8_LATLON := AllTrim(StrTran(StrTran(::LatLon,')',''),'(',''))
+		BB8->( MsUnlock() )
+	EndIf	
+Else
+	lRetorno := .F.
+	SetSoapFault( "", "UsuАrio nЦo autorizado" )
+EndIf
+
+RestArea( aArea )
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//Ё Fim da Rotina
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+Return lRetorno
+/*/
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+╠╠зддддддддддбддддддддддбдддддддбдддддддддддддддддддддддбддддддбддддддддддд©╠╠
+╠╠ЁFun┤└o    ЁgetEndLL  ЁAutor  Ё Alexander             Ё Data Ё24.03.2012 Ё╠╠
+╠╠цддддддддддеддддддддддадддддддадддддддддддддддддддддддаддддддаддддддддддд╢╠╠
+╠╠Ё          ЁRetorna latitude e longitude								   Ё╠╠
+╠╠юддддддддддаддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды╠╠
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+ъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъ
+/*/
+WSMETHOD getEndLL WSRECEIVE UserCode, Recno WSSEND WSNULL WSSERVICE PLSMCTMD
+LOCAL lRetorno 	:= .T.
+LOCAL aArea 	:= GetArea()                               
+LOCAL cPais 	:= "BRASIL"
+LOCAL cEstado 	:= ""
+LOCAL cCidade 	:= ""
+LOCAL cBairro 	:= ""
+LOCAL cEnd		:= ""
+LOCAL cNumero 	:= ""
+LOCAL cEndBus	:= ""
+LOCAL cPart1 	:= ""
+LOCAL cPart2 	:= ""
+
+::WSNULL := "true|"
+//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//ЁAcesso ao metodo
+//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+If PrtChkUser( ::UserCode, "PLSMCTMD","getEndLL" )
+	//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	//ЁPosiciona no registro
+	//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+    BB8->( DbGoTo( Val(::Recno) ) )
+	//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	//ЁLatitude e Longitude
+	//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	If BB8->( FieldPos("BB8_LATLON") ) > 0
+		cLatLon := AllTrim(BB8->BB8_LATLON)
+	EndIf	                
+	//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	//ЁEndereco de busca
+	//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	cEnd 	:= Iif(!Empty(BB8->BB8_END),AllTrim(BB8->BB8_END)+", ","")
+	cNumero	:= Iif(!Empty(BB8->BB8_NR_END),AllTrim(BB8->BB8_NR_END)+", ","")
+	cBairro	:= Iif(!Empty(BB8->BB8_BAIRRO),AllTrim(BB8->BB8_BAIRRO)+", ","")
+	cCidade	:= Iif(!Empty(BB8->BB8_MUN),AllTrim(BB8->BB8_MUN)+", ","")
+	cEstado	:= Iif(!Empty(BB8->BB8_EST),AllTrim(BB8->BB8_EST)+", ","")
+	cTelefone	:= Iif(!Empty(BB8->BB8_TEL),AllTrim(BB8->(BB8_DDD+BB8_TEL)),AllTrim(BB8->BB8_FAX) )
+
+	//cEndBus := cEnd+cNumero+cBairro+cCidade+cEstado+cPais
+	cEndBus := cEnd+cNumero+cCidade+cEstado+cPais
+	//зддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	//ЁEndereco mostrado
+	//юддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	cEstado	:= AllTrim(BB8->BB8_EST)
+	cCidade	:= AllTrim(BB8->BB8_MUN)
+	cBairro	:= AllTrim(BB8->BB8_BAIRRO)
+	cEnd 	:= AllTrim(BB8->BB8_END)
+	cNumero	:= AllTrim(BB8->BB8_NR_END)
+
+	cPart1 := cEstado + ", " + capitalize(cCidade)
+	If Empty(cEstado) .Or. Empty(cCidade)
+		cPart1 := StrTran(cPart1,',','')
+	EndIf
+
+	cPart2 := capitalize(cEnd) + ", " + cNumero
+	If Empty(cEnd) .Or. Empty(cNumero)
+		cPart2 := StrTran(cPart2,',','')
+	EndIf
+	//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	//Ё Endereco do hint
+	//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+	cShowEnd := cPart1 + "</br>" + capitalize(cBairro) + "</br>" + cPart2
+	 
+	::WSNULL := "true|" + cEndBus + "|" + cShowEnd + "|" + cLatLon + "|" + cTelefone
+Else
+	lRetorno := .F.
+	SetSoapFault( "", "UsuАrio nЦo autorizado" )
+EndIf
+
+RestArea( aArea )
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//Ё Fim da Rotina
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+Return lRetorno
+/*/
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+╠╠зддддддддддбддддддддддбдддддддбдддддддддддддддддддддддбддддддбддддддддддд©╠╠
+╠╠ЁFun┤└o    ЁgetSigCon ЁAutor  Ё Luiz Couto            Ё Data Ё13.07.2004 Ё╠╠
+╠╠цддддддддддеддддддддддадддддддадддддддддддддддддддддддаддддддаддддддддддд╢╠╠
+╠╠Ё          ЁRetorna sigla												   Ё╠╠
+╠╠юддддддддддаддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды╠╠
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+ъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъ
+/*/
+WSMETHOD getSigCon WSRECEIVE UserCode WSSEND SigConselho WSSERVICE PLSMCTMD
+LOCAL nI			:= 0
+LOCAL lRetorno 		:= .T.
+LOCAL aArea 		:= GetArea()
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+//Ё Valida acesso														   Ё
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды	    
+If PrtChkUser( ::UserCode, "PLSMCTMD","getSigCon" )
+	//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+	//Ё Ordem																   Ё
+	//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды	    
+    BAH->( DbSetOrder(1) )//BAH_FILIAL + BAH_CODIGO
+    BAH->( DbGoTop() )
+	//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+	//Ё While para montar matriz											   Ё
+	//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды	    
+	::SigConselho := {}
+    While !BAH->( Eof() )
+        nI++
+		//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+		//Ё Monta matriz														   Ё
+		//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды	    
+		aAdd( ::SigConselho, WsClassNew( "GenericStruct" ) )
+		::SigConselho[nI]:Code 		  	:= BAH->BAH_CODIGO
+		::SigConselho[nI]:Description	:= AllTrim(BAH->BAH_CODIGO)
+    BAH->( DbSkip() )
+    EndDo
+Else
+	lRetorno := .F.
+	SetSoapFault( "", "UsuАrio nЦo autorizado" )
+EndIf
+
+RestArea( aArea )
+
+Return lRetorno
+
+/*
+эээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээ
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+╠╠иммммммммммяммммммммммкмммммммяммммммммммммммммммммкммммммяммммммммммммм╩╠╠
+╠╠╨Programa  ЁgetSigEsp ╨Autor  ЁPatricia Duca       ╨ Data Ё  13/11/09   ╨╠╠
+╠╠лммммммммммьммммммммммймммммммоммммммммммммммммммммйммммммоммммммммммммм╧╠╠
+╠╠╨Desc.     Ё Lista especialidades                                       ╨╠╠
+╠╠хммммммммммомммммммммммммммммммммммммммммммммммммммммммммммммммммммммммм╪╠╠
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+ъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъ
+*/
+
+WSMETHOD getSigEsp WSRECEIVE UserCode,Espec WSSEND ListEsp WSSERVICE PLSMCTMD
+LOCAL nI			:= 0
+LOCAL lRetorno 		:= .T.
+LOCAL aArea 		:= GetArea()
+LOCAL cQuery    	:= ""           
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+//Ё Valida acesso														   Ё
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды	    
+If PrtChkUser( ::UserCode, "PLSMCTMD","getSigEsp" )
+                           
+	If ::Espec:Tp <> nil .and. ::Espec:Tp <> '2' 
+		cQuery:="SELECT BAX_CODIGO,BAX_CODLOC,BAX_CODESP CODESP, BAQ_DESCRI DESCRI"
+		cQuery+="FROM "+RetSqlName("BAX")+" BAX "
+		cQuery+="INNER JOIN "+RetSqlName("BAQ")+" BAQ ON BAQ_CODESP=BAX_CODESP AND BAQ_FILIAL='"+xFilial("BAQ")+"' AND BAQ.D_E_L_E_T_=' ' "
+		cQuery+="WHERE BAX.D_E_L_E_T_=' ' AND  "
+		cQuery+="BAX_CODIGO='"+::Espec:RDA+"'  AND "
+		cQuery+="BAX_FILIAL='"+xfilial("BAX")+"' AND "
+		cQuery+="BAX_CODINT='"+ PLSINTPAD()+"'AND "
+		cQuery+="BAX_CODLOC='"+::Espec:CODLOC+"' "
+		cQuery+="ORDER BY BAX_CODESP "
+	Else	//na solicitacao tenho que mostrar todas as especialidades, pois qq medico ode solicitar de qq especialidade    
+		cQuery:="SELECT BAQ_CODESP CODESP,BAQ_DESCRI DESCRI"
+		cQuery+="FROM "+RetSqlName("BAQ")+" BAQ "
+		cQuery+="WHERE BAQ.D_E_L_E_T_=' ' "
+		cQuery+="ORDER BY BAQ_CODESP "
+	Endif      
+	OPEN QUERY cQuery ALIAS "GETSIGESP"
+	
+	GETSIGESP->( DbGoTop() )
+	//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+	//Ё While para montar matriz											   Ё
+	//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды	    
+	::ListEsp := {}
+    While !GETSIGESP->( Eof() )
+        nI++
+		//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+		//Ё Monta matriz														   Ё
+		//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды	    
+		aAdd( ::ListEsp, WsClassNew( "GenericStruct" ) )
+		::ListEsp[nI]:Code 		  	:= GETSIGESP->CODESP
+		::ListEsp[nI]:Description	:= AllTrim(GETSIGESP->DESCRI)
+    GETSIGESP->( DbSkip() )
+    EndDo
+Else
+	lRetorno := .F.
+	SetSoapFault( "", "UsuАrio nЦo autorizado" )
+EndIf
+
+CLOSE QUERY "GETSIGESP"
+
+RestArea( aArea )
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//Ё Fim da Rotina
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд	    
+Return lRetorno
+/*
+эээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээээ
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+╠╠иммммммммммяммммммммммкмммммммяммммммммммммммммммммкммммммяммммммммммммм╩╠╠
+╠╠╨Programa  Ёcapitalize╨Autor  ЁPatricia Duca       ╨ Data Ё  13/11/09   ╨╠╠
+╠╠лммммммммммьммммммммммймммммммоммммммммммммммммммммйммммммоммммммммммммм╧╠╠
+╠╠╨Desc.     Ё Primeira letra maiuscula o resto minusculo				  ╨╠╠
+╠╠хммммммммммомммммммммммммммммммммммммммммммммммммммммммммммммммммммммммм╪╠╠
+╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠╠
+ъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъъ
+*/
+Static Function capitalize(cString)
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//Ё Primeiro caracter maiusculo
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд	    
+cString := Upper(SubStr(cString,1,1)) + Lower(SubStr(cString,2,Len(cString)))
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд
+//Ё Fim da Rotina
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд	    
+Return cString
+//здддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддд©
+//Ё Para poder compilar													   Ё
+//юдддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддддды	    
+Function WSPLMCTMDS
+Return

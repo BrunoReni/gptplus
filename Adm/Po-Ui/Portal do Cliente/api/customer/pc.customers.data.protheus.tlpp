@@ -1,0 +1,305 @@
+#include 'tlpp-core.th'
+#Include "FWMVCDEF.ch"
+#include 'pc.customers.data.protheus.CH'
+
+Namespace portal.cliente.customer
+using namespace gfin.util
+Using Namespace portal.cliente.util
+
+Static __oHashPrepareCache := FwHashMap():New()
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc } LoginDataProtheus
+Classe para acesso aos dados do Protheus
+
+@author luiz.nai
+@since 07/04/2021
+/*/
+//-------------------------------------------------------------------
+Class CustomerDataProtheus
+	Public Method New()
+	Public Method getDataCustomer() As Json
+	Public Method putCustomerPassword() As Json
+EndClass
+
+Method New() Class CustomerDataProtheus
+Return Self
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} getDataCustomer
+Função para validar o usuário e senha e retornar as informações dos clientes que este usuário tem acesso.
+
+@params
+username: string - AI3_LOGIN
+password: string - AI3_PSW
+
+@return
+["loginDetails"]: {
+	"internUser": AI3_USRSIS,
+	"internIds": [
+		A1_FILIAL + A1_COD + A1_LOJA
+	],
+	"username": AI3_NOME,
+	"email": AI3_EMAIL
+},
+["customerDetails"]: {
+	"items": [
+		{
+			"branchId": A1_FILIAL,
+			"customerId": A1_COD,
+			"storeId": A1_LOJA,
+			"branches": [
+				{
+					"totalId": Filial com compartilhamento totalmente exclusivo,
+					"branchName": Nome da filial
+				}
+			],
+			"name": A1_NOME,
+			"country": A1_MUN,
+			"cnpj": A1_CGC,
+			"state": A1_ESTADO,
+			"ie": A1_INSCR,
+		}
+	],
+	"hasNext": boolean
+}
+
+@author luiz.nai
+@since 07/04/2021
+/*/
+//-------------------------------------------------------------------
+Method getDataCustomer(username As Character, password As Character) As Json Class CustomerDataProtheus
+	Local aliasLogin  	     As Character
+	Local statement   	     As Object
+	Local statementCustomer  As Object
+	Local response	  	     As Json
+	Local loginDetails       As Json
+	Local customersDetails   As Array
+	Local details            As Array
+	Local internIds          As Array
+	Local branches           As Array
+	Local branchId           As Character
+	Local customerId         As Character
+	Local storeId            As Character
+	Local i				     As Numeric
+
+	response := JsonObject():New()
+
+	customersDetails := {}
+	loginDetails     := JsonObject():New()
+
+	If (!__oHashPrepareCache:containsKey('loginDetails'))
+		statement := createPrepareLoginDetails()
+	Else
+		statement := __oHashPrepareCache:Get('loginDetails')
+	EndIf
+
+	If (!__oHashPrepareCache:containsKey('customerDetails'))
+		statementCustomer := createPrepareCustomerDetails()
+	Else
+		statementCustomer := __oHashPrepareCache:Get('customerDetails')
+	EndIf
+
+	statement:SetString(1, username)
+	statement:SetString(2, password)
+
+	aliasLogin := MpSysOpenQuery(statement:GetFixQuery())
+
+	If (aliasLogin)->(!Eof())
+		loginDetails["internUser"] := AllTrim((aliasLogin)->AI3_USRSIS)
+		loginDetails["username"]   := AllTrim((aliasLogin)->AI3_NOME)
+		loginDetails["email"]      := AllTrim((aliasLogin)->AI3_EMAIL)
+		internIds := {}
+
+		While ((aliasLogin)->(!Eof()))
+			details    := {}
+
+			branchId   := FWxFilial("SA1", (aliasLogin)->AI3_FILIAL)
+			customerId := (aliasLogin)->AI4_CODCLI
+			storeId    := (aliasLogin)->AI4_LOJCLI
+
+			// adiciona as informações do cliente para inserir no token
+			aAdd(internIds, branchId + customerId + storeId)
+
+			// retorna as filiais com o maior nível de compartilhamento, ex: 'D MG' -> ['D MG 01', 'D MG 02']
+			branches   := branchesOfCustomer(FWxFilial("SA1", (aliasLogin)->AI3_FILIAL))
+			For i := 1 To Len(branches)
+				aAdd(details, {;
+					{ "totalId", branches[i] },;
+					{ "branchName", FWFilialName(cEmpAnt, branches[i], 2) };
+				})
+			Next i
+
+			statementCustomer := __oHashPrepareCache:Get('customerDetails')
+
+			statementCustomer:SetString(1, FWxFilial("SA1", branchId))
+			statementCustomer:SetString(2, customerId)
+			statementCustomer:SetString(3, storeId)
+
+			aliasCustomer := MpSysOpenQuery(statementCustomer:GetFixQuery())
+
+			If ((aliasCustomer)->(!Eof()))
+				aAdd(customersDetails, {;
+					{ "branchId"  , branchId },;
+					{ "customerId", customerId },;
+					{ "storeId"   , storeId },;
+					{ "branches"  , arrayToJson(details) },;
+					{ "name"      , AllTrim((aliasCustomer)->A1_NOME) },;
+					{ "city"      , AllTrim((aliasCustomer)->A1_MUN) },;
+					{ "cnpj"      , AllTrim((aliasCustomer)->A1_CGC) },;
+					{ "state"     , AllTrim((aliasCustomer)->A1_EST) },;
+					{ "ie"        , AllTrim((aliasCustomer)->A1_INSCR) };
+				})
+			EndIf
+
+			(aliasCustomer)->(DbCloseArea())
+			(aliasLogin)->(DbSkip())
+		EndDo
+
+		loginDetails["internIds"] := internIds
+
+		response["result"]   := .T.
+		response["response"] := JsonObject():New()
+		response["response"]["loginDetails"]    := loginDetails
+		response["response"]["customerDetails"] := arrayToAPI(customersDetails, .F.)
+	Else
+		response := AnswerErrorFormat(400, STR0001, STR0001)
+	EndIf
+
+	(aliasLogin)->(DbCloseArea())
+Return response
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc } createPrepareLoginDetails
+Cria o statment da query de detalhes do usuário.
+
+@author luiz.nai
+@since 07/04/2021
+/*/
+//-------------------------------------------------------------------
+Static Function createPrepareLoginDetails() As Object
+	Local statement	As Object
+	Local query		As Character
+	Local webSrv	As Character
+
+	webSrv := PadR(SuperGetMV('MV_WEBSVPC', .F., 'PORTALCLIENTEMINGLE'), TamSX3('AI7_WEBSRV')[01])
+
+	query := "SELECT AI3.AI3_FILIAL, AI3.AI3_CODUSU, AI3.AI3_USRSIS, AI3.AI3_NOME, AI3.AI3_EMAIL, AI4.AI4_CODCLI, AI4.AI4_LOJCLI "
+	query += "   FROM " + RetSqlName("AI3") + " AI3 "
+	query += "   JOIN " + RetSqlName("AI4") + " AI4 ON AI3.AI3_FILIAL = AI4.AI4_FILIAL AND AI3.AI3_CODUSU = AI4.AI4_CODUSU "
+	query += "   JOIN " + RetSqlName("AI6") + " AI6 ON AI6.AI6_FILIAL = AI3.AI3_FILIAL AND AI6.AI6_CODUSU = AI3.AI3_CODUSU "
+	query += "WHERE "
+	query += "   AI3.AI3_LOGIN  = ?     AND "
+	query += "   AI3.AI3_PSW    = ?     AND "
+	query += "   AI6.AI6_WEBSRV = '"+ webSrv +"' AND "
+	query += "   AI3.D_E_L_E_T_ = ' '   AND "
+	query += "   AI4.D_E_L_E_T_ = ' '   AND "
+	query += "   AI6.D_E_L_E_T_ = ' '"
+
+	query := ChangeQuery(query)
+
+	statement := FwPreparedStatement():New(query)
+	__oHashPrepareCache:Put("loginDetails", statement)
+Return statement
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc } createPrepareCustomerDetails
+Cria o statment da query de detalhes do cliente.
+
+@author luiz.nai
+@since 07/04/2021
+/*/
+//-------------------------------------------------------------------
+Static Function createPrepareCustomerDetails() As Object
+	Local statement	As Object
+	Local query		As Character
+
+	query := "SELECT SA1.A1_FILIAL, SA1.A1_COD, SA1.A1_NOME, SA1.A1_MUN, SA1.A1_CGC, SA1.A1_INSCR, SA1.A1_ESTADO, SA1.A1_EST "
+	query += "   FROM " + RetSqlName("SA1") + " SA1 "
+	query += "WHERE "
+	query += "	 SA1.A1_FILIAL  = ? AND "
+	query += "   SA1.A1_COD     = ? AND "
+	query += "   SA1.A1_LOJA    = ? AND "
+	query += "   SA1.D_E_L_E_T_ = ' '   "
+	query := ChangeQuery(query)
+
+	statement := FwPreparedStatement():New(query)
+	__oHashPrepareCache:Put("customerDetails", statement)
+Return statement
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} putCustomerPassword
+Função para alterar a senha cadastrada do cliente.
+
+@params
+cUsername: string - AI3_LOGIN
+cOldPassword: string - AI3_PSW
+cNewPassword: string - AI3_PSW
+
+@return
+["loginDetails"]: {
+	"internUser": AI3_USRSIS,
+	"username": AI3_NOME,
+	"email": AI3_EMAIL
+}
+
+@author vinicius.prado
+@since 17/10/2022
+/*/
+//-------------------------------------------------------------------
+Method putCustomerPassword(cUsername As Character, cOldPassword As Character, cNewPassword As Character) As Json Class CustomerDataProtheus
+	Local jResponse	  	As Json
+	Local jChangedUsers As Json
+	Local oMdlFATA220  	As Object
+	Local oStatement    As Object
+	Local cAliasLogin   As Character
+
+	jResponse := JsonObject():New()
+	jChangedUsers := JsonObject():New()
+	
+	If (!__oHashPrepareCache:containsKey('loginDetails'))
+		oStatement := createPrepareLoginDetails()
+	Else
+		oStatement := __oHashPrepareCache:Get('loginDetails')
+	EndIf
+	oStatement:SetString(1, cUsername)
+	oStatement:SetString(2, cOldPassword)
+
+	cAliasLogin := MpSysOpenQuery(oStatement:GetFixQuery())
+
+	While (cAliasLogin)->(!Eof())
+		dbselectarea("AI3")
+		dbsetorder(1)
+		If AI3->(dbSeek((cAliasLogin)->AI3_FILIAL + (cAliasLogin)->AI3_CODUSU))
+			oMdlFATA220 := FWLoadModel( 'FATA220' )
+			oMdlFATA220:SetOperation(MODEL_OPERATION_UPDATE)
+			oMdlFATA220:Activate()
+			oMdlFATA220:loadValue('AI3MASTER', 'AI3_PSW', cNewPassword)
+
+			If oMdlFATA220:VldData()
+				oMdlFATA220:CommitData()
+				If !jResponse:hasProperty('result')
+					jChangedUsers["internUser"] := AllTrim((cAliasLogin)->AI3_USRSIS)
+					jChangedUsers["username"]   := AllTrim((cAliasLogin)->AI3_NOME)
+					jChangedUsers["email"]      := AllTrim((cAliasLogin)->AI3_EMAIL)
+
+					jResponse["result"] := .T.
+					jResponse["response"] := JsonObject():New()
+					jResponse["response"]["loginDetails"] := jChangedUsers
+				EndIf
+			Else
+				jResponse := AnswerErrorFormat(400, STR0002, oMdlFATA220:GetErrorMessage()[6]) // Nao foi possivel alterar a senha do usuário.
+			EndIf
+		EndIf
+		(cAliasLogin)->(DBSkip())
+	EndDo
+
+	If !jResponse:hasProperty('result')
+		jResponse := AnswerErrorFormat(400, STR0001, STR0001) // Nao foram encontrados clientes para o login recebido.
+	EndIf
+
+Return jResponse

@@ -1,0 +1,86 @@
+#INCLUDE 'protheus.ch'
+#INCLUDE 'restful.ch'
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PLSAuthorizationsDao
+
+@author  sakai
+@version P12
+@since   06/09/22
+/*/
+//------------------------------------------------------------------- 
+class PLSAuthorizationsDao
+    
+    Data cGuia as Character
+    Data cAliasTemp As Character
+    Data cQuery as Character
+    Data aGuiasPrest as Array
+
+    Public Method New()
+    Public Method getAliasTemp()
+    Public Method closeQuery()
+    Public Method dbSkip()
+    Public Method isEof()
+    Public Method getGuiasPrest()
+    Method executaQuery()
+    Method aliasSelected()
+    Method setQuery(cQuery)
+    Method getQuery()
+
+EndClass
+
+
+Method New(cGuia) class PLSAuthorizationsDao
+    
+    self:cGuia      := cGuia
+    self:cAliasTemp := ""
+    self:cQuery     := ""
+    self:aGuiasPrest := {}
+
+Return self
+
+Method getAliasTemp() Class PLSAuthorizationsDao
+	if empty(self:cAliasTemp)
+		self:cAliasTemp := getNextAlias()
+	endif
+Return self:cAliasTemp
+
+Method setQuery(cQuery) Class PLSAuthorizationsDao
+	self:cQuery := cQuery
+Return
+
+Method getQuery() Class PLSAuthorizationsDao
+Return self:cQuery
+
+Method executaQuery() Class PLSAuthorizationsDao
+	Local lFound := .F.
+
+	self:closeQuery()
+	self:setQuery(self:getQuery())
+	dbUseArea(.T.,"TOPCONN",TCGENQRY(,,self:getQuery()),self:getAliasTemp(),.F.,.T.)
+
+	lFound := (self:getAliasTemp())->(!Eof())
+	If !lFound
+		self:closeQuery()
+	EndIf
+
+Return lFound
+
+Method closeQuery() Class PLSAuthorizationsDao
+	if self:aliasSelected()
+		(self:getAliasTemp())->(dbCloseArea())
+	endIf
+Return
+
+Method aliasSelected() Class PLSAuthorizationsDao
+Return Select(self:getAliasTemp()) > 0
+
+Method dbSkip() Class PLSAuthorizationsDao
+    (self:getAliasTemp())->(DbSkip())
+Return
+
+Method isEof() Class PLSAuthorizationsDao
+Return (self:getAliasTemp())->(Eof())
+
+Method getGuiasPrest() class PLSAuthorizationsDao
+Return self:aGuiasPrest

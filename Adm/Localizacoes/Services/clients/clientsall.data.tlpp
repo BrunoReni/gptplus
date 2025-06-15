@@ -1,0 +1,179 @@
+#include 'tlpp-core.th'
+
+namespace tr.Clients
+//-------------------------------------------------------------------
+/*/{Protheus.doc} totvsRecibos/Clientes
+Class ClientsData
+
+@author José González
+@since 30/06/2021
+/*/
+//-------------------------------------------------------------------
+Class ClientsAdapter From FWAdapterBaseV2
+	Data cTableNick As Character
+
+	Public Method new()
+	Public Method Clients1Adapter()
+	Public Method Clients2Adapter()
+	Public Method ClientsTotalsAdapter()
+EndClass
+
+Method new(cResMethod As Character) Class ClientsAdapter
+	_Super:new(cResMethod)
+Return
+
+
+Static Function AddMapFields(oSelf As Object, cfield As Character)
+	Local cFieldNick := cfield
+		oSelf:AddMapFields("code"	,cFieldNick+'_COD'	,.T.,.T.,{cFieldNick + '_COD'	, 'C',GetSx3Cache("A1_COD"	,"X3_TAMANHO"),0})
+		oSelf:AddMapFields("branch"	,cFieldNick+'_LOJA'	,.T.,.T.,{cFieldNick + '_LOJA'	, 'C',GetSx3Cache("A1_LOJA"	,"X3_TAMANHO"),0})
+		oSelf:AddMapFields("name"	,cFieldNick+'_NOME'	,.T.,.T.,{cFieldNick + '_NOME'	, 'C',GetSx3Cache("A1_NOME"	,"X3_TAMANHO"),0})
+
+Return 
+
+Static Function getQuery(cTableNick As Character) As Character
+	Local cQuery As Character
+	cQuery := " SELECT #QueryFields# "
+	cQuery += " FROM " + RetSqlName(cTableNick)
+	cQuery += " WHERE #QueryWhere#"
+Return cQuery
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} totvsRecibos/Clientes
+
+	Prepara y retorna el detalle de los Clientes Paginados
+
+@author José González
+@since 30/06/2021
+/*/
+//-------------------------------------------------------------------
+Method Clients1Adapter( cTableNick As Character, cfil As Character, cFilSelec As Character, lCanFil As Logical) Class ClientsAdapter
+	Local cQueryFields As Character
+	Local cQueryWhere As Character
+	Local aActivedArea As Array
+
+	//Asignamos el nombre de la tabla a utilizar
+	::cTableNick := cTableNick
+
+	aActivedArea   := FwGetArea()
+
+	//Agregamos los campos Json/ResultSet
+	AddMapFields(self,"A1")
+
+	//Informamos el query a utilizar en la API
+	::SetQuery(getQuery(cTableNick))
+
+	cQueryWhere := " D_E_L_E_T_ = ' ' AND A1_MSBLQL <> '1' "
+	cQueryFields := "A1_COD,A1_LOJA,A1_NOME"
+	
+	If !Empty(cFilSelec) .And. lCanFil
+		cQueryWhere += "AND A1_FILIAL = '" + xFilial("SA1",cFilSelec) + "'"
+	ElseIf !lCanFil
+		cQueryWhere += "AND A1_FILIAL = '" + xFilial("SA1") + "'"
+	EndIf
+	
+	If cfil != ''
+		cQueryWhere += " AND ( A1_COD LIKE '%"	+cfil+	"%'  "
+		cQueryWhere += " OR A1_NOME LIKE '%"	+cfil+	"%'  )"
+	EndIf
+
+	//Configuramos los campos para el query
+	::SetWhere(cQueryWhere)
+	::SetFields(cQueryFields)
+
+	//Informamos el ordenamiento a ser utilizado en la Query
+	::SetOrder("A1_COD")
+
+	//Ejecuta la consulta, retorna .T. si todo ocurre conforme a lo esperado
+	If ::Execute()
+		//Genera un archivo Json
+		::FillGetResponse()
+	EndIf
+
+	FwrestArea(aActivedArea)
+Return Nil
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} totvsRecibos/Clientes
+
+	Prepara y retorna el detalle de los Clientes
+
+@author José González
+@since 30/06/2021
+/*/
+//-------------------------------------------------------------------
+Method Clients2Adapter( cFil As Character) Class ClientsAdapter
+
+	Local cQuery As Character
+	Local oClients As Object
+	Local aClientes := {}
+	Local cAlias
+
+	cAlias := GetNextAlias()
+	
+	cQuery := " SELECT "
+	cQuery += "    A1_COD, "
+	cQuery += "    A1_LOJA, "
+	cQuery += "    A1_NOME "
+	cQuery += " FROM " + RetSqlName("SA1")
+	cQuery += " Where D_E_L_E_T_ = ' ' AND A1_MSBLQL = '2' "
+	If !Empty(cFil)
+		cQuery += "AND A1_FILIAL = '" + xFilial("SA1",cFil) + "'"
+	EndIf
+
+	cQuery := ChangeQuery(cQuery)
+	MPSysOpenQuery(cQuery, cAlias)
+ 
+	IF (cAlias)->(!EOF())
+		WHILE (cAlias)->(!EOF())
+			oClientes := JsonObject():New()
+			oClientes['code'] 		:= (cAlias)->A1_COD
+			oClientes['branch']		:= (cAlias)->A1_LOJA
+			oClientes['name'] 		:= Alltrim((cAlias)->A1_NOME)
+			AAdd(aClientes,oClientes)
+			(cAlias)->(DbSkip())
+		END
+	EndIf
+
+	(cAlias)->(DbCloseArea())
+	oClients	:= JsonObject():New()
+	oClients['items']	:= aClientes
+	
+Return oClients
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} totvsRecibos/Clientes
+
+	Retorna el total de los Clientes
+
+@author José González
+@since 30/06/2021
+/*/
+//-------------------------------------------------------------------
+Method ClientsTotalsAdapter(lSelectFil As Logical) Class ClientsAdapter
+
+	Local cQuery As Character
+	Local oClients As Object
+
+	Local cAlias
+
+	cAlias := GetNextAlias()
+	
+	cQuery := " SELECT  COUNT(A1_COD)  AS TOTALES"
+	cQuery += " FROM " + RetSqlName("SA1")
+	cQuery += " Where D_E_L_E_T_ = ' ' AND A1_MSBLQL = '2' "+ IIF(lSelectFil, "", " AND A1_FILIAL = '" + xFilial("SA1") + "' ")
+	cQuery := ChangeQuery(cQuery)
+	MPSysOpenQuery(cQuery, cAlias)
+ 	oClientes := JsonObject():New()
+
+	IF (cAlias)->(!EOF())
+		If (cAlias)->TOTALES <= 200
+			oClientes['combo'] 		:= .T.
+		Else 
+			oClientes['combo'] 		:= .F.
+		EndIF
+	EndIf
+
+	(cAlias)->(DbCloseArea())
+	
+Return oClientes

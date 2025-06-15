@@ -1,0 +1,522 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+#include "acReopeningOfStock.ch"
+
+namespace ac.Reopening.OfStock.Repository
+using namespace ac.Reopening.OfStock.Service
+
+
+Class acReopeningOfStockRep
+    public data     dFecAnt         as date
+    public data     dMVULMES        as date
+    public data     lRet            as Logical
+    Public data     lDefaultDate    as Logical 
+    public data     lMoti           as Logical
+    public data     lRetLastClosing as Logical 
+    public data     dFecDefault     as Character 
+    public data     cMsgErro        as Character
+    public data     cNull           as Character 
+    public data     cSubstr         as Character
+    public data     cConcat         as Character  
+    public data     cMoeda330       as Character 
+    public data     cFilSD3         as Character 
+    public data     cFilSC2         as Character 
+    public data     oService        as Object
+    public data     oJourneyLog     as Object 
+    public data     lCusFIFO	    as logical
+	public data     lCusLIFO	    as logical
+    public Method   New()
+    Public Method   RecSX6()
+    public Method   DeletaRegs()
+    public Method   ReopeningLog()
+    Public Method   RebuildTheStartOfSc2() 
+    public Method   getPenultimateClosing()
+    public Method   DeleteClosingRecTables()
+    public Method   validatesTheClosingDate()
+    public Method   eventStarReopen()
+    public Method   getLastClosing()
+    public Method   logErrorProc()
+    public Method   ChangeCCStatus()
+    public Method   eventStarRepair()
+    public Method   conditionalValue()
+
+endClass
+
+
+/*/{Protheus.doc} acResultsAnalysis:New()
+    Metodo responsavel por instanciar e iniciar as variaveis da Class acList
+    @type  Metodo
+    @author Andre Maximo
+    @since  Dezembro  28, 2020
+    @version 12.1.27
+/*/
+Method new() Class acReopeningOfStockRep
+    ::dMVULMES     := GetMV("MV_ULMES")
+    ::cMsgErro     := " "
+    ::lRet         := .T.
+    ::cSubstr      := MatiSubStr()
+    ::lCusFIFO 	   := SuperGetMV("MV_CUSFIFO",.F.,.F.)
+	::lCusLIFO 	   := SuperGetMv('MV_CUSLIFO',.F.,.F.)
+    ::cConcat      := MatiConcat()
+    ::cNull        := MatIsNull()
+    ::cFilSD3      := xFilial("SD3") 
+    ::cFilSC2      := xFilial("SC2")
+    ::cMoeda330    := SuperGetMv('MV_MOEDACM',.F.,"2345")
+    ::oJourneyLog  := acJourneyLog():new()   
+    ::lRetLastClosing := .T.
+    ::lDefaultDate    := .F.
+    ::dFecDefault     := cTOD('//')   
+
+return Self
+
+
+/*/{Protheus.doc} acResultsAnalysis:getResultsAnalysis()
+    Metodo responsavel por realizar analise do custo do 
+    ultimo fechamento comparado com custo pós recalculo 
+    @type  Metodo
+    @author andre.oliveira
+    @since  Dezembro  28, 2020
+    @version 12.1.27
+/*/
+
+Method getPenultimateClosing(dMVULMES) Class acReopeningOfStockRep
+
+    Local dFecAnt := SToD("19970101")
+        //-- Recupera data do penultimo fechamento
+        BeginSQL Alias "TMP"
+            SELECT MAX(B9_DATA) FECANT
+            FROM %Table:SB9%
+            WHERE %NotDel% AND 
+                B9_FILIAL = %xFilial:SB9% AND
+                B9_DATA < %Exp:DToS(dMVULMES)%
+        EndSQL
+        If !TMP->(EOF()) .And. !Empty(TMP->FECANT)
+            dFecAnt := SToD(TMP->FECANT)
+        else
+            ::lDefaultDate := .T.
+        EndIf
+        TMP->(dbCloseArea())
+
+    
+return dFecAnt
+
+
+/*/{Protheus.doc} acReopeningOfStockRep:
+    Metodo responsavel por Recupera data do último fechamento
+    @type  Metodo
+    @author andre.oliveira
+    @since  Dezembro  28, 2020
+    @version 12.1.27
+/*/
+
+Method getLastClosing(dMVULMES) Class acReopeningOfStockRep
+    
+    Local dFecAnt:= cTOd('//')
+        BeginSQL Alias "TMP"
+            SELECT MAX(B9_DATA) FECANT
+            FROM %Table:SB9%
+            WHERE %NotDel% AND
+                B9_FILIAL = %xFilial:SB9%
+        EndSQL
+        If !TMP->(EOF()) .And. !Empty(TMP->FECANT)
+            dFecAnt := SToD(TMP->FECANT)
+            If  dFecAnt > dMVULMES
+                ::lRetLastClosing:= .F.
+                ::cMsgErro := STR0020 +' : '+ DToS(dFecAnt)  //'Encontrado data maior de fechamento '
+            ElseIf !(dMVULMES == dFecAnt)
+                ::lRetLastClosing:= .F.
+                ::cMsgErro := STR0021 +' : '+ DToS(dMVULMES) //  'Não encontramos fechamento da data '
+            EndIF
+        Else
+            ::cMsgErro := STR0012 // "Não há período fechado para fazer reabertura."
+            ::lRetLastClosing := .F.
+        EndIf
+        TMP->(dbCloseArea())
+
+Return dFecAnt
+
+/*/{Protheus.doc} DeleteClosingRecTables
+	Função para processar exclusão de registros das tabelas de fechamento
+	@type  Function
+	@author andre.oliveira
+	@since 12/09/2020
+	@version 1.0
+	@param cAlias, caracter, Alias da tabela cujos registros serao excluidos
+	@param dMVULMES, date, data do fechamento que está sendo desfeito
+/*/
+Method  DeleteClosingRecTables(cAlias,dMVULMES) Class acReopeningOfStockRep
+    Local cQuery    := ""
+    Local nTotReg   := 0
+    Local lRet      := .T.
+
+    ::oService:= ac.Reopening.OfStock.Service.acReopeningOfStockServ():new()
+    ::oService:literature(cAlias)
+    
+    cQuery := "SELECT COUNT(*) TOTREG FROM " +RetSQLName(cAlias) +" WHERE D_E_L_E_T_ = ' ' AND "
+    cQuery += Substr(cAlias,2,2) +"_FILIAL = '" +xFilial(cAlias) +"' AND "
+    cQuery += Substr(cAlias,2,2) +"_DATA = '" +DToS(dMVULMES) +"'"
+    dbUseArea(.T.,"TOPCONN",TCGenQry(,,cQuery),"TMP",.F.,.T.)
+    nTotReg := TMP->TOTREG
+    TMP->(dbCloseArea())
+
+    ::ReopeningLog("MENSAGEM", STR0006  + cFilAnt +" - "+  STR0013  + cAlias + ": " + ::oService:cNomeTab, AllTrim(Str(nTotReg)) + STR0014 ,'4'+::oService:cNameStep  ) //"Filial "   // Iníci+o da exclusão  //  registros a processar.
+    
+    cQuery := "DELETE FROM " +RetSQLName(cAlias) +" WHERE D_E_L_E_T_ = ' ' AND "
+    cQuery += Substr(cAlias,2,2) +"_FILIAL = '" +xFilial(cAlias) +"' AND "
+    cQuery += Substr(cAlias,2,2) +"_DATA = '" +DToS(dMVULMES) +"'"
+	Iif(TCSQLExec(cQuery) < 0, lRet := .F., lRet)
+
+    ::ReopeningLog("MENSAGEM",STR0006 +cFilAnt +" - "+ STR0016 +cAlias +": " +::oService:cNomeTab,AllTrim(Str(nTotReg)) +" registros processados.", '5'+::oService:cNameStep ,  ) // FILIAL Término de exclusão
+
+Return lRet
+
+
+/*/{Protheus.doc} RebuildTheStartOfSc2
+	Função para processar exclusão de registros das tabelas de fechamento
+	@type  Function
+	@author andre.oliveira
+	@since 12/09/2020
+	@version 1.0
+    @param ::dFecAnt, date, Data do fechamento anterior
+	@param cMsgErro, caracter, Variavel para receber detalhes de erros de processamento
+/*/
+Method RebuildTheStartOfSc2(dFecAnt,cMsgErro) Class acReopeningOfStockRep
+    Local lRet      := .T.
+    Local lCusRep   := SuperGetMv("MV_CUSREP",.F.,.F.) .And. MA330AvRep()
+    Local lCstPart  := .F.
+    Local aRegraCP  := {}
+    Local cSQLComm  := ""
+    Local nMoeda    := 0
+    Local nParte    := 0
+    Local cWhere    := ""
+
+    //-- Preenche array com as regras do custo em partes e verifica se os campos do custo em partes estao Ok
+    If ExistBlock("MA330CP") .And. ValType(aRegraCP := ExecBlock("MA330CP",.F.,.F.)) == "A"
+        lCstPart := MA330AvlCp(aRegracp,{})
+    EndIf
+    
+    //-- Filtro da OPs que serão atualizadas: emitidas antes do ultimo fechamento e (em aberto ou encerradas após fechamento)
+    cWhere := "WHERE D_E_L_E_T_ = ' ' AND "
+    cWhere += "   C2_FILIAL = '" +::cFilSC2 +"' AND "
+    cWhere += "   (C2_DATRF = ' ' OR C2_DATRF > '" +DToS(dFecAnt) +"') "
+    
+    For nMoeda := 1 To 5
+        If nMoeda # 1 .And. !(Str(nMoeda,1,0) $ ::cMoeda330)
+            Loop
+        EndIf
+
+        cSQLComm := "UPDATE " +RetSQLName("SC2") +" "
+
+        //-- Atualiza C2_VINI com custo agregado e não apropriado até o fechamento anterior
+        cSQLComm += "SET C2_VINI" +Str(nMoeda,1,0) +" = ( "
+        //-- Soma custo de requisições realizadas até o fechamento anterior
+        cSQLComm += "                               (SELECT " +::cNull +"(SUM(D3_CUSTO" +Str(nMoeda,1,0) +"),0) "
+        cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+        cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+        cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+        cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+        cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'RE' AND "
+        cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,3,1) <> '9' AND "
+        cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+        cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') - "
+        //-- Subtrai custo de devoluções realizadas até o fechamento anterior
+        cSQLComm += "                               (SELECT " +::cNull +"(SUM(D3_CUSTO" +Str(nMoeda,1,0) +"),0) "
+        cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+        cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+        cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+        cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+        cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'DE' AND "
+        cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,3,1) <> '9' AND "
+        cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+        cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') - "
+        //-- Subtrai custo já apropriado em produções realizadas até o fechamento anterior
+        cSQLComm += "                               (SELECT " +::cNull +"(SUM(D3_CUSTO" +Str(nMoeda,1,0) +"),0) "
+        cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+        cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+        cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+        cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+        cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'PR' AND "
+        cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+        cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') "
+        cSQLComm += "   ), "
+
+        //-- Atualiza C2_APRINI com custo apropriado até o fechamento anterior
+        cSQLComm += "C2_APRINI" +Str(nMoeda,1,0) +" = ( SELECT " +::cNull +"(SUM(D3_CUSTO" +Str(nMoeda,1,0) +"),0) "
+        cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+        cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+        cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+        cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+        cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'PR' AND "
+        cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+        cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') "
+
+        
+        // Tratamento FIFO
+        If (::lCusFIFO .Or. ::lCusLIFO)
+            cSQLComm += ", C2_VINIFF" +Str(nMoeda,1,0) +" = ( SELECT " +::cNull +"(SUM(D3_CUSFF" +Str(nMoeda,1,0) +"),0) "
+            cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+            cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+            cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+            cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+            cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'PR' AND "
+            cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+            cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') "
+
+                //-- Atualiza C2_APINFF com custo apropriado até o fechamento anterior
+            cSQLComm += ", C2_APINFF" +Str(nMoeda,1,0) +" = ( SELECT " +::cNull +"(SUM(D3_CUSFF" +Str(nMoeda,1,0) +"),0) "
+            cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+            cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+            cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+            cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+            cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'PR' AND "
+            cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+            cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') "
+        EndIf
+
+        //-- Tratamento para custo de reposição (MV_CUSREP)
+        If lCusRep
+            //-- Atualiza C2_VINIRP com custo agregado e não apropriado até o fechamento anterior
+            cSQLComm += ", C2_VINIRP" +Str(nMoeda,1,0) +" = ( "
+            //-- Soma custo de requisições realizadas até o fechamento anterior
+            cSQLComm += "                               (SELECT " +::cNull +"(SUM(D3_CUSRP" +Str(nMoeda,1,0) +"),0) "
+            cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+            cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+            cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+            cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+            cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'RE' AND "
+            cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,3,1) <> '9' AND "
+            cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+            cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') - "
+            //-- Subtrai custo de devoluções realizadas até o fechamento anterior
+            cSQLComm += "                               (SELECT " +::cNull +"(SUM(D3_CUSRP" +Str(nMoeda,1,0) +"),0) "
+            cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+            cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+            cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+            cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+            cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'DE' AND "
+            cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,3,1) <> '9' AND "
+            cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+            cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') - "
+            //-- Subtrai custo já apropriado em produções realizadas até o fechamento anterior
+            cSQLComm += "                               (SELECT " +::cNull +"(SUM(D3_CUSRP" +Str(nMoeda,1,0) +"),0) "
+            cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+            cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+            cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+            cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+            cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'PR' AND "
+            cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+            cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') "
+            cSQLComm += "   ), "
+
+                //-- Atualiza C2_APRINI com custo apropriado até o fechamento anterior
+            cSQLComm += "C2_APRIRP" +Str(nMoeda,1,0) +" = ( SELECT " +::cNull +"(SUM(D3_CUSRP" +Str(nMoeda,1,0) +"),0) "
+            cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+            cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+            cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+            cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+            cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'PR' AND "
+            cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+            cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') "
+        EndIf
+       
+        If TCSQLExec(cSQLComm + cWhere) < 0
+            cMsgErro := STR0017 +'(D3X).' //"Um erro na recomposição de custos iniciais de produção abortou o processo. Detalhes do erro estão disponíveis no log de processamento (D3X)."
+            ::ReopeningLog("ERRO",STR0006 +cFilAnt +" - "+ STR0018 ,TCSQLError(),'ER', ) //Erro na recomposição de custos iniciais de produção"
+            lRet := .F.
+            Exit
+        EndIf
+
+        //-- Tratamento para custo em partes
+        If lCstPart
+            For nParte := 1 To Len(aRegraCP)+1
+                cSQLComm := "UPDATE " +RetSQLName("SC2") +" "
+
+                //-- Atualiza C2_VINI com custo agregado e não apropriado até o fechamento anterior
+                cSQLComm += "SET C2_CPI" +Strzero(nParte,2,0)+Strzero(nMoeda,2,0) +" = ( "
+                //-- Soma custo de requisições realizadas até o fechamento anterior
+                cSQLComm += "                               (SELECT " +::cNull +"(SUM(D3_CP" +Strzero(nParte,2,0)+Strzero(nMoeda,2,0) +"),0) "
+                cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+                cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+                cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+                cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+                cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'RE' AND "
+                cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,3,1) <> '9' AND "
+                cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+                cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') - "
+                //-- Subtrai custo de devoluções realizadas até o fechamento anterior
+                cSQLComm += "                               (SELECT " +::cNull +"(SUM(D3_CP" +Strzero(nParte,2,0)+Strzero(nMoeda,2,0) +"),0) "
+                cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+                cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+                cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+                cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+                cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'DE' AND "
+                cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,3,1) <> '9' AND "
+                cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+                cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') - "
+                //-- Subtrai custo já apropriado em produções realizadas até o fechamento anterior
+                cSQLComm += "                               (SELECT " +::cNull +"(SUM(D3_CP" +Strzero(nParte,2,0)+Strzero(nMoeda,2,0) +"),0) "
+                cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+                cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+                cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+                cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+                cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'PR' AND "
+                cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+                cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') "
+                cSQLComm += "   ), "
+
+                //-- Atualiza C2_APRINI com custo apropriado até o fechamento anterior
+                cSQLComm += "C2_API" +Strzero(nParte,2,0)+Strzero(nMoeda,2,0) +" = ( SELECT " +::cNull +"(SUM(D3_CP" +Strzero(nParte,2,0)+Strzero(nMoeda,2,0) +"),0) "
+                cSQLComm += "                               FROM " +RetSQLName("SD3") +" SD3 "
+                cSQLComm += "                               WHERE SD3.D_E_L_E_T_ = ' ' AND "
+                cSQLComm += "                                   SD3.D3_FILIAL = '" +::cFilSD3 +"' AND "
+                cSQLComm += "                                   SD3.D3_OP = C2_NUM" +::cConcat +"C2_ITEM" +::cConcat +"C2_SEQUEN" +::cConcat +"C2_ITEMGRD AND "
+                cSQLComm += "                                   " +::cSubstr +"(SD3.D3_CF,1,2) = 'PR' AND "
+                cSQLComm += "                                   SD3.D3_ESTORNO <> 'S' AND "
+                cSQLComm += "                                   SD3.D3_EMISSAO <= '" +DToS(dFecAnt) +"') "
+
+                If TCSQLExec(cSQLComm + cWhere) < 0
+                    cMsgErro := STR0007+'(CV8).' //"Um erro na recomposição de custos iniciais de produção abortou o processo. Detalhes do erro estão disponíveis no log de processamento (CV8)."
+                    ::ReopeningLog("ERRO",STR0006 +cFilAnt +" - "+ STR0018 ,TCSQLError(),'ER', )// FILIAL //Erro na recomposição de custos iniciais de produção"
+                    lRet := .F.
+                    Exit
+                EndIf
+            Next nParte
+        EndIf        
+        //-- Em caso de erro na atualização dos custos em partes
+        If !lRet
+            Exit
+        EndIf
+    Next nMoeda
+
+Return lRet
+
+/*/{Protheus.doc} RecSX6
+    Atualiza parametros do fechamento 
+    @type  Metodo
+    @author Samuel Macedo
+    @since  Fevereiro 05,2021
+    @version 12.1.27
+/*/
+
+Method RecSX6(dFecAnt, lCMDBLQV) Class acReopeningOfStockRep
+  PutMV("MV_ULMES",dFecAnt)
+  If lCMDBLQV 
+    PutMV("MV_DBLQMOV",dFecAnt)
+  ENDIf 
+return 
+
+
+
+/*/{Protheus.doc} M330PrcLog
+	Encapsula chamada da ReopeningLog para garantir gravação da filial da D3X com a filial
+	que está executando o processo.
+	@type  Function
+	@author andre.oliveira
+	@since 04/09/2020
+	@version 1.0
+	@param cTipo, caracter, tipo do log a ser gerado
+	@param cTexto, caracter, mensagem a ser gravada no log gerado
+	@param cDetalhe, caracter, detalhe a ser gravado para o log gerado
+/*/
+Method ReopeningLog(cTipo,cTexto,cDetalhe, cStatus, cFilInfo) Class acReopeningOfStockRep
+
+    Default cFilInfo := ''
+    cFilAnt := ::conditionalValue(!empty(cFilInfo), cFilInfo, cFilAnt)
+    If Empty(::oJourneyLog:nCondition) 
+        ::oJourneyLog:envValid(.T.)
+    EndIF
+    ::oJourneyLog:LogProAtu(cTipo,cTexto,cDetalhe,         ,cStatus,dDataBase,cFilAnt, .T., .T.)
+
+Return
+
+
+/*/{Protheus.doc} eventStarReopen
+    Metodo responsavel por abrir o startJob para processamento do recalculo
+    @type  Metodo
+    @author André Maximo 
+    @since  Novembro 26,2020
+    @version 12.1.27
+/*/
+Method  eventStarReopen(cBranch,cCompany,oFilsProcAux, cId, ltotal, cIdProccess, lReopeningSb9, ddataClosing, aFilsProc, oFilsProc) class  acReopeningOfStockRep
+
+Local cFilsProc  := oFilsProcAux:toJson()
+Local oJourney   := acJourneyLog():New()
+Local cId        := ::conditionalValue((Empty(cId) .Or. cId == 'null'), oJourney:cIdParent, cId)
+Local cIdProccess:= ::conditionalValue((Empty(cIdProccess) .Or. cIdProccess == 'null'), oJourney:cIdChild, cIdProccess)
+
+oJourney:logIni()
+oJourney:envValid(.T.)
+oJourney:idMovD3X()
+oJourney:setThreadId( Strzero(ThreadID(),15))
+oJourney:cIdParent := cId
+oJourney:cIdChild := cIdProccess
+
+oJourney:LogProAtu('INIJOB', STR0023, '' , cFilAnt, , StoD(ddataClosing), cFilAnt, .T.) //'Tentativa de subida de thread para o processamento da rotina EST282'
+
+StartJob('IniProc282',GetEnvServer(),.F.,cBranch,cCompany,cFilsProc, cId, oJourney:cIdChild, ltotal,cIdProccess, lReopeningSb9, ddataClosing, cUserName, aFilsProc)
+
+oFilsProc['idParent'] := cId
+oFilsProc['idChild'] := oJourney:cIdChild
+
+return oFilsProc
+
+/*/{Protheus.doc} ChangeCCStatus
+    Metodo responsavel por reabrir saldos do penultimo periodo por FIFO/LIFO
+    @type  Metodo
+    @author Pedro Missaglia
+    @since  Novembro 26,2020
+    @version 12.1.27
+/*/
+Method  ChangeCCStatus() class  acReopeningOfStockRep
+
+Local cQuery := ''
+Local lRet  := .T.
+    
+    cQuery := "UPDATE " +RetSQLName('SCC') +" SET CC_STATUS = 'A' WHERE CC_FILIAL = '" + xFilial('SCC') + "' AND CC_DATA  = (SELECT MAX(CC_DATA) FROM " 
+    cQuery += RetSQLName('SCC')+ " WHERE CC_FILIAL = '"+ xFilial("SCC")+ "')"
+
+	Iif(TCSQLExec(cQuery) < 0, lRet :=.F., lRet)
+
+return lRet
+
+/*/{Protheus.doc} eventStarReopen
+    Metodo responsavel por abrir o startJob para processamento do recalculo
+    @type  Metodo
+    @author André Maximo 
+    @since  Novembro 26,2020
+    @version 12.1.27
+/*/
+Method  eventStarRepair(aParansfil, dDateClosin, cId, cidProccess,cUserNameJ) class  acReopeningOfStockRep
+
+Local oJourney  := acJourneyLog():New()
+Local oFilsProc :=  JsonObject():New()
+
+StartJob('IniProcRep',GetEnvServer(),.F.,aParansfil, dDateClosin, cId, cidProccess, oJourney:cIdChild , cUserNameJ, cfilant,FWGrpCompany())
+
+oFilsProc['idParent'] := cidProccess
+oFilsProc['idChild'] := oJourney:cIdChild
+
+return oFilsProc
+
+
+/*/{Protheus.doc} condition
+    Retorno condicional
+    @author Squad.Entradas
+    @since 24/04/2023
+    @version 1.0
+    @param lCondition, logical, condicao
+            cRet1, character, primeiro retorno
+            cRet2, character, segundo retorno
+    @return cRet, character, retorno
+    /*/
+Method conditionalValue(lCondition, cRet1, cRet2) class acReopeningOfStockRep
+
+    local cRet := ""
+
+    if lCondition
+        cRet := cRet1
+    else
+        cRet := cRet2
+    endif
+
+Return cRet

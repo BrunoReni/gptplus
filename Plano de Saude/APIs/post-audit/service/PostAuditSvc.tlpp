@@ -1,0 +1,98 @@
+#include 'protheus.ch'
+#include "fileIO.ch"
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} PostAuditSvc
+
+@author    Lucas Nonato
+@version   V12
+@since     10/08/2021
+/*/
+class PostAuditSvc
+
+public method new() constructor
+public method post()
+public method grava()
+
+public data oRest 	as object
+public data cError 	as character 
+endclass
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} new
+
+@author    Lucas Nonato
+@version   V12
+@since     10/08/2021
+/*/
+method new(oRest) class PostAuditSvc
+::oRest 	:= oRest
+::cError 	:= ""
+return self
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} post
+
+@author    Lucas Nonato
+@version   V12
+@since     10/08/2021
+/*/
+method post() class PostAuditSvc
+local cNomeArq 		:= ""
+local cDirRaiz	   	:= PLSMUDSIS( GetNewPar("MV_TISSDIR","\TISS\") )
+local cDirCaiEn   	:= PLSMUDSIS( cDirRaiz+"CAIXAENTRADA\" )
+
+cSql := " SELECT BXX_CODRDA,BXX_ARQIN,R_E_C_N_O_ Recno "
+cSql += " FROM " + RetSqlName('BXX') + " BXX " 
+cSql += " WHERE BXX_FILIAL = '" + xFilial('BXX') + "' "
+cSql += " AND BXX_CODINT = '" + plsIntPad() + "' "
+cSql += " AND BXX_PLSHAT = '" + ::oRest:protocol + "' "
+cSql += " AND BXX_STATUS = '6' "
+cSql += " AND BXX.D_E_L_E_T_ = ' ' "
+
+dbUseArea(.T.,"TOPCONN",TCGENQRY(,,cSql),"TrbBXX",.F.,.T.)
+
+if !TrbBXX->(eof())
+	cNomeArq	:= alltrim(TrbBXX->BXX_ARQIN)
+	cFile 		:= cDirCaiEn + TrbBXX->BXX_CODRDA + "\"  + cNomeArq
+	::grava(cFile)
+	
+	if empty(::cError)
+		cFile	:= PLSMUDSIS(MsDocPath()+"\")  + cNomeArq
+		::grava(cFile)
+	endif
+	
+	if empty(::cError)
+		BXX->(dbgoto(TrbBXX->(Recno)))
+		BXX->(reclock("BXX",.f.))
+		BXX->BXX_STATUS := "1"
+		BXX->(msunlock())
+	endif
+else
+	::cError := "Lote ["+::oRest:protocol+"] nao encontrado ou com status diferente de 6."
+endif
+
+TrbBXX->(dbclosearea())
+
+return 
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} grava
+
+@author    Lucas Nonato
+@version   V12
+@since     10/08/2021
+/*/
+method grava(cFile) class PostAuditSvc
+local nArq := 0
+
+nArq := fCreate( cFile,FC_NORMAL,,.F.)
+
+if nArq > 0
+	fWrite( nArq, self:oRest:file)
+	fClose( nArq )
+else
+	::cError := "Nao foi possivel criar o arquivo " + cFile
+endif
+
+return 

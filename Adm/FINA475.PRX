@@ -1,0 +1,2919 @@
+#Include "PROTHEUS.CH"
+#Include "AP5MAIL.CH"
+#include "FINA475.ch"
+
+Static __aStruct  := NIL
+Static __l475Aut  := NIL
+Static __lFstStru := NIL
+Static __oFinA475 := NIL
+Static __oPrepSt1 := NIL
+Static __oPrepSt2 := NIL
+Static __oPrepSt3 := NIL
+Static __oPrepSt4 := NIL
+Static __oPrepSt5 := NIL
+Static __oPrepSt6 := NIL
+Static __oPrepSt7 := NIL
+Static __oPrepSt8 := NIL
+Static __oPrepSt9 := NIL
+Static __oPrepStA := NIL
+Static __oPrepStB := NIL
+Static __oPrepStC := NIL
+Static __oPrepStD := NIL
+Static __oPrepStE := NIL
+Static __oPrepStF := NIL
+Static __cUUIDFK5 := NIL
+Static __cUUIDSIG := NIL
+Static __cItem    := NIL
+Static __cIdProc  := NIL
+Static __nTamRgMt := NIL
+Static __oMdlMov  := NIL
+
+//----------------------------------------------------------------------
+/*/{Protheus.doc} Fina475
+
+	Job de importação de extratos
+
+	@type  Function
+	@author pequim
+	@since 25/08/2022
+	@version 12.1.2310
+
+/*/
+//----------------------------------------------------------------------
+Function Fina475(aParam, lAutomato)
+	
+	Local nX as Numeric
+	Local lRet as Logical
+
+	// Executa apenas se for chamado pelo Schedule
+	// a variavel abaixo e util para debug da rotina via execucao normal
+	Private aFA205R   as Array
+	Private aMsgSch   as Array
+	Private cCadastro as Character
+	Private lExecJob  as Logical
+
+	DEFAULT aParam    := {}
+	DEFAULT lAutomato := .F.
+
+	lRet := .T.
+	nX := 0
+
+	aFA205R  := {}
+	aMsgSch  := {}
+	lExecJob := .F.
+	cCadastro  := STR0001	//"Importação automática de extratos bancários."
+	__l475Aut := lAutomato
+
+	If Empty(aParam)
+		If IsBlind()
+			FwLogMsg("INFO", /*cTransactionId*/, "FINA475", FunName(), "", "FINA475", " >>>> " + STR0003 + " <<<<")	//"AVISO"###"Processo será executado somente via Schedule"
+		Else
+			MSGINFO( STR0003, STR0002 )			 		//"Processo será executado somente via Schedule"###"AVISO"
+		Endif
+		lRet := .F.
+	Endif
+
+	If lRet
+		lRet := F475Process(aParam)		//Verifica as subcontas com processo de importação
+	Endif		
+
+	F475Clean()
+
+Return Nil
+
+
+//------------------------------------------------------------------------
+/*/{Protheus.doc} F475Process
+	Processo para execução do JOB
+
+	@author pequim
+	@since 26/08/2022
+	@version 12.1.2310
+
+	@param aparam, Array, Informações de Empresa, Filial e usuário
+
+	@return lRet, Logical, Informa se o processo foi bem sucedido ou não
+
+/*/
+//------------------------------------------------------------------------
+Function F475Process(aParam as Array)
+
+	Local nX as Numeric
+	Local lRet as Logical
+
+	nX := 0
+	lRet := .T.
+
+	// ao passar parametros considera que foi chamado pelo schedule
+	lExecJob := .T.
+
+	// manter posicionado pois o FINA474 vai utilizar estas informacoes
+	If !__l475Aut
+		RpcSetEnv(aParam[1], aParam[2], Nil, Nil, Nil, "FINA474")
+	Endif
+
+ 	If F474DicOk()
+		If  LockByName( "FINA475", .T., .T. )
+			BatchProcess(cCadastro, cCadastro , "FA475JOB" , { || FA475JOB(aParam) } , { || .F. } )
+		Else
+			FwLogMsg("INFO", /*cTransactionId*/, "FINA475", FunName(), "", "FINA475", STR0008 + cFilant + STR0009) //"Importação automática de extratos bancários da filial "### " está executando em outra thread "
+			lRet := .F.
+		EndIf
+	else
+		aadd(aMsgSch,{" ", STR0004})	//"Dicionário desatualizado."
+		aadd(aMsgSch,{" ", STR0005})	//"Seu dicionário se encontra desatualizado, não contando com a nova estrutura criada para Importação de Extratos para Conciliação."
+		aadd(aMsgSch,{" ", STR0006})	//"Favor verificar atualizações do cadastro de Comunicação Remota (SEE)"
+
+		FwLogMsg("INFO", "LAST", "FINA475" , FunName(), "01", "FINA475", STR0037,,,aMsgSch) 	//"IMPORTACAO DE EXTRATO VIA JOB"
+		lRet := .F.
+	Endif
+
+Return lRet
+
+
+//------------------------------------------------------------------------
+/*/{Protheus.doc} FA475JOB
+	Processo para execução do JOB
+
+	@author pequim
+	@since 26/08/2022
+	@version 12.1.2310
+
+	@param aparam, Array, Informações de Empresa, Filial e usuário
+	
+	@return lRet, Logical, Informa se o processo foi bem sucedido ou não
+
+/*/
+//------------------------------------------------------------------------
+Static Function FA475JOB(aParam as Array)
+
+	Local aArq      as Array
+	Local aConfig1  as Array
+	Local aConfig2  as Array
+	Local aProcExt  as Array
+	Local aRotAuto  as Array
+	Local cAgencia  as Character
+	Local cAliasSEE as Character
+	Local cBanco    as Character
+	Local cConta    as Character
+	Local cDirArq   as Character
+	Local cDirBkp   as Character
+	Local cDirCfg   as Character
+	Local cDirInc   as Character
+	Local cFilAtu   as Character
+	Local cFilProc  as Character
+	Local cIdProc   as Character
+	Local cItem     as Character
+	Local cQuery    as Character
+	Local cRetorno  as Character
+	Local cSubCta   as Character
+	Local cTipoCon  as Character
+	Local lA6MsBlql as Logical
+	Local lBarra    as Logical
+	Local lOk       as Logical
+	Local nA        as Numeric
+	Local nArquivo  as Numeric
+	Local nC        as Numeric
+	Local nX        as Numeric
+
+	aArq      := {}
+	aConfig1  := {}
+	aConfig2  := {}
+	aProcExt  := {}
+	aRotAuto  := {}
+	cAgencia  := ""
+	cAliasSEE := "" //Alias temporario dos banco que serao executados
+	cBanco    := ""
+	cConta    := ""
+	cDirArq   := "" //Diretório do arquivo a ser processado (extrato)
+	cDirBkp   := "" //Diretório de backup dos arquivos processados com sucesso (extrato)
+	cDirCfg   := "" //Diretório do arquivo de configuração do extrato (extrato)
+	cDirInc   := "" //Diretório dos arquivos não processados por inconsistencia (extrato)
+	cFilAtu   := cFilAnt
+	cFilProc  := ""
+	cIdProc   := F474ProxNum("SIF")
+	cItem     := Replicate("0",TamSx3("IG_ITEM")[1])
+	cMsg      := ""
+	cQuery    := "" // query de bancos que serao executados automaticamente
+	cRetorno  := ""
+	cSubCta   := ""
+	lA6MsBlql := SA6->(ColumnPos("A6_MSBLQL")) > 0
+	lBarra    := isSrvUnix()
+	nA        := 0
+	nArquivo  := 0
+	nC        := 0
+	nX        := 0
+
+	DbSelectArea("SA6")
+	SA6->( Dbsetorder(1))
+	DbSelectArea("SEE")
+	SEE->( Dbsetorder(1))
+
+	//Contas programadas para recebimento automatico ou ambos
+	cQuery := "SELECT SEE.R_E_C_N_O_ REGSEE "
+	cQuery += "FROM " + RetSqlName("SEE") + " SEE "
+	cQuery += "INNER JOIN "+ RetSqlName("SA6") + " SA6 "
+	cQuery += "ON SA6.A6_FILIAL = '" + xFilial("SA6") + "' "
+	cQuery += "AND SA6.A6_COD = SEE.EE_CODIGO "
+	cQuery += "AND SA6.A6_AGENCIA = SEE.EE_AGENCIA "
+	cQuery += "AND SA6.A6_NUMCON = SEE.EE_CONTA "
+
+	cQuery += "WHERE EE_FILIAL = '" + xFilial("SEE") + "' "
+	cQuery += "AND (EE_EXTJOB = '1' OR EE_EXTCONA IN ('1','2')) AND SEE.D_E_L_E_T_ = ' '  "
+
+	If lA6MsBlql
+		cQuery += "AND (SA6.A6_BLOCKED = '2' OR SA6.A6_MSBLQL <> '1') "
+	Else
+		cQuery += "AND SA6.A6_BLOCKED = '2' "
+	Endif
+	cQuery += "AND SA6.D_E_L_E_T_ = ' ' "
+
+	If __l475Aut		//Automato
+		If __oPrepSt9 == Nil
+			cQuery += "AND SEE.EE_CODIGO = ? "
+			cQuery += "AND SEE.EE_AGENCIA = ? "
+			cQuery += "AND SEE.EE_CONTA = ? "
+			cQuery += "AND SEE.EE_SUBCTA = ? "
+
+			cQuery := ChangeQuery(cQuery)
+			__oPrepSt9 := FwPreparedStatement():New(cQuery)
+		Endif
+
+		__oPrepSt9:SetString(1,	aParam[3])
+		__oPrepSt9:SetString(2,	aParam[4])
+		__oPrepSt9:SetString(3,	aParam[5])	
+		__oPrepSt9:SetString(4,	aParam[6])	
+
+		cQuery	:= __oPrepSt9:GetFixQuery()
+	Else
+		cQuery := ChangeQuery(cQuery)
+	Endif
+
+	cAliasSEE := GetNextAlias()
+	
+	MPSysOpenQuery( cQuery, cAliasSEE )
+	
+	While (cAliasSEE)->(!Eof())
+
+		SEE->(Dbgoto((cAliasSEE)->REGSEE))	
+
+		cFilProc := SEE->EE_EXTFPRC
+		cBanco   := SEE->EE_CODIGO
+		cAgencia := SEE->EE_AGENCIA
+		cConta   := SEE->EE_CONTA
+		cSubCta  := SEE->EE_SUBCTA
+		cTipoCon := SEE->EE_EXTCONA
+
+		//---------------------------------------------------------------
+		// IMPORTAÇÃO DOS AQUIVOS DE EXTRATO
+		//---------------------------------------------------------------
+		If SEE->EE_EXTJOB == '1'
+			//verifica se todos os parametros necessarios foram preechindos e grava no log
+			If !FA475OK()
+				(cAliasSEE)->( Dbskip())
+				Loop
+			Endif
+			/*
+			EE_EXTJOB 	Ativa Import. Automática 
+			EE_EXTCONA	Conciliação Automática   
+			EE_EXTFPRC	Filial de Processamento  
+			EE_EXTARQR	Extensao Arquivo Extrato 
+			EE_EXTARQC	Arquivo Config. Extrato  
+			EE_EXTDIRC	Dir. Arquivo Configuração
+			EE_EXTDIRA	Dir. Extrato a Processar 
+			EE_EXTDIRB	Dir. Extratos Processados
+			EE_EXTDIRF	Dir. Falha Processamento 
+			*/
+			//Lê os arquivos do diretorio configurado
+			If lBarra
+				cDirCfg	 := StrTran(Alltrim(SEE->EE_EXTDIRC), "\", "/")
+				cDirArq	 := StrTran(Alltrim(SEE->EE_EXTDIRA), "\", "/")
+				cDirBkp  := StrTran(Alltrim(SEE->EE_EXTDIRB), "\", "/")
+				cDirInc	 := StrTran(Alltrim(SEE->EE_EXTDIRF), "\", "/")
+			Else
+				cDirCfg	 := StrTran(Alltrim(SEE->EE_EXTDIRC), "/", "\")
+				cDirArq	 := StrTran(Alltrim(SEE->EE_EXTDIRA), "/", "\")
+				cDirBkp  := StrTran(Alltrim(SEE->EE_EXTDIRB), "/", "\")
+				cDirInc	 := StrTran(Alltrim(SEE->EE_EXTDIRF), "/", "\")
+			Endif
+			
+			cFilAtu  := cFilAnt
+			cFilAnt  := cFilProc
+			
+			If __l475Aut		//Automato
+				aArq := Directory(cDirArq + aParam[7])
+			Else
+				aArq := Directory(cDirArq + "*." + SEE->EE_EXTARQR)
+			Endif
+			
+			If (nArquivo := Len(aArq)) > 0
+				For nA := 1 to nArquivo
+					//Armazena o nome do arquivo nos parametros
+					cRetorno := cDirArq+aArq[nA,1]
+					
+					//Controle de mensagens de erro
+					aMsgSch := {}
+					
+					//controle de titulos baixados
+					aRotAuto := {}
+
+					cDirCfg := ALLTRIM(SEE->EE_EXTDIRC) + ALLTRIM(SEE->(EE_EXTARQC))
+					cDirExt := ALLTRIM(SEE->EE_EXTDIRA) + aArq[nA,1]
+					cMsg	:= STR0039 + " - " + aArq[nA,1]			//"EXTRATO VIA JOB"
+
+					AADD(aRotAuto, cBanco )
+					AADD(aRotAuto, cAgencia )
+					AADD(aRotAuto, cConta )
+					AADD(aRotAuto, cSubCta )
+					AADD(aRotAuto, cMsg )
+					AADD(aRotAuto, cDirCfg )
+					AADD(aRotAuto, cDirExt )
+
+					//Realiza a importação do extrato
+					FINA474(aRotAuto,3)
+
+					If (lOk := Len(aMsgSch) == 0) .OR. Substr(aMsgSch[1],1,31) == STR0020		//"Arquivo de Extrato já importado"
+
+						If lOk
+							aadd(aProcExt,SIG->IG_IDPROC)
+						Endif
+
+						cArq := aArq[nA,1]
+						
+						If !_CopyFile(cRetorno, cDirBkp + cArq) //copia o arquivo para o diretorio de backup
+							Aadd(aMsgSch, STR0021 + cRetorno + STR0022 + cDirBkp + STR0023)	//"Não foi possivel copiar o arquivo "###" para o diretorio "###"Verifique se o diretorio existe e se ha permissao de escrita."
+						Else
+							Ferase(cRetorno)
+							if File(cRetorno)
+								Aadd(aMsgSch,STR0024 + cRetorno + STR0025 + cDirBkp)		//"Não foi possivel apagar o arquivo "###"O arquivo deve ser movido manualmente para o diretorio "
+							Endif
+						Endif
+					Else 					
+						cArq := aArq[nA,1]
+						
+						If !_CopyFile(cRetorno, cDirInc+cArq) //copia o arquivo para o diretorio de Inconsistencia.
+							Aadd(aMsgSch, STR0021 + cRetorno + STR0022 + cDirBkp + STR0023)	//"Não foi possivel copiar o arquivo "###" para o diretorio "###"Verifique se o diretorio existe e se ha permissao de escrita."
+						Else
+							Aadd(aMsgSch, STR0012 + cRetorno + STR0026 + cDirInc + STR0027)	//"Arquivo: "###" foi movido para o diretorio "###". Verifique o movimento da inconsistência gerada."
+							Ferase(cRetorno)
+							
+							If File(cRetorno)
+								Aadd(aMsgSch,STR0024 + cRetorno + STR0025 + cDirInc)		//"Não foi possivel apagar o arquivo "###"O arquivo deve ser movido manualmente para o diretorio "
+							Endif
+						Endif	
+					Endif
+					F475MAIL( cRetorno, aMsgSch)
+					Sleep(3000)
+					//Processos de importação - APENas PARA ADVPR
+					If __l475Aut
+						aadd(aProcAuto,SIG->IG_IDPROC)
+					Endif
+				Next nArquivo
+			else
+				cDirExt := ALLTRIM(SEE->(EE_EXTDIRA))
+				Aadd(aMsgSch,STR0028 + cBanco + STR0029 + cAgencia + STR0030 + cConta + STR0031 + cSubCta)		//"Banco: "###" Agência: "###" Conta: "###" SubConta: "
+				Aadd(aMsgSch,STR0032 + cDirExt)		//"Não foram encontrados arquivos de extrato para importação no diretório "
+				F475MAIL( cRetorno, aMsgSch)
+				Sleep(3000)
+
+				cIdProc  := F474ProxNum("SIF")
+				cItem    := Replicate("0",TamSx3("IG_ITEM")[1])
+				aConfig1  := {cIdProc,cBanco, cAgencia, cConta, cSubCta,STR0040 } //"Nenhum arquivo de extrato encontrado."
+				aConfig2  := {"", ""}
+
+				F474GRVSIF(aConfig1, aConfig2 , dDataBase , '4')
+
+				For nX := 1 to Len(aMsgSch)
+					cDescFail := "[ERRO] " + aMsgSch[nX]
+					cItem := Soma1(cItem)
+					F474GRVSIG(aConfig1[1], cItem, '4', dDataBase, "", 0, "", "", aConfig1[2], aConfig1[3], aConfig1[4], "", cDescFail)
+				Next nX	
+
+				//Processos de importação - APENas PARA ADVPR
+				If __l475Aut
+					aadd(aProcAuto,SIG->IG_IDPROC)
+				Endif
+			EndIf
+		Endif
+
+		//---------------------------------------------------------------
+		// PRÉ CONCILIAÇÃO
+		//---------------------------------------------------------------
+		If Len(aMsgSch) == 0 .and. cTipoCon $ '1|2'
+			F475Concil(cTipoCon,cBanco,cAgencia,cConta,aProcExt)
+		EndIf
+
+		cFilAnt := cFilAtu
+		(cAliasSEE)->( Dbskip())
+		aMsgSch  := {}
+
+	Enddo
+	
+	(cAliasSEE)->(DbcloseArea())
+	
+	FwFreeArray(aArq)
+	FwFreeArray(aRotAuto)
+	FwFreeArray(aConfig1)
+	FwFreeArray(aConfig2)
+
+Return
+
+//----------------------------------------------------------------------------------------------
+/*/{Protheus.doc} FA475OK
+	
+	Validação dos dados para a importação do extrato
+
+	@type  Function
+	@author pequim
+	@since 26/08/2022
+	@version 12.1.2310
+
+	@return lRet, Logical, Retorna se as informações necessárias para a importação
+							do extrato estão corretas ou não
+
+/*/
+//----------------------------------------------------------------------------------------------
+Function FA475OK()
+	
+	Local aVldExt as Array //vetor com as validacoes dos campos necessários para o processamento
+	Local lRet    as Logical
+	Local nX      as Numeric
+
+	aVldExt := {}
+	lRet    := .T.
+	nX      := 0
+
+	AADD(aVldExt, {"EE_EXTCONA",SEE->EE_EXTCONA})
+	AADD(aVldExt, {"EE_EXTDIRC",SEE->EE_EXTDIRC})
+	AADD(aVldExt, {"EE_EXTDIRA",SEE->EE_EXTDIRA})
+	AADD(aVldExt, {"EE_EXTDIRB",SEE->EE_EXTDIRB})
+	AADD(aVldExt, {"EE_EXTDIRF",SEE->EE_EXTDIRF})
+	AADD(aVldExt, {"EE_EXTARQC",SEE->EE_EXTARQC})
+	AADD(aVldExt, {"EE_EXTARQR",SEE->EE_EXTARQR})
+	AADD(aVldExt, {"EE_EXTFPRC",SEE->EE_EXTFPRC})
+
+	RegToMemory("SEE",,,.F.)
+	ALTERA := .T.
+
+	If SEE->EE_EXTJOB == '1'
+		For nX := 1 to Len(aVldExt)
+			cCampo := aVldExt[nX,1]
+			cDado  := aVldExt[nX,2]
+			lRet := FA474OK(cCampo,cDado, .T., .T.)
+			If !lRet
+				Exit
+			Endif
+		Next
+	Endif
+
+Return( lRet )
+
+//----------------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475MAIL
+	Prepara os dados para envio de email 
+
+	@type  Function
+	@author pequim
+	@since 30/08/2022
+	@version 12.1.2310
+
+	@param cArq   , Character, Nome do arquivo de extrato a ser processado
+	@param aMsgSch, Array    , Array que conterá as mensagens das ocorrências
+
+/*/
+//----------------------------------------------------------------------------------------------------
+Function F475MAIL(cArq as Character, aMsgSch as Array)
+
+	Local aArea      as Array
+	Local aDestE     as Array
+	Local cBody      as Character
+	Local cDestE     as Character
+	Local cMsgError  as Character
+	Local cSubject   as Character
+	Local cTitulo    as Character
+	Local lRet       as Logical
+	Local lSendMail  as Logical
+	Local nAux       as Numeric
+	Local nX         as Numeric
+
+	aArea      := GetArea()
+	aDestE     := {}
+	cBody      := ""
+	cDestE     := GetMv("MV_RETMAIL",, "") // destinatarios do email de retorno automatico via schedule
+	cMsgError  := ""
+	cSubject   := ""
+	cTitulo    := STR0041		//"Importacao automatica de extratos bancarios."
+	lRet       := .T.
+	lSendMail  := .F.
+	nAux       := 0
+	nX         := 0
+
+	Default cArq     := STR0011		//"ARQUIVO.NAO.INFORMADO"
+
+	// se o parametro de destinatarios de envio de email estiver vazio ignora o envio
+	If ValType(cDestE) <> "C" .or. Empty(cDestE)
+		// se o parametro nao esta definido, envia as mensagens para o console
+		If Len(aMsgSch) > 0
+			For nX := 1 to Len(aMsgSch)
+				FWLogMsg("INFO", "LAST", "FINA475", "FINA475IMP", cValToChar(nX +1) , "FINA475", aMsgSch[nX])
+			Next
+		Endif
+		lRet := .F.
+	EndIf
+
+	If lRet
+		aDestE := StrTokArr(cDestE,";")
+		If Len(aDestE) > 0
+			cSubject := cTitulo
+			cTitle := cTitulo
+			If !Empty(cArq)
+				cSubject += ' - ' + STR0012 + cArq
+				cTitle += ' - ' + STR0012 + cArq  
+			Endif
+			cSubject += ' - ' + STR0013 +Dtoc(dDataBase) + ' - ' + Time()	//'Arquivo: '###'  Processamento: '
+
+			// corpo principal do email com o resumo do emvio
+			cBody	:= '<HTML>'
+			cBody	+= ' <HEAD>'
+			cBody	+= '  <TITLE>'+cTitle+'</TITLE>'	//'Arquivo: '
+			cBody	+= ' </HEAD>'
+			cBody	+= ' <BODY>'
+			cBody	+= '  <H1>'
+			cBody	+= '   <FONT SIZE="4" COLOR="#000099">'
+			cBody	+= '    <B>'+cTitulo+'</B>'									//'Arquivo: '
+			cBody	+= '   </FONT>'
+			cBody	+= '  </H1>'
+			If !Empty(cArq)
+				cBody 	+= '  <BR>
+				cBody	+= '   <FONT SIZE="3" COLOR="#000099">'
+				cBody	+= '    <B>' + STR0012 + cArq +'</B>'						//'Arquivo: '
+				cBody	+= '   </FONT>'
+			Endif
+			cBody	+= '  <H1><HR></H1>'
+
+			// adiciona as mensagens contidas no vetor
+			If Len(aMsgSch) >= 0
+				cBody	+= '  <H1>'
+				cBody	+= '   <FONT SIZE="3" COLOR="#000000">'
+				cBody	+= '    ' + STR0014										//'Mensagens do Processamento : '
+				cBody	+= '   </FONT>'
+				cBody	+= '  </H1>'
+
+				// MONTAGEM DO E-MAIL
+				if Len(aMsgSch) == 0
+					cBody += '<BR>&nbsp;&nbsp;-&nbsp;' + STR0015				//'Processamento sem inconsistencias'
+				Else
+					For nAux := 1 To Len(aMsgSch)
+						cBody += '<BR>&nbsp;&nbsp;-&nbsp;' + aMsgSch[nAux]
+					Next
+				Endif	
+				cBody	+= '  <H1><HR></H1>'
+			EndIf
+
+			cBody	+= '  <H1>'
+			cBody	+= '   <FONT SIZE="2" COLOR="#FF0000">'
+			cBody	+= '    '+cSubject
+			cBody	+= '   </FONT>'
+			cBody	+= '  </H1>'
+			cBody	+= ' </BODY>'
+			cBody	+= '</HTML>'
+
+			// se nao tem assunto, ou corpo, ou destinatario - nao envia email para nao dar erro
+			If ! Empty(cSubject) .and. !Empty(cBody) .and. !Empty(aDestE)
+				lSendMail 	:= FA475SEND(aDestE, cSubject, cBody, @cMsgError)
+
+				If !lSendMail .And. !Empty(cMsgError)
+					FWLogMsg("INFO", /*cTransactionId*/, "FINA475", FunName(), "" , "FINA475", cMsgError)
+				EndIf
+			EndIf
+		Endif
+	Endif
+
+	RestArea(aArea)
+
+Return Nil
+
+
+//---------------------------------------------------------------------------------------------
+/*/{Protheus.doc} FA475SEND
+	Função que faz o envio do email
+	
+	@type  Function
+	@author pequim
+	@since 30/08/2022
+	@version 12.1.2310
+
+	@param aDest    , Array    , Lista de emails dos destinatários
+	@param cAssunto , Character, Assunto do email
+	@param cMensagem, Character, Mensagem do email
+	@param cMsgError, Character, Mensagem de erro no envio do email
+
+	@return lResult , Logical  , Informa o envio ou não do email
+
+/*/
+//---------------------------------------------------------------------------------------------
+Static Function FA475SEND( aDest as Array , cAssunto as Character, cMensagem as Character, cMsgError as Character ) as Logical
+
+	Local aArea      as Array
+	Local cAttach    as Character
+	Local cEmailBcc  as Character // E-mail de copia
+	Local cEmailTo   as Character // E-mail de destino
+	Local cError     as Character // String de erro
+	Local cFrom      as Character // E-mail utilizado no campo FROM no envio do e-mail;
+	Local cPass      as Character // Senha da conta de e-mail;
+	Local cServer    as Character // Nome do servidor de envio de e-mail - Ex.: smtp.ig.com.br ou 200.181.100.51
+	Local cUser      as Character // Conta a ser utilizada no envio de e-mail - Ex.: fuladetal@fulano.com.br
+	Local lAutentica as Logical // Determina se o servidor exige autenticação
+	Local lResult    as Logical // Se a conexao com o SMPT esta ok
+	Local lRet       as Logical // Se tem autorizacao para o envio de e-mail
+	Local nCntFor    as Numeric
+
+	DEFAULT cMsgError := ""
+
+	aArea      := GetArea()
+	cAttach    := ""
+	cEmailBcc  := "" // E-mail de copia
+	cEmailTo   := "" // E-mail de destino
+	cError     := "" // String de erro
+	cFrom      := Trim(GetMV( 'MV_RELFROM' )) // E-mail utilizado no campo FROM no envio do e-mail;
+	cPass      := Trim(SuperGetMV( 'MV_RELPSW' , .T., ' ' )) // Senha da conta de e-mail;
+	cServer    := Trim(GetMV( 'MV_RELSERV' )) // Nome do servidor de envio de e-mail - Ex.: smtp.ig.com.br ou 200.181.100.51
+	cUser      := Trim(SuperGetMV( 'MV_RELACNT' , .T., ' ' )) // Conta a ser utilizada no envio de e-mail - Ex.: fuladetal@fulano.com.br
+	lAutentica := SuperGetMv( "MV_RELAUTH",, .F.) // Determina se o servidor exige autenticação
+	lResult    := .F. // Se a conexao com o SMPT esta ok
+	lRet       := .F. // Se tem autorizacao para o envio de e-mail
+	nCntFor    := 0
+	
+  	If Empty(cServer)
+    	cMsgError := STR0033 + " "  //"Necessario configurar o Servidor de e-mail SMTP"
+  	EndIf
+
+	// remonta os destinatarios utilizando o vetor
+	If Empty(cUser) .And. Empty(cPass)
+		cMsgError := STR0034	//"Necessario configurar a conta de e-mail (MV_RELACNT) e senha (MV_RELPSW) para envio de emails"
+	ElseIf Empty(cUser) .And. !Empty(cPass)
+		cMsgError := STR0035 	//"Necessario informar a conta de e-mail atraves do MV_RELACNT"
+	ElseIf !Empty(cUser) .And. Empty(cPass)
+		cMsgError := STR0036	//"Necessario informar a senha da conta de e-mail atraves do MV_RELPSW"
+	EndIf
+
+	If Empty(cMsgError)
+		cEmail := ""
+		For nCntFor := 1 To Len(aDest)
+			If !Empty(cEmail)
+				cEmail += ';'
+			EndIf
+			cEmail += aDest[nCntFor]
+		Next
+
+		// Envia o mail para a lista selecionada. Envia como BCC para que a pessoa pense 
+		cEmailTo := cEmail
+
+		CONNECT SMTP SERVER cServer ACCOUNT cUser PASSWORD cPass RESULT lResult
+
+		// Se a conexao com o SMPT esta ok
+		If lResult
+			
+			// Se existe autenticacao para envio valida pela funcao MAILAUTH
+			If lAutentica
+				lRet := Mailauth( cUser, cPass )
+			Else
+				lRet := .T.
+			Endif
+			
+			If lRet
+				SEND MAIL; 
+				FROM 		cFrom;
+				TO      	cEmailTo;
+				BCC     	cEmailBcc;
+				SUBJECT 	cAssunto;
+				BODY    	cMensagem;
+				RESULT 		lResult
+				
+				If !lResult
+					//Erro no envio do email
+					GET MAIL ERROR cError
+					cMsgError :=  "01 - " + STR0016 + " " + cError + " " + cEmailTo			//"ATENCAO"
+				Endif
+			Else
+				GET MAIL ERROR cError
+				cMsgError :=  "02 - " + STR0018 +". "+ STR0019 	//"Erro de Autenticacao"###"Verifique a conta e a senha para envio."
+			EndIf
+			
+			DISCONNECT SMTP SERVER
+		Else
+			//Erro na conexao com o SMTP Server
+			GET MAIL ERROR cError
+			cMsgError :=  "03 - " + STR0016 + " " + cError 	//"ATENCAO"
+		EndIf
+	Endif	
+	RestArea( aArea )
+
+Return( lResult )
+
+
+//==========================================================================================
+// PRE CONCILIACAO
+//==========================================================================================
+//---------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475Concil
+	Função que faz o envio do email
+	
+	@type  Function
+	@author Pequim
+	@since 30/08/2022
+	@version 12.1.2310
+
+	@param cTipoCon , Character, Tipo de processamento (1=Todos;2=Novos;3=Não Concilia)
+	@param cBanco   , Character, Mensagem do email
+	@param cAgencia , Character, Mensagem de erro no envio do email
+	@param cConta   , Character, Mensagem de erro no envio do email
+	@param aProcExt , Array    , Lista de ids processados (SIG)
+
+	@return lResult , Logical  , Informa o envio ou não do email
+
+/*/
+//---------------------------------------------------------------------------------------------
+Function F475Concil(cTipoCon as Character,cBanco as Character,cAgencia as Character,cConta as Character,aProcExt as Array)
+
+	Local cArqSIG as Character
+	Local lRet    as Logical
+ 
+	cArqSIG := ""
+	lRet    := .T.
+
+	If (cTipoCon == '2' .and. Len(aProcExt) > 0) .or. cTipoCon == '1'
+
+		If __aStruct == NIL
+			F475GetCpos()	//Preenche array de campos para criação de tabela temporaria.
+		Endif
+
+		cArqSIG	:= f475QryA(cTipoCon,cBanco,cAgencia,cConta,aProcExt)		//Seleciona os registro do Extrato
+
+		If cArqSIG == "NOACESS"  // Caso o usuario não tenha nenhuma permissão aborta o processo do bordero
+			lRet := .F.
+		EndIf
+
+		If !Empty( cArqSIG )
+			dbSelectArea(cArqSIG)
+			dbGoTop()
+		EndIf
+
+		If (cArqSIG)->(Bof()) .And. (cArqSIG)->(Eof())
+			lRet := .F.
+		EndIf
+
+		If lRet
+			If FI475CFK5(cArqSIG, cBanco, cAgencia, cConta, cTipoCon,aProcExt)
+				FI475GRV(cArqSIG)
+			Endif
+		Endif
+	Endif
+
+Return
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} F475GetCpos
+	Preenche array de campos para criação de tabela temporaria.
+	@author  Pequim
+	@since   20/09/2022
+	@version 12.1.2310
+/*/
+//-------------------------------------------------------------------
+STATIC FUNCTION F475GetCpos( )
+
+	Local aFields   as Array
+	Local cCampoSX3 as Character
+	Local cIndex    as Character
+	Local nX        as Numeric
+
+	//Campos do indice do browse
+	aFields   := SIG->(dbStruct())
+	cCampoSX3 := ""
+	cIndex    := SIG->(INDEXKEY())
+	nX        := 0
+	__aStruct := {}
+	
+	// Sempre adiciona o campo IG_FILIAL na estrutura
+	AADD(__aStruct,{"IG_FILIAL",GetSx3Cache("IG_FILIAL","X3_TIPO"),GetSx3Cache("IG_FILIAL","X3_TAMANHO"),GetSx3Cache("IG_FILIAL","X3_DECIMAL")})
+
+	// Apenas adiciona o campo IG_FILIAL se SIG estiver exclusiva.
+
+	For nX := 1 to Len(aFields)
+
+		cCampoSX3 := AllTrim(Upper(aFields[nX,1]))
+
+		//Campo IG_FILIAL já inserido anteriormente garantindo que fique na primeira posição após o IG_OK
+		If cCampoSX3 != "IG_FILIAL"
+			// Processa o restante das colunas adicionando aquelas que passam pela regra.
+			If ( (aFields[nX,2] != "M" .And. X3USO(GetSx3Cache(aFields[nX,1],"X3_USADO")) .AND. ;
+				cNivel >= GetSx3Cache(aFields[nX,1],"X3_NIVEL") .And. GetSx3Cache(aFields[nX,1],"X3_CONTEXT") != "V" ))
+
+				AADD(__aStruct,{aFields[nX,1],aFields[nX,2],aFields[nX,3],aFields[nX,4]})
+			Endif
+		Endif	
+	Next nX 
+
+RETURN NIL
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} f475QryA
+
+	Faz a query de filtro dos titulos
+
+	@author pequim
+	@since 22/09/2022
+	@version 12.1.2310
+
+	@param cTipoCon , Character, Tipo de processamento (1=Todos;2=Novos;3=Não Concilia)
+	@param cBanco   , Character, Mensagem do email
+	@param cAgencia , Character, Mensagem de erro no envio do email
+	@param cConta   , Character, Mensagem de erro no envio do email
+	@param aProcExt , Array    , Lista de ids processados (SIG)
+
+/*/
+//-------------------------------------------------------------------
+Static Function f475QryA(cTipoCon as Character,cBanco as Character,cAgencia as Character,cConta as Character,aProcExt as Array)
+
+	Local cQuery  as Character
+	Local cFiltro as Character
+	Local cArqNew as Character
+
+	cQuery  := ''
+	cFiltro := ''
+	cArqNew := ''
+
+	If Len(__aStruct) > 0
+		// Constroi a clausula de filtro da seleção
+		cFiltro := FA475ChecF(cTipoCon,cBanco,cAgencia,cConta,aProcExt)
+		cQuery  := "SELECT "
+		aEval(__aStruct,{|x| cQuery += If( 'IG_' $ x[1] , ALLTRIM(x[1]) + ',', '')})
+		cQuery += "R_E_C_N_O_ RECSIG "
+		cQuery += "FROM " + RetSqlName("SIG") + " "
+		cQuery += "WHERE ? "
+		cQuery += "ORDER BY IG_DTEXTR, IG_BCOEXT, IG_AGEEXT, IG_CONEXT, IG_DOCEXT , IG_VLREXT , IG_CARTER "
+		cQuery := ChangeQuery(cQuery)
+		__oPrepStA := FwPreparedStatement():New(cQuery)
+		__oPrepStA:SetString(1,	cFiltro)
+		cQuery	:= __oPrepStA:GetFixQuery()
+
+		cArqNew := F475MTTMP(cQuery)
+	EndIF
+
+Return cArqNew
+
+
+//---------------------------------------------------------------------------------------------------------
+/*/{Protheus.doc} Fa475ChecF
+Funcao para montar e processar a query	
+
+	@author  Mauricio Pequim Jr
+	@since   06/10/2021
+	@version P12
+
+	@param cTipoCon , Character, Tipo de processamento (1=Todos;2=Novos;3=Não Concilia)
+	@param cBanco   , Character, Mensagem do email
+	@param cAgencia , Character, Mensagem de erro no envio do email
+	@param cConta   , Character, Mensagem de erro no envio do email
+	@param aProcExt , Array    , Lista de ids processados (SIG)
+
+	@return cFiltro	, Character , Texto da Query
+
+/*/
+//---------------------------------------------------------------------------------------------------------
+Function FA475ChecF(cTipoCon as Character,cBanco as Character,cAgencia as Character,cConta as Character,aProcExt as Array)
+
+	Local cFiltro   as Character
+	Local cProcExt  as Character
+	Local nLenPrExt as Numeric
+	Local nX        as Numeric
+
+	cFiltro   := ""
+	cProcExt  := ""
+	nLenPrExt := 0
+	nX        := 0
+
+	DEFAULT cTipoCon := "0"
+	DEFAULT cBanco   := ""
+	DEFAULT cAgencia := ""
+	DEFAULT cConta   := ""
+	DEFAULT aProcExt := {}
+
+	If cTipoCon == '2'			//Conciliacao usando os novos registros importados
+
+		cFiltro := "IG_FILIAL = '" + xFilial("SIG") + "' AND "
+
+		nLenPrExt := Len(aProcExt)
+		If nLenPrExt == 1
+			cFiltro += "IG_IDPROC = '" + aProcExt[1] + "' AND "
+		Else 
+			For nX := 1 to nLenPrExt
+				cProcExt += aProcExt[nX]
+				If nX != nLenPrExt
+					cProcExt+= "|"
+				Endif
+			Next
+			cFiltro += "IG_IDPROC IN " + FormatIn(cProcExt, "|") + "' AND "
+		Endif	
+
+		cFiltro += " IG_STATUS = '1' AND "
+		cFiltro += " D_E_L_E_T_ = ' ' "
+
+	Else						//Conciliacao usando registros não conciliados anteriormente.
+
+		cFiltro += " IG_BCOEXT = '"+ cBanco + "' AND "
+		cFiltro += " IG_AGEEXT = '"+ cAgencia + "' AND "
+		cFiltro += " IG_CONEXT = '"+ cConta + "' AND "
+		cFiltro += " IG_STATUS = '1' AND "
+		cFiltro += " D_E_L_E_T_ = ' ' "
+
+	Endif
+
+Return cFiltro
+ 
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} F475MTTMP
+
+Monta a temporaria da query
+
+@author pequim
+@since 22/09/2022
+@version P12
+/*/
+//-------------------------------------------------------------------
+Static Function F475MTTMP(cQuery as Character)
+
+	Local aArea     as Array
+	Local cAliasSIG as Character
+	Local cCampos   as Character
+	Local cQuery2   as Character
+	Local nTcSql    as Numeric
+
+	aArea    := GetArea()
+	cAliasSG := ''
+	cCampos  := ''
+	cQuery2  := ''
+	nTcSql   := 0
+
+	//Inclui campos complementares - apenas no primeiro processamento
+	If __lFstStru == NIL
+		AADD(__aStruct,{"RECSIG","N",10,0})
+		AADD(__aStruct,{"RECFK5","N",10,0})
+		__lFstStru := .T.
+	Endif
+
+	If __oFinA475 <> Nil
+		//-- Limpa registros para nova execução
+		cAliasSIG := __oFinA475:GetAlias()		
+		nTcSql := TcSQLExec("DELETE FROM "+__oFinA475:GetRealName())
+		If nTcSql < 0
+			//-- Se ocorrer algum problema refaz a temporaria
+			__oFinA475:Delete()
+			__oFinA475 := Nil
+		else
+			(cAliasSIG)->(dbGoTo(1))
+		Endif
+	EndIF	
+	IF __oFinA475 == Nil
+		// Criação da Tabela Temporária >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+		cAliasSIG 	:= GetNextAlias()
+		__oFinA475 := FWTemporaryTable():New( cAliasSIG )
+		__oFinA475:SetFields(__aStruct)
+		__oFinA475:AddIndex("1", {"IG_DTEXTR", "IG_BCOEXT", "IG_AGEEXT", "IG_CONEXT", "IG_DOCEXT", "IG_VLREXT", "IG_CARTER"})
+		__oFinA475:AddIndex("2", {"IG_IDPROC", "IG_DTEXTR", "IG_BCOEXT", "IG_AGEEXT", "IG_CONEXT"})	
+
+		__oFinA475:Create()
+	EndIF
+
+	cQuery2 := " INSERT "
+
+	aEval(__aStruct,{|x| cCampos += If( 'IG_' $ x[1] , ALLTRIM(x[1]) + ',', '')})
+
+	cCampos += ' RECSIG '
+
+	cQuery2 += " INTO " + __oFinA475:GetRealName() + " (" + cCampos + " ) " + cQuery
+
+	Processa({|| nTcSql := TcSQLExec(cQuery2)})
+
+	If nTcSql < 0   
+		FwLogMsg("INFO", /*cTransactionId*/, "FINA475","F475MTTMP", "", "FINA475", " >>>> " + STR0038 + CRLF + TCSQLError() + " <<<<")	//"Não foi possivel montar a tabela temporaria, favor verificar o seu ambiente Protheus."+ CRLF + TCSQLError()
+	EndIf
+
+	(cAliasSIG)->(DBGOTOP())
+
+	RestArea(aArea)
+
+Return cAliasSIG
+
+
+//---------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475Qry1
+
+Realiza a query utilizando índice 1 da tabela temporária.
+
+@type		Function
+@author		Pequim
+@since		27/09/2022
+@param		cTableName, character, nome real da tabela temporária
+@param		aValores, array, valores a serem atribuidos no bind da query
+@return		numeric, recno da tabela temporária que representa a posição do array
+/*/
+//---------------------------------------------------------------------------------------------
+Static Function F475Qry1(cTableName as Character, aValores as Array)
+
+	Local cQuery as Character
+	Local nRecno as Numeric
+
+	cQuery := ""
+	nRecno := 0
+
+	If __oPrepSt1 == Nil
+		cQuery := "SELECT R_E_C_N_O_ TRBRECNO "
+		cQuery += "FROM ? "
+		cQuery += "WHERE IG_DTEXTR = ? "
+		cQuery +=  " AND IG_BCOEXT = ? "
+		cQuery +=  " AND IG_AGEEXT = ? "
+		cQuery +=  " AND IG_CONEXT = ? "
+		cQuery +=  " AND IG_DOCEXT = ? "
+		cQuery +=  " AND IG_VLREXT = ? " 
+		cQuery +=  " AND IG_CARTER = ? "
+		cQuery +=  " AND RECFK5 = 0 "
+		cQuery +=  " AND D_E_L_E_T_ = ' '"
+		cQuery := ChangeQuery(cQuery)
+		__oPrepSt1 := FwPreparedStatement():New(cQuery)
+	EndIf
+
+	__oPrepSt1:SetString(1,	 	cTableName)
+	__oPrepSt1:SetDate(2,	 	aValores[1])
+	__oPrepSt1:SetString(3,	 	aValores[2])
+	__oPrepSt1:SetString(4,	 	aValores[3])
+	__oPrepSt1:SetString(5,	 	aValores[4])
+	__oPrepSt1:SetString(6,	 	aValores[5])
+	__oPrepSt1:SetNumeric(7,	aValores[6])
+	__oPrepSt1:SetString(8,	 	aValores[7])
+
+	cQuery	:= __oPrepSt1:GetFixQuery()
+	nRecno	:= MpSysExecScalar(cQuery, "TRBRECNO")
+
+Return nRecno
+
+
+//----------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475Qry2
+Obtém a data inicial e final dos extratos importados recentemente
+
+@type		Function
+@author		Pequim
+@since		14/12/2021
+@param		cTableName, character, nome real da tabela temporária
+@return		Array, {Data Inicial, Data Final}
+/*/
+//----------------------------------------------------------------------------------------
+Static Function F475Qry2(cTableName as Character) 
+
+	Local cQuery as Character
+	Local cDtFin as Character
+	Local cDtIni as Character
+
+	If __oPrepSt8 == Nil
+		cQuery := "SELECT MIN(IG_DTEXTR) DATAINI, MAX(IG_DTEXTR) DATAFIN "
+		cQuery += "FROM ? "
+		cQuery := ChangeQuery(cQuery)
+		__oPrepSt8 := FwPreparedStatement():New(cQuery)
+	EndIf
+
+	__oPrepSt8:SetString(1,	 	cTableName)	
+
+	cQuery	:= __oPrepSt8:GetFixQuery()
+
+	cDtIni := MpSysExecScalar(cQuery, "DATAINI")
+	cDtFin := MpSysExecScalar(cQuery, "DATAFIN")
+
+Return {cDtIni,cDtFin}
+
+
+//----------------------------------------------------------------------------------------
+/*/{Protheus.doc} FI475CFK5
+	Função que busca os dados do Extrato e dos registros já conciliados
+
+	@type  Function
+	@author Pequim
+	@since 30/08/2022
+	@version 12.1.2310
+
+	@param cTipoCon , Character, Tipo de processamento (1=Todos;2=Novos;3=Não Concilia)
+	@param cBanco   , Character, Mensagem do email
+	@param cAgencia , Character, Mensagem de erro no envio do email
+	@param cConta   , Character, Mensagem de erro no envio do email
+	@param aProcExt , Array    , Lista de ids processados (SIG)
+/*/
+//----------------------------------------------------------------------------------------
+Static Function FI475CFK5(cArqSIG as Character, cBanco as Character, cAgencia as Character, cConta as Character, cTipoCon as Character,aProcExt as Array)
+
+	Local aArea      as Array
+	Local aDatas     as Array
+	Local cAliasTMP  as Character
+	Local cChave     as Character
+	Local cDatB1     as Character
+	Local cDatB2     as Character
+	Local cQuery     as Character
+	Local cTabFK5    as Character
+	Local cTableName as Character
+	Local lInsert    as Logical
+	Local nPosSIG    as Numeric
+
+	aArea      := GetArea()
+	cAliasTMP  := __oFinA475:GetAlias()
+	cChave     := ""
+	cQuery     := ""
+	cTabFK5    := GetNextAlias()
+	cTableName := __oFinA475:GetRealName()
+	lInsert    := .F.
+	nPosSIG    := 0
+
+	If cTipoCon == '1'
+		cDatB1 := DTOS(dDataBase - 30)						//Conciliacao usando registros não conciliados anteriormente.
+		cDatB2 := DTOS(dDataBase)
+	ElseIf cTipoCon == "2" .and. Len(aProcExt) > 0			//Conciliação pelo extrato importado pelo Job
+		aDatas := F475Qry2(cTableName)
+		cDatB1 := aDatas[1]
+		cDatB2 := aDatas[2]
+	Endif
+
+	cChave := "FK5.FK5_BANCO+FK5.FK5_AGENCI+FK5.FK5_CONTA+DTOS(FK5.FK5_DTDISP)"
+
+	If __oPrepStB == NIL
+		cQuery += "SELECT FK5_FILIAL, FK5_DTDISP, FK5_BANCO, FK5_AGENCI,FK5_CONTA ,FK5_NUMCH, FK5_VALOR , FK5_RECPAG , FK5_IDMOV, R_E_C_N_O_ RECONFK5 "
+		cQuery += "FROM " + RetSqlName("FK5") + " FK5 "
+		cQuery += "WHERE "
+		cQuery += "FK5.FK5_DTDISP BETWEEN ? AND ? AND "
+		cQuery += "FK5.FK5_BANCO = ? AND "
+		cQuery += "FK5.FK5_AGENCI = ? AND "
+		cQuery += "FK5.FK5_CONTA = ? AND "
+		cQuery += "FK5.FK5_DTCONC = ' ' AND "
+		cQuery += "FK5.FK5_VALOR > 0 AND "
+		cQuery += "FK5.D_E_L_E_T_ = ' ' AND "
+		cQuery += "EXISTS ( "
+		cQuery += 	"SELECT FKA.FKA_IDFKA "
+		cQuery += 	"FROM " + RetSqlName("FKA") + " FKA "
+		cQuery += 	"WHERE FK5.FK5_IDMOV = FKA.FKA_IDORIG AND FKA.D_E_L_E_T_ = ' ' AND "
+		cQuery += 		"NOT EXISTS ( SELECT FKAEST.R_E_C_N_O_ , FKAEST.D_E_L_E_T_ "
+		cQuery += 			"FROM " + RetSqlName("FKA") + " FKAEST "
+		cQuery += 			"WHERE FKAEST.FKA_IDORIG <> FK5_IDMOV "
+		cQuery += 				" AND FKAEST.FKA_IDPROC = FKA.FKA_IDPROC "
+		cQuery += 				" AND FKAEST.FKA_TABORI = 'FK5' "
+		cQuery += 				" AND FKAEST.D_E_L_E_T_ = ' ') 
+		cQuery += 		" )"
+		cQuery += "ORDER BY ? "
+
+		cQuery := ChangeQuery(cQuery)
+		__oPrepStB := FwPreparedStatement():New(cQuery)
+	Endif	
+
+	__oPrepStB:SetString(1,	cDatB1)
+	__oPrepStB:SetString(2,	cDatB2)
+	__oPrepStB:SetString(3,	cBanco)
+	__oPrepStB:SetString(4,	cAgencia)
+	__oPrepStB:SetString(5,	cConta)
+	__oPrepStB:SetString(6,	SqlOrder(cChave))
+	
+	cQuery	:= __oPrepStA:GetFixQuery()
+    cTabFK5 := MpSysOpenQuery(cQuery)
+
+	//Inicia a leitura do arquivo de movimentacao do SE5
+	While (cTabFK5)->(!(EoF()))
+
+		cRecPag := If((cTabFK5)->FK5_RECPAG == "R", "1","2")
+
+		// Tento pre-reconciliacao dentro da Data + Agencia + Conta + Numero + Valor + Tipo
+		If (nPosSIG := F475Qry1(cTableName, {(cTabFK5)->FK5_DTDISP, (cTabFK5)->FK5_BANCO, (cTabFK5)->FK5_AGENCI,(cTabFK5)->FK5_CONTA ,(cTabFK5)->FK5_NUMCH, (cTabFK5)->FK5_VALOR , cRecPag})) > 0
+			(cAliasTMP)->(DbGoTo(nPosSIG))
+			Reclock(cAliasTMP, .F.)
+			(cAliasTMP)->RECFK5    := (cTabFK5)->RECONFK5
+			(cAliasTMP)->IG_STATUS := "3"
+			(cAliasTMP)->(MsUnlock())
+			lInsert		:= .T.
+		EndIf
+
+		(cTabFK5)->(DbSkip())
+	EndDo
+
+	(cTabFK5)->(DbCloseArea())
+
+	RestArea(aArea)
+
+Return lInsert
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} FI475Grv
+	Realiza a gravação da conciliação
+
+	@type  Function
+	@author Pequim
+	@since 30/08/2022
+	@version 12.1.2310
+
+	@param cArqSIG , Character, alias do arquivo SIG
+
+/*/
+//-------------------------------------------------------------------
+Static Function FI475Grv(cArqSIG as Character)
+
+	Local aArea     as Array
+	Local aProcesso as Array
+	Local aSalBco   as Array
+	Local cChaveBco as Character
+	Local cChaveSld as Character
+	Local cCodConc  as Character
+	Local cFilX     as Character
+	Local cProcesso as Character
+	Local cSeqMat   as Character
+	Local nValor    as Numeric
+	Local nX        as Numeric
+	Local nTamSld   as Numeric
+
+	aArea     := GetArea()
+	aProcesso := {}
+	aSalBco   := {}
+	cChaveBco := ""
+	cChaveSld := ""
+	cCodConc  := ""
+	cFilX     := cFilAnt
+	cProcesso := ""
+	cSeqMat   := Replicate("0",GetSx3Cache("QLD_SEQMAT","X3_TAMANHO"))
+	nValor    := 0
+	nX        := 0
+	nTamSld   := 0
+
+	DbSelectArea("QLC")
+	DbSelectArea("QLD")
+	DbSelectArea("FKA")
+	DbSelectArea("FK5")
+	
+	SE5->( DbSetOrder(21))	//E5_FILIAL, E5_IDORIG, E5_TIPODOC
+	FK5->( DbSetOrder(1) )
+	SIF->( DbSetOrder(1) )	//IF_FILIAL+IF_IDPROC
+	SIG->( DbSetOrder(2) )	//IG_SEQMOV
+	SA6->( DbSetOrder(1) )
+	QLC->( DbSetOrder(1) )
+	QLD->( DbSetOrder(1) )	
+
+	(cArqSIG)->(dbSetOrder(2))	//IG_IDPROC + IG_DTEXTR + IG_BCOEXT + IG_AGEEXT + IG_CONEXT
+	(cArqSIG)->(dbGoTop())
+
+	BEGIN TRANSACTION
+
+		//Atualização da SIG apenas dos movimentos conciliados
+		While !((cArqSIG)->(Eof()))
+		
+			If (cArqSIG)->RECFK5 > 0
+
+				SIG->(dbGoTo((cArqSIG)->RECSIG))
+				FK5->(dbGoTo((cArqSIG)->RECFK5))
+
+				If cProcesso != SIG->IG_IDPROC
+					cProcesso := SIG->IG_IDPROC
+					aadd(aProcesso, {SIG->IG_FILIAL,SIG->IG_IDPROC})
+				Endif
+
+				If cChaveBco != FK5->(FK5_BANCO+FK5_AGENCI+FK5_CONTA)
+					cChaveBco := FK5->(FK5_BANCO+FK5_AGENCI+FK5_CONTA)
+					cCodConc  := GetSx8Num("QLC", "QLC_CODCON",, 1)
+					QLC->(ConfirmSX8())
+					FGrvQLC(cCodConc)
+				Endif
+
+				If cChaveSld != FK5->(DTOS(FK5_DTDISP)+FK5_BANCO+FK5_AGENCI+FK5_CONTA)
+					cChaveSld := FK5->(DTOS(FK5_DTDISP)+FK5_BANCO+FK5_AGENCI+FK5_CONTA)
+					nValor := 0
+					AADD(aSalBco, {FK5->FK5_BANCO, FK5->FK5_AGENCI, FK5->FK5_CONTA, FK5->FK5_DTDISP, nValor})
+					nTamSld := Len(aSalBco)
+				Endif
+
+				aSalBco[nTamSld,5] += (FK5->FK5_VALOR * IF(FK5->FK5_RECPAG == "R", 1, -1 ))
+
+				cSeqMat := Soma1(cSeqMat)
+				FGrvSIG()
+				FGrvFK5()
+				FGrvQLD(cCodConc,cSeqMat)
+
+				//Processos de conciliacção - APENas PARA ADVPR
+				If __l475Aut
+					aadd(aConcAuto, { (cArqSIG)->RECSIG,(cArqSIG)->RECFK5})
+				Endif
+
+			EndIf
+			(cArqSIG)->(dbSkip())
+		EndDo
+
+		FGrvSIF(aProcesso)
+
+	END TRANSACTION
+
+	For nX := 1 to nTamSld
+		AtuSalBco(aSalBco[nX,1], aSalBco[nX,2], aSalBco[nX,3], aSalBco[nX,4], aSalBco[nX,5], "+",.T., .F.)
+	Next
+
+	cFilAnt := cFilX
+
+	RestArea(aArea)
+	FwFreeArray(aArea)
+	FwFreeArray(aSalBco)
+	FwFreeArray(aProcesso)
+
+Return .T.
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} FGrvSIF
+	Atualiza os status de conciliação de cada processo na SIF
+	
+	@type  Function
+	@author pequim
+	@since 28/09/2022
+	@version 12.1.2310
+	@param aProcesso, Array, array contendo os códigos de processos a serem atualizados
+/*/
+//--------------------------------------------------------------------------------------------
+Static Function FGrvSIF(aProcesso as Array)
+
+	Local nLinha as Numeric
+	Local nLenPrc as Numeric
+	Local cStatus as Character
+
+	nLinha := 0
+	nLenPrc := Len(aProcesso)
+	cStatus := ""
+
+	//Atualiza os Status da tabela SIF
+	For nLinha := 1 to nLenPrc
+		If SIF->(dbSeek(aProcesso[nLinha][1] + aProcesso[nLinha][2] ))
+			cStatus := FSIFStatus(aProcesso[nLinha][1],aProcesso[nLinha][2])
+			RecLock("SIF",.F.)
+				SIF->IF_STATUS := cStatus
+			MsUnLock()
+		EndIf
+	Next nLinha
+
+Return
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} FGrvSIG
+	Atualiza os dados de conciliação de cada registro da SIG
+	
+	@type  Function
+	@author pequim
+	@since 28/09/2022
+	@version 12.1.2310
+/*/
+//--------------------------------------------------------------------------------------------
+Static Function FGrvSIG(cCodConc as Character)
+
+	Local cStatus As Character
+
+	Default cCodConc := "999"
+
+	If cCodConc == "998"
+		cStatus := "5" 
+	Else
+		cStatus := "3" 
+	Endif
+
+	RecLock("SIG", .F. )
+		SIG->IG_VLRMOV	:= FK5->FK5_VALOR
+		SIG->IG_DTMOVI	:= FK5->FK5_DTDISP
+		SIG->IG_DOCMOV	:= FK5->FK5_NUMCH
+		SIG->IG_AGEMOV	:= FK5->FK5_AGENCI
+		SIG->IG_CONMOV	:= FK5->FK5_CONTA
+		SIG->IG_STATUS	:= cStatus
+		SIG->IG_HISMOV	:= FK5->FK5_HISTOR
+		SIG->IG_NATMOV	:= FK5->FK5_NATURE
+	SIG->( MsUnLock() )
+
+Return
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} FGrvFK5
+	Atualiza os dados de conciliação de cada registro da FK5/SE5
+	
+	@type  Function
+	@author pequim
+	@since 28/09/2022
+	@version 12.1.2310
+/*/
+//--------------------------------------------------------------------------------------------
+Static Function FGrvFK5()
+
+	Reclock("FK5", .F.)
+		FK5->FK5_DTCONC	:= dDataBase
+		FK5->FK5_SEQCON	:= SIG->IG_SEQMOV
+	FK5->( MsUnLock() )
+
+	SE5->(DbSetOrder(21))	//E5_FILIAL+E5_IDORIG
+	If SE5->(MsSeeK(FK5->(xFilial("FK5")+FK5_IDMOV)))
+		Reclock("SE5", .F.)
+			SE5->E5_RECONC := 'x'
+			SE5->E5_SEQCON := SIG->IG_SEQMOV
+		SE5->( MsUnLock() )
+	Endif
+
+Return
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} FGrvQLC
+	Atualiza os dados de conciliação - Cabeçalho da Conciliação (QLC)
+	
+	@type  Function
+	@author pequim
+	@since 28/09/2022
+	@version 12.1.2310
+	@param cCodConc, Character, Código do processo de conciliação
+/*/
+//--------------------------------------------------------------------------------------------
+Static Function FGrvQLC (cCodConc)
+
+    RecLock("QLC", .T.)
+		QLC->QLC_FILIAL := xFilial("QLC")
+		QLC->QLC_CODCON := cCodConc
+		QLC->QLC_CODCFG := '0023'		//Código da configuração de Conciliação de Movimentos Bancários Automática dentro do Conciliador
+		QLC->QLC_TABORI := "SIG"
+		QLC->QLC_TABDES := "FK5"
+		QLC->QLC_DATCON := dDataBase
+		QLC->QLC_HORCON := Time()
+    QLC->(MsUnlock())
+
+Return
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} FGrvQLD
+	Atualiza os dados de conciliação - Itens da Conciliação (QLD)
+	
+	@type  Function
+	@author pequim
+	@since 28/09/2022
+	@version 12.1.2310
+	@param cCodConc, Character, Código do processo de conciliação
+	@param cSeqMat , Character, Sequência do Match da conciliação
+/*/
+//--------------------------------------------------------------------------------------------
+Static Function FGrvQLD (cCodConc as Character, cSeqMat as Character)
+
+    RecLock("QLD", .T.)
+		QLD->QLD_FILIAL := xFilial("QLD")
+		QLD->QLD_CODCON := cCodConc
+		QLD->QLD_CODCFG := '0023'	//Código da configuração de Conciliação de Movimentos Bancários Automática dentro do Conciliador
+		QLD->QLD_IDITEM := SIG->IG_MSUIDT
+		QLD->QLD_TPITEM := "1"
+		QLD->QLD_REGMAT := If(FK5->FK5_RECPAG = 'R', '001','004')
+		QLD->QLD_DESMAT := If(FK5->FK5_RECPAG = 'R', 'regra_001','regra_004')
+		QLD->QLD_SEQMAT := cSeqMat
+    QLD->(MsUnlock())
+
+    RecLock("QLD", .T.)
+		QLD->QLD_FILIAL := xFilial("QLD")
+		QLD->QLD_CODCON := cCodConc
+		QLD->QLD_CODCFG := '0023'	//Código da configuração de Conciliação de Movimentos Bancários Automática dentro do Conciliador
+		QLD->QLD_IDITEM := FK5->FK5_MSUIDT
+		QLD->QLD_TPITEM := "2"
+		QLD->QLD_REGMAT := If(FK5->FK5_RECPAG = 'R', '001','004')
+		QLD->QLD_DESMAT := If(FK5->FK5_RECPAG = 'R', 'regra_001','regra_004')
+		QLD->QLD_SEQMAT := cSeqMat
+    QLD->(MsUnlock())
+
+Return
+
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} FSIFStatus
+	Verifica o status de conciliação do extrato (SIF)
+
+	@type  Function
+	@author pequim
+	@since 28/09/2022
+	@version 12.1.2310
+	@param cFilSIG, Character, Filial da tabela SIG
+	@param cSeqMat , Character, Sequência do Match da conciliação
+
+/*/
+//-------------------------------------------------------------------
+Static Function FSIFStatus(cFilSIG as Character, cProcesso as Character)
+
+	Local cQuery     as Character
+	Local cStatus    as Character
+	Local cTableName as Character
+	Local nNaoConc   as Numeric
+	Local nTotal     as Numeric
+
+	Default cFilSIG := xFilial("SIG")
+
+	cQuery     := ""
+	cStatus    := "1"
+	cTableName := IF(__oFinA475 != NIL, __oFinA475:GetRealName(), RetSqlName("SIG") )
+	nNaoConc   := 0
+	nTotal     := 0
+
+	If __oPrepSt2 == NIL
+		cQuery := "SELECT COUNT(*) SIGCONT "
+		cQuery += "FROM ? "
+		cQuery += " WHERE "
+		cQuery += 		"IG_FILIAL = ?  AND "
+		cQuery += 		"IG_IDPROC = ?  AND "
+		cQuery +=  		"D_E_L_E_T_ = ' '"
+		cQuery := ChangeQuery(cQuery)
+		__oPrepSt2 := FwPreparedStatement():New(cQuery)
+	EndIf
+
+	__oPrepSt2:SetString(1,	 cTableName)
+	__oPrepSt2:SetString(2,	 cFilSIG)
+	__oPrepSt2:SetString(3,	 cProcesso)
+
+	cQuery	:= __oPrepSt2:GetFixQuery()
+	nTotal	:= MpSysExecScalar(cQuery, "SIGCONT")
+
+	If __oPrepSt3 == NIL
+		cQuery := "SELECT COUNT(*) SIGCONTNC "
+		cQuery += "FROM ? "
+		cQuery += " WHERE "
+		cQuery += 		"IG_FILIAL = ? AND "
+		cQuery += 		"IG_IDPROC = ? AND "
+		cQuery += 		"IG_STATUS = '1' AND "
+		cQuery +=  		"D_E_L_E_T_ = ' '"
+		cQuery := ChangeQuery(cQuery)
+		__oPrepSt3 := FwPreparedStatement():New(cQuery)
+	EndIf
+
+	__oPrepSt2:SetString(1,	 cTableName)
+	__oPrepSt3:SetString(2,	 cFilSIG)
+	__oPrepSt3:SetString(3,	 cProcesso)
+
+	cQuery	 := __oPrepSt3:GetFixQuery()
+	nNaoConc := MpSysExecScalar(cQuery, "SIGCONTNC")
+
+	If nNaoConc == 0 // Totalmente conciliado
+		cStatus := '3'
+	ElseIf nNaoConc < nTotal // Conciliado Parcialmente
+		cStatus := '2'
+	EndIf
+
+Return cStatus
+
+
+//--------------------------------------------------------------------
+/*/{Protheus.doc} F475Clean
+	
+	Limpa as variáveis Static 
+
+	@type  Function
+	@author pequim
+	@since 28/09/2022
+	@version 12.1.2310
+
+/*/
+//--------------------------------------------------------------------
+Function F475Clean()
+
+	If __oFinA475 <> Nil
+		__oFinA475:Delete()
+		__oFinA475 := Nil
+	EndIf
+
+	If __oPrepSt1 <> Nil
+		__oPrepSt1:Destroy()
+		__oPrepSt1 := Nil
+	EndIf
+
+	If __oPrepSt2 <> Nil
+		__oPrepSt2:Destroy()
+		__oPrepSt2 := Nil
+	EndIf
+
+	If __oPrepSt3 <> Nil
+		__oPrepSt3:Destroy()
+		__oPrepSt3 := Nil
+	EndIf
+
+	If __oPrepSt4 <> Nil
+		__oPrepSt4:Destroy()
+		__oPrepSt4 := Nil
+	EndIf
+
+	If __oPrepSt5 <> Nil
+		__oPrepSt5:Destroy()
+		__oPrepSt5 := Nil
+	EndIf
+
+	If __oPrepSt6 <> Nil
+		__oPrepSt6:Destroy()
+		__oPrepSt6 := Nil
+	EndIf
+
+	If __oPrepSt7 <> Nil
+		__oPrepSt7:Destroy()
+		__oPrepSt7 := Nil
+	EndIf
+
+	If __oPrepSt8 <> Nil
+		__oPrepSt8:Destroy()
+		__oPrepSt8 := Nil
+	EndIf
+
+	If __oPrepSt9 <> Nil
+		__oPrepSt9:Destroy()
+		__oPrepSt9 := Nil
+	EndIf
+
+	If __oPrepStA <> Nil
+		__oPrepStA:Destroy()
+		__oPrepStA := Nil
+	EndIf
+
+	If __oPrepStB <> Nil
+		__oPrepStB:Destroy()
+		__oPrepStB := Nil
+	EndIf
+
+	If __oPrepStC <> Nil
+		__oPrepStC:Destroy()
+		__oPrepStC := Nil
+	EndIf
+
+	If __oPrepStD <> Nil
+		__oPrepStD:Destroy()
+		__oPrepStD := Nil
+	EndIf
+
+	If __oPrepStE <> Nil
+		__oPrepStE:Destroy()
+		__oPrepStE := Nil
+	EndIf
+
+	If __oPrepStF <> Nil
+		__oPrepStF:Destroy()
+		__oPrepStF := Nil
+	EndIf		
+
+	If __aStruct <> NIL
+		FwFreeArray(__aStruct)
+	Endif
+
+Return
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475PosGrv
+	Complemento de gravação do processo Conciliação Automática realizado 
+	no TOTVS Conciliador (QLC/QLD)
+	
+	@type  Function
+	@author Pequim
+	@since 07/11/2022
+
+	@param cCodConc , Character, Processo de Conciliação no TOTVS Conciliador (QLC/QLD)
+/*/
+//--------------------------------------------------------------------------------------------
+Function F475PosGrv(cCodConc as Character)
+	
+	Local aProcesso as Array
+	Local aRecnos   as Array
+	Local aSalBco   as Array
+	Local cChaveSld as Character
+	Local cProcesso as Character
+	Local nTamSld   as Numeric
+	Local nValor    as Numeric
+	Local nX        as Numeric
+
+	Default cCodConc := ""
+
+	aProcesso := {}
+	aRecnos   := F475RecPrc(cCodConc)
+	aSalBco   := {}
+	cChaveSld := ""
+	cProcesso := ""
+	nTamSld   := 0
+	nValor    := 0
+	nX        := 0
+
+	For nX := 1 to Len(aRecnos)
+		SIG->(dbGoto(aRecnos[nX,1]))
+		FK5->(dbGoto(aRecnos[nX,2]))
+		If cProcesso != SIG->IG_IDPROC
+			cProcesso := SIG->IG_IDPROC
+			aadd(aProcesso, {SIG->IG_FILIAL,SIG->IG_IDPROC})
+		Endif
+		FGrvSIG(cCodConc)
+		FGrvFK5()
+
+		If cChaveSld != FK5->(DTOS(FK5_DTDISP)+FK5_BANCO+FK5_AGENCI+FK5_CONTA)
+			cChaveSld := FK5->(DTOS(FK5_DTDISP)+FK5_BANCO+FK5_AGENCI+FK5_CONTA)
+			nValor := 0
+			AADD(aSalBco, {FK5->FK5_BANCO, FK5->FK5_AGENCI, FK5->FK5_CONTA, FK5->FK5_DTDISP, nValor})
+			nTamSld := Len(aSalBco)
+		Endif
+		aSalBco[nTamSld,5] += (FK5->FK5_VALOR * IF(FK5->FK5_RECPAG == "R", 1, -1 ))
+	Next
+	FGrvSIF(aProcesso)
+
+	For nX := 1 to nTamSld
+		AtuSalBco(aSalBco[nX,1], aSalBco[nX,2], aSalBco[nX,3], aSalBco[nX,4], aSalBco[nX,5], "+",.T., .F.)
+	Next
+
+	F475Clean()
+
+Return .T.
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475RecPrc
+	Retorna os Recno dos registros SIG e FK5 que compõem o processo de
+	Conciliação no TOTVS Conciliador (QLC/QLD)
+	
+	@type  Function
+	@author Pequim
+	@since 07/11/2022
+
+	@param cCodConc , Character, Processo de Conciliação no TOTVS Conciliador (QLC/QLD)
+
+	@return aRecnos, Array , Array de Recnos SIG/FK5 do processo de Conciliação
+	/*/
+//--------------------------------------------------------------------------------------------
+Function F475RecPrc(cCodConc as Character)
+
+	Local cQuery as Character
+	Local nRecno as Numeric
+	Local aRecnos as Array
+
+	cQuery := ""
+	nRecno := 0
+	aRecnos := {}
+
+	If __oPrepSt4 == Nil
+		cQuery := "SELECT QLD_SEQMAT, QLD_TPITEM, QLD_IDITEM "
+		cQuery += "FROM " + RetSqlName("QLD") + " "
+		cQuery += "WHERE QLD_FILIAL = ? "
+		cQuery +=  " AND QLD_CODCON = ? "
+		cQuery +=  " AND D_E_L_E_T_ = ' '"
+		cQuery +=  " ORDER BY QLD_REGMAT,QLD_SEQMAT,QLD_TPITEM"
+		cQuery := ChangeQuery(cQuery)
+		__oPrepSt4 := FwPreparedStatement():New(cQuery)
+	EndIf
+
+	__oPrepSt4:SetString(1,	xFilial("QLD"))
+	__oPrepSt4:SetString(2,	cCodConc)
+
+	cQuery	:= __oPrepSt4:GetFixQuery()
+    cAliasTmp := MpSysOpenQuery(cQuery)
+
+    While (cAliasTmp)->(!Eof())
+        nRecSIG := 0
+		nRecFK5 := 0
+		If (cAliasTmp)->QLD_TPITEM == '1' 
+			nRecSIG := F475GetRec("SIG",(cAliasTmp)->QLD_IDITEM)
+			(cAliasTmp)->(DbSkip())	
+			If (cAliasTmp)->QLD_TPITEM == '2'
+				nRecFK5 := F475GetRec("FK5",(cAliasTmp)->QLD_IDITEM)
+				(cAliasTmp)->(DbSkip())	
+			Endif
+		Else
+			(cAliasTmp)->(DbSkip())
+			Loop
+        EndIf
+		aadd(aRecnos, {nRecSig, nRecFK5})
+    EndDo	
+    (cAliasTmp)->(DbCloseArea())
+
+Return aRecnos
+
+
+//------------------------------------------------------------------------
+/*/{Protheus.doc} F475GetRec
+	Retorna o Recno do alias informado 
+	
+	@type  Function
+	@author Pequim
+	@since 07/11/2022
+
+	@param cAlias , Character, Alias do qual se deseja obter o recno
+	@param cIdItem, Character, IdItem da conciliação (MSUIDT)
+	@return nRecno, Numeric  , Recno da tabela
+	/*/
+//------------------------------------------------------------------------
+Function F475GetRec(cAlias as Character, cIdItem as Character)
+
+	Local cQuery as Character
+	Local nRecno as Numeric
+
+	DEFAULT cAlias  := ""
+	DEFAULT cIdItem := ""
+
+	cQuery := ""
+	nRecno := 0
+
+	If cAlias == "SIG"
+		If __oPrepSt5 == Nil
+			cQuery := "SELECT R_E_C_N_O_ SIGRECNO "
+			cQuery += "FROM " + RetSqlName("SIG") + " "
+			cQuery += "WHERE IG_MSUIDT = ? "
+			cQuery +=  " AND D_E_L_E_T_ = ' '"
+			cQuery := ChangeQuery(cQuery)
+			__oPrepSt5 := FwPreparedStatement():New(cQuery)
+		EndIf
+		__oPrepSt5:SetString(1,	 cIdItem)
+		cQuery	:= __oPrepSt5:GetFixQuery()
+		nRecno	:= MpSysExecScalar(cQuery, "SIGRECNO")
+	Endif
+
+	If cAlias == "FK5"
+		If __oPrepSt6 == Nil
+			cQuery := "SELECT R_E_C_N_O_ FK5RECNO "
+			cQuery += "FROM " + RetSqlName("FK5") + " "
+			cQuery += "WHERE FK5_MSUIDT = ? "
+			cQuery +=  " AND D_E_L_E_T_ = ' '"
+			cQuery := ChangeQuery(cQuery)
+			__oPrepSt6 := FwPreparedStatement():New(cQuery)
+		EndIf
+		__oPrepSt6:SetString(1,	 cIdItem)
+		cQuery	:= __oPrepSt6:GetFixQuery()
+		nRecno	:= MpSysExecScalar(cQuery, "FK5RECNO")
+	Endif
+
+Return nRecno
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475PosCan
+	Complemento de gravação do processo Conciliação Automática realizado 
+	no TOTVS Conciliador (QLC/QLD) - Cancelamento
+	
+	@type  Function
+	@author Pequim
+	@since 01/12/2022
+
+	@param cCodConc , Character, Processo de Conciliação no TOTVS Conciliador (QLC/QLD)
+/*/
+//--------------------------------------------------------------------------------------------
+Function F475PosCan(cCodCon as character, cCodCfg as character, cRegMatch as Character, cSeqMatch as character)
+
+	Local aProcesso as Array
+	Local aRecFK5   as Array
+	Local aRecSIG   as Array
+	Local aSalBco   as Array
+	Local cChaveSld as Character
+	Local cProcesso as Character
+	Local nTamSld   as Numeric
+	Local nValor    as Numeric
+	Local nX        as Numeric
+
+	Default cCodCon  := ""
+	Default cCodCfg   := ""
+	Default cRegMatch  := ""
+	Default cSeqMatch := ""
+
+	aProcesso := {}
+	aRecFK5   := {}
+	aRecSIG   := {}
+	aSalBco   := {}
+	cChaveSld := ""
+	cProcesso := ""
+	nTamSld   := 0
+	nValor    := 0
+	nX        := 0
+
+	F475RecCan(cCodCon,cCodCfg,cRegMatch,cSeqMatch,aRecSIG,aRecFK5)
+
+	For nX := 1 to Len(aRecSIG)
+		SIG->(dbGoto(aRecSIG[nX]))
+		If cProcesso != SIG->IG_IDPROC
+			cProcesso := SIG->IG_IDPROC
+			aadd(aProcesso, {SIG->IG_FILIAL,SIG->IG_IDPROC})
+		Endif
+		FGrvSIGCan()
+	Next
+
+	For nX := 1 to Len(aRecFK5)
+		FK5->(dbGoto(aRecFK5[nX]))
+		FGrvFK5Can()
+		If cChaveSld != FK5->(DTOS(FK5_DTDISP)+FK5_BANCO+FK5_AGENCI+FK5_CONTA)
+			cChaveSld := FK5->(DTOS(FK5_DTDISP)+FK5_BANCO+FK5_AGENCI+FK5_CONTA)
+			nValor := 0
+			AADD(aSalBco, {FK5->FK5_BANCO, FK5->FK5_AGENCI, FK5->FK5_CONTA, FK5->FK5_DTDISP, nValor})
+			nTamSld := Len(aSalBco)
+		Endif
+		aSalBco[nTamSld,5] += (FK5->FK5_VALOR * IF(FK5->FK5_RECPAG == "R", -1, 1 ))
+	Next	
+
+	FGrvSIF(aProcesso)
+
+	For nX := 1 to nTamSld
+		AtuSalBco(aSalBco[nX,1], aSalBco[nX,2], aSalBco[nX,3], aSalBco[nX,4], aSalBco[nX,5], "-",.T., .F.)
+	Next
+
+	F475Clean()
+	FwFreeArray(aRecFK5)
+	FwFreeArray(aRecSIG)
+
+Return .T.
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475RecCan
+	Retorna os Recno dos registros SIG e FK5 que compõem o processo de
+	Conciliação no TOTVS Conciliador (QLC/QLD) - Cancelamento
+	
+	@type  Function
+	@author Pequim
+	@since 01/12/2022
+
+	@param cCodConc , Character, Processo de Conciliação no TOTVS Conciliador (QLC/QLD)
+	@param cIdMatch , Character, Processo de Conciliação no TOTVS Conciliador (QLC/QLD)
+	@param cCodCfg , Character, Processo de Conciliação no TOTVS Conciliador (QLC/QLD)
+	@param cSeqMatch , Character, Processo de Conciliação no TOTVS Conciliador (QLC/QLD)
+	@param aRecSIG, Array , Array de Recnos SIG do processo de Conciliação - Cancelamento
+	@param aRecFK5, Array , Array de Recnos FK5 do processo de Conciliação - Cancelamento
+
+	/*/
+//--------------------------------------------------------------------------------------------
+Function F475RecCan(cCodCon as Character,cCodCfg as Character,cRegMatch as Character,cSeqMatch as Character,aRecSIG as Array,aRecFK5 as Array)
+
+	Local cQuery as Character
+	Local nRecSIG as Numeric
+	Local nRecFK5 as Numeric
+
+	cQuery := ""
+	nRecno := 0
+
+	If __oPrepSt7 == Nil
+		cQuery := "SELECT QLD_TPITEM, QLD_IDITEM "
+		cQuery += "FROM " + RetSqlName("QLD") + " "
+		cQuery += "WHERE QLD_FILIAL = ? "
+		cQuery +=  " AND QLD_CODCON = ? "
+		cQuery +=  " AND QLD_CODCFG = ? "
+		cQuery +=  " AND QLD_REGMAT = ? "
+		cQuery +=  " AND QLD_SEQMAT = ? "
+		cQuery +=  " AND D_E_L_E_T_ = ' '"
+		cQuery +=  " ORDER BY QLD_REGMAT,QLD_SEQMAT,QLD_TPITEM"
+		cQuery := ChangeQuery(cQuery)
+		__oPrepSt7 := FwPreparedStatement():New(cQuery)
+	EndIf
+
+	__oPrepSt7:SetString(1,	xFilial("QLD"))
+	__oPrepSt7:SetString(2,	cCodCon)
+	__oPrepSt7:SetString(3,	cCodCfg)
+	__oPrepSt7:SetString(4,	cRegMatch)
+	__oPrepSt7:SetString(5,	cSeqMatch)
+
+	cQuery	:= __oPrepSt7:GetFixQuery()
+    cAliasTmp := MpSysOpenQuery(cQuery)
+
+    While (cAliasTmp)->(!Eof())
+        nRecSIG := 0
+		nRecFK5 := 0
+		If (cAliasTmp)->QLD_TPITEM == '1' 
+			nRecSIG := F475GetRec("SIG",(cAliasTmp)->QLD_IDITEM)
+			aadd(aRecSIG, nRecSIG)
+		Endif
+		If (cAliasTmp)->QLD_TPITEM == '2'
+			nRecFK5 := F475GetRec("FK5",(cAliasTmp)->QLD_IDITEM)
+			aadd(aRecFK5, nRecFK5)
+		Endif
+		(cAliasTmp)->(DbSkip())
+    EndDo	
+    (cAliasTmp)->(DbCloseArea())
+
+Return 
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} FGrvSIGCan
+	Atualiza os dados de conciliação de cada registro da SIG - Cancelamento
+	
+	@type  Function
+	@author pequim
+	@since 01/12/2022
+	@version 12.1.2310
+/*/
+//--------------------------------------------------------------------------------------------
+Static Function FGrvSIGCan()
+
+	RecLock("SIG", .F. )
+		SIG->IG_VLRMOV	:= 0
+		SIG->IG_DTMOVI	:= CTOD("//")
+		SIG->IG_DOCMOV	:= ""
+		SIG->IG_AGEMOV	:= ""
+		SIG->IG_CONMOV	:= ""
+		SIG->IG_STATUS	:= "1"
+		SIG->IG_HISMOV	:= ""
+		SIG->IG_NATMOV	:= ""
+	SIG->( MsUnLock() )
+
+Return
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} FGrvFK5Can
+	Atualiza os dados de conciliação de cada registro da FK5/SE5  - Cancelamento
+	
+	@type  Function
+	@author pequim
+	@since 01/12/2022
+	@version 12.1.2310
+/*/
+//--------------------------------------------------------------------------------------------
+Static Function FGrvFK5Can()
+
+	Reclock("FK5", .F.)
+		FK5->FK5_DTCONC	:= CTOD("//")
+		FK5->FK5_SEQCON	:= ""
+	FK5->( MsUnLock() )
+
+	SE5->(DbSetOrder(21))	//E5_FILIAL+E5_IDORIG
+	If SE5->(MsSeeK(FK5->(xFilial("FK5")+FK5_IDMOV)))
+		Reclock("SE5", .F.)
+			SE5->E5_RECONC := " "
+			SE5->E5_SEQCON := ""
+		SE5->( MsUnLock() )
+	Endif
+
+Return
+
+//------------------------------------------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475Efetiv
+	Efetiva a gravação de movimentos bancários existentes no extrato (SIG) 
+	nas tabelas FK5/SE5  - Efetivar
+
+	@type  Function
+	@author Pequim
+	@since 31/01/2023
+	@version 12.1.2310
+
+	@param aUUID	, Array    , array contendo os IG_MSUIDT da TRB Origem
+	@param cTableOri, Character, RealName da tabela temporária que contém os registros SIG (ORIGEM)
+	@param cTableDes, Character, RealName da tabela temporária que contém os registros FK5 (DESTINO)
+	@param cOriDes  , Character, Informa se a ação partiu da tabela de origem ou destino
+			cOriDes = tabori => Efetivando o registro do extrato (SIG) no movimento bancário do Protheus (FK5) (Efetivar Registro)
+			cOriDes = tabdes => Efetivando o registro do movimento bancário do Protheus (FK5) no extrato (SIG) (Conciliação Manual)
+	@param cIdMatch , Character, Informa o código da configuração usada no processo (
+	@param oData	, Json		, Informações da tela da efetivação com os dados contábeis, histórico e natureza
+	@param cErro    , Character , Utilizado para devolver ao FRONT o erro caso ocorra.
+
+	@return lRet, Logical, Retorna se a gravação foi realizada em sucesso
+
+/*/
+//------------------------------------------------------------------------------------------------------------------------------
+Function F475Efetiv(aUUID as Array,cTableOri as Character,cTableDes as Character,cOriDes as Character, ;
+					cIdMatch as Character, cCodCfg as Character, oData as Json, cErro as Character )
+
+	Local cTable as Character
+	Local lRet   as Logical
+	Local nRecno as Numeric
+	Local nX     as Numeric
+
+	Default aUUID     := {}
+	Default cTableOri := ''
+	Default cTableDes := ''
+	Default cOriDes   := ''
+	
+	lRet := .T.
+	nX := 0
+
+	If __nTamRgMt == NIL
+		__nTamRgMt:= Space(TamSx3("QLD_REGMAT")[1])
+	Endif
+
+	If cOriDes == 'tabori'
+		cTable := 'SIG'
+	ElseIf cOriDes == 'tabdes'
+		cTable := 'FK5'		
+	Endif	
+
+	For nX := 1 to Len(aUUID)
+		nRecno := F475GetRec(cTable,aUUID[nX])
+		If nRecno > 0
+			(cTable)->(dbgoto(nRecno))
+
+			If cOriDes == 'tabori'
+				lRet := F475GrDes(oData,@cErro)		//Efetivaçao de registros da SIG na FK5
+			Else				
+				lRet := F475GrOri((cTableDes,@cErro))		//Efetivaçao de registros da SIG na FK5
+			Endif
+
+			If lRet
+				lRet := F475GrvTRB(aUUID[nX],cTableOri,cTableDes,cOriDes,cIdMatch,cCodCfg)
+			Endif
+		Endif
+	Next
+
+	If __oMdlMov != NIL
+		__oMdlMov:Destroy()
+		__oMdlMov:= Nil
+	Endif
+Return lRet
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475GrOri
+	Gravação dos movimentos na tabela Origem (SIG)
+
+	@type  Function
+	@author Pequim
+	@since 07/02/2023
+	@version 12.1.2210
+	
+	@param cOriDes  , Character, Informa se a ação partiu da tabela de origem ou destino
+			cOriDes = tabori => Efetivando o registro do extrato (SIG) no movimento bancário do Protheus (FK5) (Efetivar Registro)
+			cOriDes = tabdes => Efetivando o registro do movimento bancário do Protheus (FK5) no extrato (SIG) (Conciliação Manual)
+	@param cErro    , Character , Utilizado para devolver ao FRONT o erro caso ocorra.
+
+	@return lRet, Logical, Retorna se a gravação foi realizada em sucesso
+
+/*/
+//--------------------------------------------------------------------------------------------
+Function F475GrOri(cTableDes as Character, cErro as Character)
+
+	Local aConfig1 as Array
+	Local aConfig2 as Array
+	Local cDebCred as Character
+	Local cSubCta  as Character
+	Local lRet     as Logical
+
+	lRet     := .T.
+
+	cSubCta  := GetAdvFVal("SEE","EE_SUBCTA", xFilial("SEE",FK5->FK5_FILORI) + FK5->FK5_BANCO + FK5->FK5_AGENCI + FK5->FK5_CONTA ,1)
+
+	If __cIdProc == NIL
+		__cIdProc  := F474ProxNum("SIF")
+	Endif
+
+	If __cItem == NIL
+		__cItem    := Replicate("0",TamSx3("IG_ITEM")[1])
+	Endif
+	__cItem := Soma1(__cItem)	
+
+	aConfig1 := {__cIdProc, FK5->FK5_BANCO, FK5->FK5_AGENCI, FK5->FK5_CONTA, cSubCta, STR0046 }		//'Extrato Conciliador Manual'
+	aConfig2 := {""     , ""}
+
+	If FK5->FK5_RECPAG == "R"
+		cDebCred := "C"
+	else
+		cDebCred := "D"	
+	Endif		
+
+	lRet := F474GRVSIF(aConfig1, aConfig2, FK5->FK5_DTDISP, "1", "")
+	If lRet
+		F474GRVSIG(__cIdProc, __cItem, "1", FK5->FK5_DTDISP , FK5->FK5_NUMCH , FK5->FK5_VALOR, '999', cDebCred, FK5->FK5_BANCO, FK5->FK5_AGENCI, FK5->FK5_CONTA,FK5->FK5_HISTOR)
+		__cUUIDSIG := F475GetID("SIG",SIG->(RECNO()))
+	Endif
+
+Return lRet
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475GrDes
+	Grava a Efetivação do movimento bancário (SIG -> FK5/SE5)
+
+	@type  Function
+	@author Pequim
+	@since 31/01/2023
+	@version 12.1.2310
+
+	@return lRet, Logical, Retorna se a gravação foi realizada em sucesso
+
+/*/
+//--------------------------------------------------------------------------------------------
+Function F475GrDes(oData as Json, cErro AS character)
+
+	Local aArea      as Array
+	Local cCamposE5  as Character
+	Local cDC        as Character
+	Local cLog       as Character
+	Local cSinal     as Character
+	Local cTipoSist  as Character
+	Local cTipoFK5   as Character
+	Local cNaturEfet as Character
+	Local cCDeb      as Character
+	Local cCCrd      as Character
+	Local cCCD       as Character
+	Local cCCC       as Character
+	Local cItemD     as Character
+	Local cItemC     as Character
+	Local cClVlDb    as Character
+	Local cClVlCr    as Character
+	Local cHistor    as Character
+	Local lAtuSldNat as Logical
+	Local lIntPFS    as Logical
+	Local lRet       as Logical
+	Local nRecno     as Numeric
+	Local oModelDet  as Object
+	Local oSubFK5    as Object
+	Local oSubFK8    as Object
+	Local oSubFKA    as Object
+
+	DEFAULT cErro := ""
+
+	aArea      := GetArea()
+	cCamposE5  := ""
+	cDataExt   := DToS(SIG->IG_DTEXTR)
+	cDC        := "0"
+	cLog       := ""
+	cTipoSist  := GetAdvFVal("SEJ","EJ_OCORSIS", xFilial("SEJ",SIG->IG_FILORIG) + SIG->IG_BCOEXT + SIG->IG_TIPEXT ,1)
+	cNaturEfet := ""
+	cCDeb      := ""
+	cCCrd      := ""
+	cCCD       := ""
+	cCCC       := ""
+	cItemD     := ""
+	cItemC     := ""
+	cClVlDb    := ""
+	cClVlCr    := ""
+	lAtuSldNat := .T.
+	lIntPFS    := SuperGetMV("MV_JURXFIN",,.F.) // Integração SIGAPFS x SIGAFIN
+	lRet       := .T.
+	nRecno     := 0
+	oModelDet  := NIL
+	oSubFK5    := NIL
+	oSubFK8    := NIL
+	oSubFKA    := NIL
+	cHistor    := SIG->IG_HISTEXT
+	lIntPMS    := IntePMS()
+
+	If cTipoSist $ "CHQ"
+		cTipoFK5 := "C1"
+	Else	
+		cTipoFK5 := "M1"
+	Endif
+
+	If SIG->IG_CARTER == "1"
+		cDC := "R"
+	Else
+		cDC := "P"
+	Endif
+
+	If oData:hasProperty("naturefet")
+		cNaturEfet := oData['naturefet']
+		lRet := (!Empty(cNaturEfet) .and. ExistCpo("SED",cNaturEfet) .And. FinVldNat(.T.,cNaturEfet))
+		If !lRet
+			cErro := STR0047	//"Natureza inválida para o processo de efetivação"
+		Endif
+	Endif
+
+	If lRet
+
+		If oData:hasProperty("histor")
+			cHistor := oData['histor']
+		Endif
+
+		If oData:hasProperty("cdeb")
+			cCDeb := oData['cdeb']
+		Endif
+
+		If oData:hasProperty("ccrd")
+			cCCrd := oData['ccrd']
+		Endif
+
+		If oData:hasProperty("ccd")
+			cCCD := oData['ccd']
+		Endif
+
+		If oData:hasProperty("ccc")
+			cCCC := oData['ccc']
+		Endif
+
+		If oData:hasProperty("itemd")
+			cItemD := oData['itemd']
+		Endif
+
+		If oData:hasProperty("itemc")
+			cItemC := oData['itemc']
+		Endif
+
+		If oData:hasProperty("clvldb")
+			cClVlDb := oData['clvldb']
+		Endif
+
+		If oData:hasProperty("clvlcr")
+			cClVlCr := oData['clvlcr']
+		Endif
+
+		If Empty(cHistor)
+			cHistor    := SIG->IG_HISTEXT
+		Endif
+
+		If SIG->IG_STATUS == "1"
+
+			//Grava Movimentacao da efetivacao no SE5
+			//Define os campos que não existem na FK5 e que serão gravados apenas na E5, para que a gravação da E5 continue igual
+			cCamposE5 := "{"
+			cCamposE5 += "{'E5_VENCTO'  , STOD('" + cDataExt + "')}"
+			cCamposE5 += ",{'E5_DTDIGIT', STOD('" + cDataExt + "')}"
+			cCamposE5 += "}"
+
+			//Model de Movimento bancario
+			If __oMdlMov == NIL
+				__oMdlMov  := FWLoadModel("FINM030")
+			EndIf 
+
+			__oMdlMov:SetOperation( 3 ) //Inclusao
+			__oMdlMov:Activate()
+			__oMdlMov:SetValue( "MASTER", "E5_GRV", .T. )
+			__oMdlMov:SetValue( "MASTER", "E5_CAMPOS", cCamposE5 ) //Informa os campos da SE5 que serão gravados indepentes de FK5
+			__oMdlMov:SetValue( "MASTER", "NOVOPROC", .T. ) //Informa que a inclusão será feita com um novo número de processo
+
+			//Dados do Processo
+			oSubFKA := __oMdlMov:GetModel("FKADETAIL")
+			oSubFKA:SetValue( "FKA_IDORIG", FWUUIDV4() )
+			oSubFKA:SetValue( "FKA_TABORI", "FK5" )
+
+			//Dados do Movimento
+			oSubFK5 := __oMdlMov:GetModel("FK5DETAIL")
+			oSubFK5:SetValue( "FK5_BANCO" , SIG->IG_BCOEXT  )
+			oSubFK5:SetValue( "FK5_AGENCI", SIG->IG_AGEEXT  )
+			oSubFK5:SetValue( "FK5_CONTA" , SIG->IG_CONEXT  )
+			oSubFK5:SetValue( "FK5_DATA"  , SIG->IG_DTEXTR  )
+			oSubFK5:SetValue( "FK5_TPDOC" , "DH"            ) 
+			oSubFK5:SetValue( "FK5_DTDISP", SIG->IG_DTEXTR  )
+			oSubFK5:SetValue( "FK5_HISTOR", cHistor         )
+			oSubFK5:SetValue( "FK5_VALOR" , SIG->IG_VLREXT  )
+			oSubFK5:SetValue( "FK5_NATURE", cNaturEfet      )
+			oSubFK5:SetValue( "FK5_MOEDA" , cTipoFK5        )
+			oSubFK5:SetValue( "FK5_RECPAG", cDC             )
+			oSubFK5:SetValue( "FK5_FILORI", cFilAnt         )
+			oSubFK5:SetValue( "FK5_ORIGEM", "FINA475"       )
+
+			//Verifica se o movimento ‚ referente a um cheque e grava nro do cheque.
+			If cTipoSist $ "CHQ"
+				oSubFK5:SetValue( "FK5_NUMCH", SIG->IG_DOCEXT )
+			EndIf
+
+			//Dados Contábeis
+			oSubFK8 := __oMdlMov:GetModel("FK8DETAIL")
+			oSubFK8:SetValue( "FK8_DEBITO", cCDeb   )
+			oSubFK8:SetValue( "FK8_CREDIT", cCCrd   )
+			oSubFK8:SetValue( "FK8_CCD"   , cCCD    )
+			oSubFK8:SetValue( "FK8_CCC"   , cCCC    )
+			oSubFK8:SetValue( "FK8_ITEMD" , cItemD  )
+			oSubFK8:SetValue( "FK8_ITEMC" , cItemC  )
+			oSubFK8:SetValue( "FK8_CLVLDB", cClVlDb )
+			oSubFK8:SetValue( "FK8_CLVLCR", cClVlCr )
+
+			If __oMdlMov:VldData()
+				__oMdlMov:CommitData()
+				__cUUIDFK5 := F475GetID("FK5",FK5->(RECNO()))
+			Else
+				lRet := .F.
+				cLog := cValToChar(__oMdlMov:GetErrorMessage()[4]) + ' - '
+				cLog += cValToChar(__oMdlMov:GetErrorMessage()[5]) + ' - '
+				cLog += cValToChar(__oMdlMov:GetErrorMessage()[6])
+				Help( ,,"MF475GRVEF",,cLog, 1, 0 )
+				cErro := cLog
+			EndIf
+			__oMdlMov:DeActivate()
+
+			If lRet
+				nRecno:=SE5->(Recno())
+
+				If FK5->FK5_RECPAG == "R"
+					cSinal := "+"
+				Else	
+					cSinal := "-"
+				Endif
+
+				//Integração com SIGAPFS x SIGAFIN
+				If lIntPFS .And. FindFunction("JurConBco")
+					JurConBco(nRecno, cNaturEfet, SIG->IG_SEQMOV, FK5->FK5_BANCO,FK5->FK5_AGENCI,FK5->FK5_CONTA, cDC, FK5->FK5_DATA,FK5->FK5_VALOR,SIG->IG_HISTEXT)
+				EndIf
+
+				//Atualiza saldo bancario quando da efetivação de movimento
+				AtuSalBco( FK5->FK5_BANCO,FK5->FK5_AGENCI,FK5->FK5_CONTA,FK5->FK5_DATA,FK5->FK5_VALOR,cSinal)
+
+				If lAtuSldNat	//definir uma natureza padrão para os movimentos (um novo MV_?)
+					AtuSldNat(FK5->FK5_NATURE, FK5->FK5_DATA, "01", "3", FK5->FK5_RECPAG, FK5->FK5_VALOR, 0, "+",,FunName(),"SE5", nRecno,0)
+				EndIf
+
+			EndIf
+		Endif
+	Endif
+	RestArea(aArea)
+
+Return lRet
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475GetID
+	Retorna o conteúdo do campo MSUIDT de determinada tabela
+
+	@type  Function
+	@author Pequim
+	@since 31/01/2023
+	@version 12.1.2310
+
+	@return cMsUUID, Character, Retorna o conteúdo do campo
+
+/*/
+//--------------------------------------------------------------------------------------------
+Function F475GetID(cAlias as Character, nRecno as Numeric)
+
+	Local cMsUUID as Character
+	Local cCpoId as Character
+
+	Default cAlias := ""
+	Default nRecno := 0
+
+	If cAlias == "FK5"
+		cCpoId := 'FK5_MSUIDT'
+	ElseIf cAlias == "SIG"
+		cCpoId := 'IG_MSUIDT'
+	ENDIF
+
+	If __oPrepStC == Nil
+		cQuery := "SELECT ? MSUIDT "
+		cQuery += "FROM ? "
+		cQuery += "WHERE R_E_C_N_O_ = ? "
+		cQuery +=  " AND D_E_L_E_T_ = ' ' "
+		cQuery := ChangeQuery(cQuery)
+		__oPrepStC := FwPreparedStatement():New(cQuery)
+	EndIf
+	__oPrepStC:SetNumeric(1,cCpoId )
+	__oPrepStC:SetNumeric(2,RetSqlName(cAlias) )
+	__oPrepStC:SetNumeric(3,nRecno)
+	cQuery	:= __oPrepStC:GetFixQuery()
+	cMsUUID	:= MpSysExecScalar(cQuery, "MSUIDT")
+
+Return cMsUUID
+
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475GrvTRB
+	Gravação do registro no TRB de destino no conciliador.
+	
+	@type  Function
+	@author pequim
+	@since 02/02/2023
+	@version 12.1.2310
+
+	@param cIdItem  , Character, conteúdo do campo IG_MSUIDT
+	@param cTableDes, Character, RealName da tabela temporária que contém os registros FK5 (DESTINO)
+
+	@return lRet, Logical, Retorna se a gravação foi realizada em sucesso
+/*/
+//--------------------------------------------------------------------------------------------
+Function F475GrvTRB(cUUID as character, cTableOri as character, cTableDes  as character, cOriDes as character, ;
+					cIdMatch as Character, cCodCfg as Character, lCancel as Logical)
+	Local cCpoIdDes  as Character
+	Local cCpoIdOri  as Character
+	Local cCpoInsert as Character
+	Local cDesMatch  as Character
+	Local cError     as Character
+	Local cRegMatch  as Character
+	Local cSeqMatch  as Character
+	Local cSQL       as Character
+	Local cTable     as Character
+	Local lRet       as Logical
+
+	cCpoIdDes := 'FK5_MSUIDT'
+	cCpoIdOri := 'IG_MSUIDT'
+	cDesMatch := 'manual' //NÃO TRADUZIR
+	cError    := ""
+	cRegMatch := Substr(cIdMatch,1,3)
+	cSeqMatch := Substr(cIdMatch,4)
+	cSQL      := ""
+	lRet := .T.
+
+	If cOriDes == 'tabori'	//Origem
+		//Açao originada da tabela Origem (SIG) e vai atualizar a tabela Destino (FK5)
+		If !Empty(__cUUIDFK5)
+
+			cTable := "FK5"
+			cCpoId := 'FK5_MSUIDT'
+			cTableTmp := cTableDes
+
+			cCpoInsert := " FK5_DTDISP,FK5_VALOR,FK5_HISTOR,FK5_NUMCH,FK5_RECPAG,FK5_BANCO, "
+			cCpoInsert += " FK5_AGENCI,FK5_CONTA,FK5_IDMOV,FK5_MSUIDT, "
+			cCpoInsert += " TABELA, REGMATCH, DESMATCH, SEQMATCH, CODCON, IDDELETE, RECONCILED, IDMATCH "
+
+			cCposTemp  := "'"+DTOS(FK5->FK5_DTDISP)+"',"+CVALTOCHAR(FK5->FK5_VALOR)+",'"+FK5->FK5_HISTOR+"','"+FK5->FK5_NUMCH+"','"+FK5->FK5_RECPAG+"','"+FK5->FK5_BANCO+"',"
+			cCposTemp  += "'"+FK5->FK5_AGENCI+"','"+FK5->FK5_CONTA+"','"+FK5->FK5_IDMOV+"','"+__cUUIDFK5+"',"
+			cCposTemp  += "'"+cTable+"','999','manual','"+cSeqMatch+"',' ',' ','N','999"+cSeqMatch+"'"
+			
+			cSQL := "INSERT INTO "+ cTableTmp
+			cSQL += " ("+cCpoInsert+") "
+			cSQL += " SELECT "+cCposTemp
+			cSQL += " FROM "+RetSqlName(cTable)
+			cSQL += " WHERE "+ cCpoIdDes + " = '"+__cUUIDFK5+"'"
+			cSQL += " AND D_E_L_E_T_ = ' '"
+
+			If TCSQLExec(cSQL) < 0
+				cError := STR0042 + STR0043 //"matchProcessing Error: " "Nao foi possivel inserir dados na tabela temporaria: "
+				cError += cTableTmp + STR0044	//". Para mais detalhes, verificar arquivo console.log"    
+				lRet := .F.
+			Else
+				//Atualiza tabela temporaria de origem
+				cQryUpdt := "UPDATE " + cTableOri
+				cQryUpdt += " SET REGMATCH = '" + cRegMatch + "', DESMATCH = '" + cDesMatch + "', SEQMATCH = '" + cSeqMatch + "'," 
+				cQryUpdt += " IDMATCH = '"+ cIdMatch + "'"     
+				cQryUpdt += " WHERE " + cCpoIdOri + " = '" + cUUID + "'"
+            	cQryUpdt += " AND REGMATCH = '"+__nTamRgMt+"'"
+				cQryUpdt += " AND RECONCILED = 'N' "          
+				cQryUpdt += " AND D_E_L_E_T_ = ' ' "
+
+				If TcSqlExec(cQryUpdt) < 0
+					cError := STR0045	//"matchManual Error: Nao foi possivel atualizar a tabela temporaria: "
+					cError += cTableOri + STR0044	//". Para mais detalhes, verificar arquivo console.log"
+					lRet := .F.
+				EndIf
+			Endif
+		Endif
+
+	Else				
+		//Açao originada da tabela Destino (FK5) e vai atualizar a tabela Origem (SIG)
+		cTable    := "SIG"
+		cCpoIdOri := 'IG_MSUIDT'
+		cTableTmp  := cTableOri
+
+		cCpoInsert := " IG_DTEXTR, IG_DOCEXT, IG_VLREXT, IG_HISTEXT, IG_CARTER, IG_BCOEXT, "
+		cCpoInsert += " IG_AGEEXT, IG_CONEXT, IG_FILIAL,IG_MSUIDT, "
+		cCpoInsert += " TABELA, REGMATCH, DESMATCH, SEQMATCH, CODCON, IDDELETE, RECONCILED, IDMATCH "
+
+		cCposTemp  := "'"+DTOS(SIG->IG_DTEXTR)+"','"+SIG->IG_DOCEXT+"',"+CVALTOCHAR(SIG->IG_VLREXT)+",'"+SIG->IG_HISTEXT+"','"+SIG->IG_CARTER+"','"+SIG->IG_BCOEXT+"',"
+		cCposTemp  += "'"+SIG->IG_AGEEXT+"','"+SIG->IG_CONEXT+"','"+SIG->IG_FILIAL+"','"+__cUUIDSIG+"',"
+		cCposTemp  += "'"+cTable+"','"+cRegMatch+"','"+cDesMatch+"','"+cSeqMatch+"',' ',' ','N','"+cIdMatch+"'"
+		
+		cSQL := "INSERT INTO "+ cTableTmp
+		cSQL += " ("+cCpoInsert+") "
+		cSQL += " SELECT "+cCposTemp
+		cSQL += " FROM "+RetSqlName(cTable)
+		cSQL += " WHERE "+ cCpoIdOri + " = '"+__cUUIDSIG+"'"
+
+		If TCSQLExec(cSQL) < 0
+			cError := STR0042   + STR0043 //"matchProcessing Error: " "Nao foi possivel inserir dados na tabela temporaria: "
+			cError += cTableTmp + STR0044 //". Para mais detalhes, verificar arquivo console.log"   
+			lRet := .F. 
+		Else
+            //Atualiza tabela temporaria de origem
+            cQryUpdt := "UPDATE " + cTableDes
+            cQryUpdt += " SET REGMATCH = '" + cRegMatch + "', DESMATCH = '" + cDesMatch + "', SEQMATCH = '" + cSeqMatch + "'," 
+            cQryUpdt += " IDMATCH = '"+ cIdMatch + "'"     
+            cQryUpdt += " WHERE " + cCpoIdDes + " = '" + cUUID + "'"
+            cQryUpdt += " AND REGMATCH = '"+__nTamRgMt+"'"
+            cQryUpdt += " AND RECONCILED = 'N' "          
+            cQryUpdt += " AND D_E_L_E_T_ = ' ' "
+
+            If TcSqlExec(cQryUpdt) < 0
+                cError := STR0045 //"matchManual Error: Nao foi possivel atualizar a tabela temporaria: "
+                cError += cTableDes + STR0044	//". Para mais detalhes, verificar arquivo console.log"
+                lRet := .F.
+            EndIf
+		Endif
+
+	Endif
+
+Return lRet
+
+
+//------------------------------------------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475CanEft
+	Cancela a Efetivação de movimentos bancários existentes no extrato (SIG) e efetivadas nas tabelas FK5/SE5 
+	através da opção Efetivar
+
+	@type  Function
+	@author Pequim
+	@since 06/03/2023
+	@version 12.1.2310
+
+	@param aUUID	, Array    , array contendo os IG_MSUIDT da TRB Origem
+	@param cTableOri, Character, RealName da tabela temporária que contém os registros SIG (ORIGEM)
+	@param cTableDes, Character, RealName da tabela temporária que contém os registros FK5 (DESTINO)
+	@param cOriDes  , Character, Informa se a ação partiu da tabela de origem ou destino
+			cOriDes = tabori => Cancelando o registro efetivado a partir do registro do extrato (SIG) (Efetivar Registro)
+	@param cIdMatch , Character, Informa o código da configuração usada no processo (
+	@param oData	, Json		, Informações para o cancelamento do processo (não utilizado nesse processo)
+	@param cErro    , Character , Utilizado para devolver ao FRONT o erro caso ocorra.
+
+	@return lRet    , Logical, Retorna se a gravação foi realizada em sucesso
+
+/*/
+//------------------------------------------------------------------------------------------------------------------------------
+Function F475CanEft(aUUID as Array,cTableOri as Character,cTableDes as Character,cOriDes as Character, ;
+					cIdMatch as Character, cCodCfg as Character, oData as Json, cErro as Character )
+
+	Local lRet   as Logical
+	Local cTable as Character
+	Local nRecno as Numeric
+	Local nX     as Numeric
+
+	Default aUUID     := {}
+	Default cTableOri := ''
+	Default cTableDes := ''
+	Default cOriDes   := ''
+	Default cErro     := ''
+
+	lRet := .T.
+	nX := 0
+
+	If cOriDes == 'tabori'
+		cTable := 'SIG'
+	Endif	
+
+	For nX := 1 to Len(aUUID)
+		nRecno := F475GetRec(cTable,aUUID[nX])
+		If nRecno > 0
+			(cTable)->(dbgoto(nRecno))
+			__cUUIDFK5 := ""
+			If cOriDes == 'tabori'
+				lRet := F475GrvCan(@cErro)					//Cancelar a efetivaçao de registros da SIG na FK5
+			Endif
+
+			If lRet
+				lRet := F475CanTRB(cTableDes,@cErro)
+			Endif
+		Endif
+	Next
+	If __oMdlMov != NIL
+		__oMdlMov:Destroy()
+		__oMdlMov:= Nil
+	Endif
+
+Return lRet
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475GrvCan
+	Grava o cancelamento da Efetivação do movimento bancário (SIG -> FK5/SE5)
+
+	@type  Function
+	@author Pequim
+	@since 06/03/2023
+	@version 12.1.2310
+
+	@param cErro    , Character , Utilizado para devolver ao FRONT o erro caso ocorra.
+
+	@return lRet, Logical, Retorna se a gravação foi realizada em sucesso
+
+/*/
+//--------------------------------------------------------------------------------------------
+Function F475GrvCan(cErro as Character )
+
+	Local aArea      as Array
+	Local aRecnos    as Array
+	Local cCamposE5  as Character
+	Local cDC        as Character
+	Local cLog       as Character
+	Local cSinal     as Character
+	Local cNaturEfet as Character
+	Local cHistor    as Character
+	Local lAtuSldNat as Logical
+	Local lIntPFS    as Logical
+	Local lRet       as Logical
+	Local nRecSE5    as Numeric
+	Local dDtBaseOld as Date
+	Local oModelDet  as Object
+	Local oSubFK5    as Object
+	Local oSubFK8    as Object
+	Local oSubFKA    as Object
+
+	aArea      := GetArea()
+	aRecnos    := {}
+	cCamposE5  := ""
+	cDataExt   := DToS(SIG->IG_DTEXTR)
+	cDC        := "0"
+	cLog       := ""
+	cNaturEfet := ""
+	lAtuSldNat := .T.
+	lIntPFS    := SuperGetMV("MV_JURXFIN",,.F.) // Integração SIGAPFS x SIGAFIN
+	lRet       := .T.
+	nRecSE5    := 0
+	oModelDet  := NIL
+	oSubFK5    := NIL
+	oSubFK8    := NIL
+	oSubFKA    := NIL
+	cHistor    := SIG->IG_HISTEXT
+	lIntPMS    := IntePMS()
+	dDtBaseOld := dDataBase
+	
+	If SIG->IG_CARTER == "1"
+		cDC := "R"
+	Else
+		cDC := "P"
+	Endif
+
+	F475RegCan(cDC,aRecnos)
+
+	If Len(aRecnos) == 2
+		FK5->(DbGoto(aRecnos[1]))
+		__cUUIDFK5 := F475GetID("FK5",aRecnos[1])
+		dDataBase := FK5->FK5_DTDISP
+
+		nRecSE5 := aRecnos[2]
+		SE5->(DbGoto(nRecSE5))
+
+		cSeqCon := SE5->E5_SEQCON // Armazena sequência antes da exclusão
+		cCamposE5 := "{ {'E5_RECONC', ''} }"
+
+ 		//Model de Movimento bancario
+		If __oMdlMov == nil 
+			__oMdlMov  := FWLoadModel("FINM030")
+		EndIf 
+		__oMdlMov:SetOperation( 4 ) //Alteração
+		__oMdlMov:Activate()
+		__oMdlMov:SetValue("MASTER", "E5_GRV", .T. ) //Habilita gravação SE5
+		__oMdlMov:SetValue("MASTER", "E5_OPERACAO", 1 ) //E5_OPERACAO 1 = Altera E5_SITUACA da SE5 para 'C' e gera estorno na FK5
+		__oMdlMov:SetValue("MASTER", "E5_CAMPOS", cCamposE5) //Informa os campos da SE5 que serão gravados indepentes de FK5
+
+		//Posiciona a FKA com base no IDORIG da SE5 posicionada
+		oSubFKA := __oMdlMov:GetModel("FKADETAIL")
+		oSubFKA:SeekLine( { {"FKA_IDORIG", SE5->E5_IDORIG } } )
+
+		//Dados do movimento
+		oSubFK5 := __oMdlMov:GetModel( "FK5DETAIL" )
+		oSubFK5:SetValue( "FK5_DTCONC", CTOD("") )
+		oSubFK5:SetValue( "FK5_SEQCON", "" )
+
+		//A inclusão deste trecho se deve somente para correção de erro em base historica de clientes que realizaram a conciliação
+		//automatica e ficaram com o campo FK5_TPDOC vazio por ter realizado a alteração do campo FK5_TPDOC igual ao E5_TIPODOC
+		If Empty(oSubFK5:GetValue("FK5_TPDOC"))
+			oSubFK5:SetValue("FK5_TPDOC", "DH")
+		EndIf
+
+		If __oMdlMov:VldData()
+	       	__oMdlMov:CommitData()
+		Else
+			lRet := .F.
+		    cErro := cValToChar(__oMdlMov:GetErrorMessage()[4]) + ' - '
+		    cErro += cValToChar(__oMdlMov:GetErrorMessage()[5]) + ' - '
+		    cErro += cValToChar(__oMdlMov:GetErrorMessage()[6])
+		EndIf
+	    __oMdlMov:DeActivate()
+		
+		dDataBase := dDtBaseOld
+		
+		If lRet
+			nRecSE5 := SE5->(Recno())
+
+			If FK5->FK5_RECPAG == "R"
+				cSinal := "-"
+			Else	
+				cSinal := "+"
+			Endif
+/*
+			If Existblock("F473CAGR")
+			 	ExecBlock( "F473CAGR", .F., .F. ,nRecSE5) // Complemento de Gravação na SE5.
+			EndIf
+*/
+			//Integração com SIGAPFS x SIGAFIN
+			If lIntPFS .And. FindFunction("JurEstConc")
+				JurEstConc(nRecSE5, cSeqCon)
+			EndIf
+
+			//Atualiza saldo bancario quando da efetivação de movimento
+			AtuSalBco( FK5->FK5_BANCO,FK5->FK5_AGENCI,FK5->FK5_CONTA,FK5->FK5_DTDISP,FK5->FK5_VALOR,cSinal)
+
+			//Atualiza saldo das naturezas
+			AtuSldNat(FK5->FK5_NATURE, FK5->FK5_DTDISP, "01", "3", FK5->FK5_RECPAG, FK5->FK5_VALOR, 0, "-",,FunName(),"SE5", nRecSE5,0)
+
+		EndIf
+	else
+		cErro := STR0048 //"Este registro não possui efetivação realizada."
+		lRet := .F.
+	Endif
+	FwFreeArray(aRecnos)
+	aRecnos := {}
+	RestArea(aArea)
+
+Return lRet
+
+//--------------------------------------------------------------------------------------------
+/*/{Protheus.doc} F475CanTRB
+	Grava o cancelamento da Efetivação do movimento bancário (SIG -> FK5/SE5)
+
+	@type  Function
+	@author Pequim
+	@since 06/03/2023
+	@version 12.1.2310
+
+	@param cTableDes, Character, RealName da tabela temporária que contém os registros FK5 (DESTINO)
+	@param cErro    , Character , Utilizado para devolver ao FRONT o erro caso ocorra.
+
+	@return lRet, Logical, Retorna se a gravação foi realizada em sucesso
+
+/*/
+//--------------------------------------------------------------------------------------------
+Function F475CanTRB(cTableDes as Character, cErro as Character )
+
+	Local lRet as Logical
+	Local cQryUpdt as Character
+
+	lRet := .T.
+	cQryUpdt := ""
+
+	If __oPrepStD == NIL
+		//Atualiza tabela temporaria de origem
+		cQryUpdt := "DELETE FROM ? "
+		cQryUpdt += " WHERE FK5_MSUIDT = ? "
+		__oPrepStD := FwPreparedStatement():New(cQryUpdt)
+	EndIf
+	__oPrepStD:SetNumeric(1,cTableDes  )
+	__oPrepStD:SetString (2,__cUUIDFK5 )
+
+	cQryUpdt	:= __oPrepStD:GetFixQuery()
+
+	If TcSqlExec(cQryUpdt) < 0
+		cError := STR0049	//"cancel effectiveness Error: Nao foi possivel excluir o registro da tabela temporaria: "
+		cError += cTableDes + STR0044	//". Para mais detalhes, verificar arquivo console.log"
+		lRet := .F.
+	EndIf
+
+Return lRet
+
+
+//------------------------------------------------------------------------
+/*/{Protheus.doc} F475RegCan
+	Retorna o Recno para o cancelamento dos registros efetivados 
+	
+	@type  Function
+	@author Pequim
+	@since 07/11/2022
+
+	@param cDC    , Character, Indica a carteira do registro (Pagar ou Receber)
+	@param aRecnos, Array    , Recnos dos registros a serem cancelados
+
+	/*/
+//------------------------------------------------------------------------
+Function F475RegCan(cDC as Character, aRecnos as Array )
+
+	Local cQuery    as Character
+	Local nRecno    as Numeric
+	Local cTableFKA as Character
+
+	cQuery := ""
+	nRecno := 0
+	cTableFKA := RetSqlName("FKA")
+
+	If __oPrepStE == Nil
+		cQuery := "SELECT R_E_C_N_O_ FK5RECNO "
+		cQuery += "FROM ? "
+		cQuery += "WHERE FK5_BANCO = ? "
+		cQuery +=   "AND FK5_AGENCI = ? "
+		cQuery +=   "AND FK5_CONTA = ? "
+		cQuery +=   "AND FK5_DTDISP = ? "
+		cQuery +=   "AND FK5_NUMCH = ? "
+		cQuery +=   "AND FK5_VALOR = ? "
+		cQuery +=   "AND FK5_RECPAG = ? "
+		cQuery +=   "AND FK5_ORIGEM = 'FINA475' "
+		cQuery +=   "AND FK5_TPDOC = 'DH' "
+		cQuery +=   "AND D_E_L_E_T_ = ' ' AND "
+		cQuery +=   	"EXISTS ("
+		cQuery +=   	"SELECT FKA.FKA_IDFKA "
+		cQuery +=   	"FROM ? FKA "
+		cQuery +=   	"WHERE FKA.FKA_IDORIG = FK5_IDMOV "
+		cQuery +=   		"AND FKA.D_E_L_E_T_ = ' ' AND "
+		cQuery +=   		"NOT EXISTS ( 
+		cQuery +=   		  "SELECT FKAEST.R_E_C_N_O_ ,  FKAEST.D_E_L_E_T_ 
+		cQuery +=   		  "FROM ? FKAEST "
+		cQuery +=   		  "WHERE FKAEST.FKA_IDORIG <> FK5_IDMOV AND "
+		cQuery +=   		  "FKAEST.FKA_IDPROC = FKA.FKA_IDPROC AND "
+		cQuery +=   		  "FKAEST.FKA_TABORI = 'FK5' AND 
+		cQuery +=   		  "FKAEST.D_E_L_E_T_ = ' ')  )"
+		cQuery := ChangeQuery(cQuery)
+		__oPrepStE := FwPreparedStatement():New(cQuery)
+	EndIf
+	__oPrepStE:SetNumeric(1 , RetSqlName("FK5"))
+	__oPrepStE:SetString( 2 , SIG->IG_BCOEXT)
+	__oPrepStE:SetString( 3 , SIG->IG_AGEEXT)
+	__oPrepStE:SetString( 4 , SIG->IG_CONEXT)
+	__oPrepStE:SetDate(   5 , SIG->IG_DTEXTR)
+	__oPrepStE:SetString( 6 , SIG->IG_DOCEXT )
+	__oPrepStE:SetNumeric(7 , SIG->IG_VLREXT)
+	__oPrepStE:SetString( 8 , cDC)
+	__oPrepStE:SetNumeric(9 , cTableFKA)
+	__oPrepStE:SetNumeric(10, cTableFKA)
+
+	cQuery	:= __oPrepStE:GetFixQuery()
+	nRecno	:= MpSysExecScalar(cQuery, "FK5RECNO")
+
+	If nRecno > 0
+		AADD(aRecnos, nRecno)
+		FK5->(dbGoto(nRecno))	
+
+		If __oPrepStF == Nil
+			cQuery := "SELECT R_E_C_N_O_ SE5RECNO "
+			cQuery += "FROM " + RetSqlName("SE5") + " "
+			cQuery += "WHERE E5_IDORIG = ? "
+			cQuery +=  " AND D_E_L_E_T_ = ' '"
+			cQuery := ChangeQuery(cQuery)
+			__oPrepStF := FwPreparedStatement():New(cQuery)
+		EndIf
+		__oPrepStF:SetString(1,	 FK5->FK5_IDMOV)
+
+		cQuery	:= __oPrepStF:GetFixQuery()
+		nRecno	:= MpSysExecScalar(cQuery, "SE5RECNO")
+
+		If nRecno > 0
+			AADD(aRecnos, nRecno)
+		Endif
+	Endif
+Return 
+

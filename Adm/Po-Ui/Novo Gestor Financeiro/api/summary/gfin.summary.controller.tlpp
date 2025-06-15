@@ -1,0 +1,32 @@
+#include 'tlpp-core.th'
+#include 'tlpp-rest.th'
+
+NameSpace gfin.api.summary
+Using NameSpace gfin.util
+
+//-------------------------------------------------------------------
+/*/{Protheus.doc} Tables
+EndPoint para obter o total de linhas
+de uma busca com determinado filtro
+
+@author luiz.nai
+@since Maio|2021
+/*/
+//-------------------------------------------------------------------
+@GET('/api/gfin/v1/Summary')
+Function Summary()
+	Local oResponse as Json
+  Local oParams   as Json
+  Local oService  as Object
+
+  oParams   := oRest:getPathParamsRequest()
+  oService  := GfinSummaryService():new()
+
+  oResponse := oService:getData(oRest:getQueryRequest(), oRest:getHeaderRequest())
+
+	AnswerRest(oResponse)
+	FreeObj(oResponse)
+	FreeObj(oParams)
+	FreeObj(oService)
+  cParam := Nil
+Return

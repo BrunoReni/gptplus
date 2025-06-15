@@ -1,0 +1,80 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+
+namespace ac.Warehouse.Controller
+
+using namespace ac.acWarehouse.Repository
+using namespace ac.acWarehouse.Service
+
+class acWarehouseController
+    public data  jBody as object
+    public data  jParams as   Object
+    public data  cData as character
+    public data  cPage as Character
+    public data  cPageSize as Character
+    public data  cFilter as Character
+
+    public method New()
+
+    @get("api/stock/proccess/v1/warehouses")
+    public method getWarehouses()
+
+endclass
+
+/*/{Protheus.doc} acWarehouseController:New()
+    Metodo responsavel por instanciar e iniciar as variaveis da class acWarehouseController
+    @type  Metodo
+    @author felipe.suetoshi
+    @since  Abril  28, 2021
+    @version 12.1.27
+/*/
+
+Method new() class acWarehouseController
+    ::jBody     := JsonObject():New()
+    ::cData     := ''
+return Self
+
+/*/{Protheus.doc} postWarehouses:New()
+    Metodo responsavel por retornar uma lista de armazens em determinada filial
+    @type  Metodo
+    @author felipe.suetoshi
+    @since  Abril  28, 2021
+    @version 12.1.27
+/*/
+
+Method getWarehouses() class acWarehouseController
+    Local jBodyResponse as Object
+    Local aFilter       as Array
+    Local nPage         as Numeric     
+    Local nPageSize     as Numeric
+
+    oRest:setKeyHeaderResponse("Content-Type", "application/json")
+    ::jParams        := oRest:getQueryRequest()
+    jBodyResponse    := JsonObject():New()
+
+    ::cPage          := ::jParams['page']
+    ::cPageSize      := ::jParams['pageSize']
+    ::cFilter        := ::jParams['filter']
+
+    if empty(::cPage)
+        nPage := 1
+    else
+        nPage := VAL(::cPage) 
+    endif
+
+    if empty(::cPageSize)
+        nPageSize := 10
+    else 
+        nPageSize := Val(::cPageSize) 
+    endif
+
+    if Empty(::cFilter) .or. (::cFilter == 'null') 
+        aFilter := {{"FILTER", ''}}
+    else 
+        aFilter := {{"FILTER", ::cFilter}}
+    endif
+
+    oService := ac.Warehouse.Service.acWarehouseService():new()
+    oRest:setResponse( oService:getWarehouses(nPage, nPageSize, aFilter))
+return .T.
+

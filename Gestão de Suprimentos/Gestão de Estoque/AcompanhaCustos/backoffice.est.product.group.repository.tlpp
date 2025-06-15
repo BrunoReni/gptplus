@@ -1,0 +1,93 @@
+#include "tlpp-core.th"
+#include "tlpp-rest.th"
+#include 'protheus.ch'
+#INCLUDE "FWMVCDEF.CH"
+
+namespace totvs.protheus.backoffice.est.product.group.repository
+
+/*/{Protheus.doc} GroupProductRepository()
+    Classe responsavel pela execucao de consultas no banco de dados
+    @type Class
+    @author Adriano Vieira
+    @since 24/02/2023
+    @version 1.0
+/*/
+Class GroupProductRepository FROM FWAdapterBaseV2
+
+    public method New()
+    public method getGroupProduct()
+
+EndClass
+
+/*/{Protheus.doc} New()
+    Metodo responsavel por instanciar a classe e iniciar variaveis
+    @type Method
+    @author Adriano Vieira
+    @since 24/02/2023
+    @version 1.0
+/*/
+Method New(cVerbo as Character, lList as Logical) Class GroupProductRepository
+    Default cVerbo  := 'GET'
+    Default lList   := .T.
+
+	_Super:New(cVerbo, lList)
+Return Self
+
+/*/{Protheus.doc} getGroupProduct()
+    Realiza a consulta no banco para retornar o GET da requisicao
+    @type  Metodo
+    @author Adriano Vieira
+    @since  24/02/2023
+    @version 1.0
+/*/
+Method getGroupProduct(nPage, nPageSize, aFilter) class GroupProductRepository
+   	Local cQuery        as Character
+    Local cWhere        as Character
+    Local cFilterQuery  as Character
+    Local cAlias        as Character
+    Local lBranch       as Logical
+    Local jsonResponse  as Object
+    Local aFilial       := TamSx3('BM_FILIAL')
+    Local aCodigo       := TamSx3('BM_GRUPO')
+    Local aDescri       := TamSx3('BM_DESC')
+
+    cAlias := 'SBM'
+    cFilterQuery := ''
+    lBranch := AT("filial", aFilter[1][2]) > 0
+
+    If(!Empty(aFilter[1][2]))
+        If lBranch
+            cFilterQuery += aFilter[1][2]
+        Else
+            cFilterQuery += aFilter[1][2]
+            cFilterQuery += " and (contains(filial, '" +xFilial(cAlias)+"')) "
+        Endif
+    EndIf
+
+    If(!Empty(cFilterQuery))
+        aFilter[1][2] := cFilterQuery
+    EndIf
+
+    cQuery := " SELECT #QueryFields# "
+	cQuery += " FROM " + RetSQLName("SBM") + " SBM  "
+    cQuery += " WHERE #QueryWhere#  "
+    cWhere := ""
+    cWhere += " SBM.D_E_L_E_T_ = ' '"
+
+    ::AddMapFields('filial', 'BM_FILIAL', .T., .T., { 'BM_FILIAL' , aFilial[3], aFilial[1], aFilial[2]})
+    ::AddMapFields('codigo', 'BM_GRUPO' , .T., .T., { 'BM_GRUPO'  , aCodigo[3], aCodigo[1], aCodigo[2]})
+    ::AddMapFields('descri', 'BM_DESC'  , .T., .T., { 'BM_DESC'   , aDescri[3], aDescri[1], aDescri[2]})
+
+    ::setPage(nPage)
+    ::setPageSize(nPagesize)
+    ::setQuery(cQuery)
+    ::setWhere(cWhere)
+    ::SetOrder("BM_FILIAL")
+    ::SetUrlFilter(aFilter)
+
+    If ::Execute()
+        ::FillGetResponse()
+        jsonResponse := ::GetJsonResponse()
+    EndIf
+
+Return jsonResponse
