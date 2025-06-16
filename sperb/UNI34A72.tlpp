@@ -165,4 +165,13 @@ method getSchema() as object class CTJTReportsBusinessObject
     self:oSchema:aliasToSchema("CNB", {"CNB_PRODUT", "CNB_QUANT", "CNB_VLUNIT", "CNB_VLTOT"})
     self:oSchema:aliasToSchema("SA2", "A2_NOME")
     self:oSchema:aliasToSchema("SB1", "B1_DESC")
+    //Parâmetros utilizados como filtros
+    self:oSchema:addProperty("MV_PAR01", "Produto", "string", "Produto", "MV_PAR01")
+    self:oSchema:addProperty("MV_PAR02", "Natureza", "string", "Natureza", "MV_PAR02")
+    self:oSchema:addProperty("MV_PAR03", "Rateio", "string", "Rateio", "MV_PAR03")
+    self:oSchema:addProperty("MV_PAR04", "Centro de Custo", "string", "Centro Custo", "MV_PAR04")
+    self:oSchema:addProperty("MV_PAR05", "Conta Debito", "string", "Conta Debito", "MV_PAR05")
+    self:oSchema:addProperty("MV_PAR06", "Contrato", "string", "Contrato", "MV_PAR06")
+    self:oSchema:addProperty("MV_PAR07", "Filial", "string", "Filial", "MV_PAR07")
+    self:oSchema:addProperty("MV_PAR08", "Fornecedor", "string", "Fornecedor", "MV_PAR08")
 return self:oSchema
