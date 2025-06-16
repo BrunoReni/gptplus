@@ -28,11 +28,95 @@ return "Rateios externos"
 method getAreas() as array class CTJTReportsBusinessObject
 return {"Contabilidade"}
 
+//Metodo responsavel por retornar os dados do relatorio de acordo com
+//o layout definido na especificacao funcional. Utiliza query customizada
+//para juntar as tabelas CN9, CTJ, CNA, CNB, SA2, SB1 e SED.
 method getData(nPage as numeric, oFilter as object) as object class CTJTReportsBusinessObject
-    self:aliasToData("CTJ", oFilter)
+    local cQuery as character
+    local cAlias as character
+
+    cQuery := "SELECT CN9.CN9_FILIAL          FILIAL, "
+    cQuery += "CN9.CN9_NUMERO         CONTRATO, "
+    cQuery += "CN9.CN9_TPCTO          TPCTO, "
+    cQuery += "CN9.CN9_REVISA         REVISAO, "
+    cQuery += "CN9.CN9_DTREV          DTREV, "
+    cQuery += "CN9.CN9_DTINIC         DTINIC, "
+    cQuery += "CN9.CN9_DTFIM          DTFIM, "
+    cQuery += "CTJ.CTJ_RATEIO        RATEIO, "
+    cQuery += "CTJ.CTJ_DEBITO        DEBITO, "
+    cQuery += "CTJ.CTJ_CCD           CCD, "
+    cQuery += "CTJ.CTJ_SITCTA        SITCTA, "
+    cQuery += "CTJ.CTJ_SITCC         SITCC, "
+    cQuery += "CN9.CN9_SITUAC         SITUAC, "
+    cQuery += "CNA.CNA_VLTOT         VLTOT, "
+    cQuery += "CNA.CNA_SALDO         SALDO, "
+    cQuery += "CNA.CNA_FORNEC        FORNEC, "
+    cQuery += "SA2.A2_NOME           NOMEFOR, "
+    cQuery += "CN9.CN9_NATURE        NATCTR, "
+    cQuery += "CNA.CNA_NATURE        NATPLA, "
+    cQuery += "CNB.CNB_PRODUT        PRODUTO, "
+    cQuery += "SB1.B1_DESC           DESCPROD, "
+    cQuery += "CNA.CNA_XCC           CCPLANI, "
+    cQuery += "CNB.CNB_QUANT         QUANT, "
+    cQuery += "CNB.CNB_VLUNIT        VLUNIT, "
+    cQuery += "CNB.CNB_VLTOT         TOTITEM "
+    cQuery += "FROM " + RetSqlName('CN9') + " CN9 "
+    cQuery += "INNER JOIN " + RetSqlName('CTJ') + " CTJ ON " + FWJoinFilial('CTJ','CN9') + " AND CTJ.CTJ_NUMERO = CN9.CN9_NUMERO AND CTJ.CTJ_REVISA = CN9.CN9_REVISA AND CTJ.D_E_L_E_T_ = ' ' "
+    cQuery += "INNER JOIN " + RetSqlName('CNA') + " CNA ON " + FWJoinFilial('CNA','CN9') + " AND CNA.CNA_NUMERO = CN9.CN9_NUMERO AND CNA.D_E_L_E_T_ = ' ' "
+    cQuery += "INNER JOIN " + RetSqlName('CNB') + " CNB ON " + FWJoinFilial('CNB','CNA') + " AND CNB.CNB_NUMERO = CNA.CNA_NUMERO AND CNB.D_E_L_E_T_ = ' ' "
+    cQuery += "LEFT JOIN " + RetSqlName('SA2') + " SA2 ON SA2.A2_COD = CNA.CNA_FORNEC AND SA2.D_E_L_E_T_ = ' ' "
+    cQuery += "LEFT JOIN " + RetSqlName('SB1') + " SB1 ON SB1.B1_COD = CNB.CNB_PRODUT AND SB1.D_E_L_E_T_ = ' ' "
+    cQuery += "LEFT JOIN " + RetSqlName('SED') + " SED ON SED.ED_CODIGO = CNA.CNA_NATURE AND SED.D_E_L_E_T_ = ' ' "
+    cQuery += "WHERE CN9.D_E_L_E_T_ = ' '"
+
+    if oFilter:hasFilter()
+        cQuery += " AND " + oFilter:getSQLExpression()
+    endif
+
+    cAlias := MPSysOpenQuery(cQuery)
+
+    while !(cAlias)->(Eof())
+        self:oData:appendData({"FILIAL":      (cAlias)->FILIAL, ;
+                               "CONTRATO":   (cAlias)->CONTRATO, ;
+                               "TPCTO":      (cAlias)->TPCTO, ;
+                               "REVISAO":    (cAlias)->REVISAO, ;
+                               "DTREV":      (cAlias)->DTREV, ;
+                               "DTINIC":     (cAlias)->DTINIC, ;
+                               "DTFIM":      (cAlias)->DTFIM, ;
+                               "RATEIO":     (cAlias)->RATEIO, ;
+                               "DEBITO":     (cAlias)->DEBITO, ;
+                               "CCD":        (cAlias)->CCD, ;
+                               "SITCTA":     (cAlias)->SITCTA, ;
+                               "SITCC":      (cAlias)->SITCC, ;
+                               "SITUAC":     (cAlias)->SITUAC, ;
+                               "VLTOT":      (cAlias)->VLTOT, ;
+                               "SALDO":      (cAlias)->SALDO, ;
+                               "FORNEC":     (cAlias)->FORNEC, ;
+                               "NOMEFOR":    (cAlias)->NOMEFOR, ;
+                               "NATCTR":     (cAlias)->NATCTR, ;
+                               "NATPLA":     (cAlias)->NATPLA, ;
+                               "PRODUTO":    (cAlias)->PRODUTO, ;
+                               "DESCPROD":   (cAlias)->DESCPROD, ;
+                               "CCPLANI":    (cAlias)->CCPLANI, ;
+                               "QUANT":      (cAlias)->QUANT, ;
+                               "VLUNIT":     (cAlias)->VLUNIT, ;
+                               "TOTITEM":    (cAlias)->TOTITEM})
+        (cAlias)->(DbSkip())
+    enddo
+
+    self:setHasNext(!(cAlias)->(EoF()))
+    (cAlias)->(DbCloseArea())
+
 return self:oData
 
 
+//Retorna o schema contendo todos os campos necessarios conforme especificacao
+//do relatorio de rateios por contrato.
 method getSchema() as object class CTJTReportsBusinessObject
-    self:aliasToSchema("CTJ")
+    self:oSchema:aliasToSchema("CN9", {"CN9_FILIAL", "CN9_NUMERO", "CN9_TPCTO", "CN9_REVISA", "CN9_DTREV", "CN9_DTINIC", "CN9_DTFIM", "CN9_SITUAC", "CN9_NATURE"})
+    self:oSchema:aliasToSchema("CTJ", {"CTJ_RATEIO", "CTJ_DEBITO", "CTJ_CCD", "CTJ_SITCTA", "CTJ_SITCC"})
+    self:oSchema:aliasToSchema("CNA", {"CNA_VLTOT", "CNA_SALDO", "CNA_FORNEC", "CNA_NATURE", "CNA_XCC"})
+    self:oSchema:aliasToSchema("CNB", {"CNB_PRODUT", "CNB_QUANT", "CNB_VLUNIT", "CNB_VLTOT"})
+    self:oSchema:aliasToSchema("SA2", "A2_NOME")
+    self:oSchema:aliasToSchema("SB1", "B1_DESC")
 return self:oSchema
