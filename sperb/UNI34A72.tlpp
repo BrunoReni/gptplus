@@ -43,17 +43,17 @@ method getData(nPage as numeric, oFilter as object) as object class CTJTReportsB
     local cCentro   as character
     local cConta    as character
     local cContrato as character
-    local cFilial   as character
+    local _cFil   as character
     local cFornec   as character
 
-    jParams  := oFilter:getParameters()
+    jParams   := oFilter:getParameters()
     cProduto  := jParams["MV_PAR01"][1]
     cNatureza := jParams["MV_PAR02"][1]
     cRateio   := jParams["MV_PAR03"][1]
     cCentro   := jParams["MV_PAR04"][1]
     cConta    := jParams["MV_PAR05"][1]
     cContrato := jParams["MV_PAR06"][1]
-    cFilial   := jParams["MV_PAR07"][1]
+    _cFil     := jParams["MV_PAR07"][1]
     cFornec   := jParams["MV_PAR08"][1]
 
     cQuery := "SELECT CN9.CN9_FILIAL          FILIAL, "
@@ -108,8 +108,8 @@ method getData(nPage as numeric, oFilter as object) as object class CTJTReportsB
     if !Empty(cContrato)
         cQuery += " AND CN9.CN9_NUMERO = '" + cContrato + "'"
     endif
-    if !Empty(cFilial)
-        cQuery += " AND CN9.CN9_FILIAL = '" + cFilial + "'"
+    if !Empty(_cFil)
+        cQuery += " AND CN9.CN9_FILIAL = '" + _cFil + "'"
     endif
     if !Empty(cFornec)
         cQuery += " AND CNA.CNA_FORNEC = '" + cFornec + "'"
