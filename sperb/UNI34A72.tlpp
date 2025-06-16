@@ -18,8 +18,10 @@ endclass
 
 
 method new()  as object class CTJTReportsBusinessObject
-	_Super:new()
-	self:setDescription("Rateios externos")
+        _Super:new()
+        self:setDescription("Rateios externos")
+        //Tela de parametros do SmartView
+        self:setPergunte("UNI34A72")
 return self
 
 method getDisplayName() as character class CTJTReportsBusinessObject
@@ -34,6 +36,25 @@ return {"Contabilidade"}
 method getData(nPage as numeric, oFilter as object) as object class CTJTReportsBusinessObject
     local cQuery as character
     local cAlias as character
+    local jParams as json
+    local cProduto  as character
+    local cNatureza as character
+    local cRateio   as character
+    local cCentro   as character
+    local cConta    as character
+    local cContrato as character
+    local cFilial   as character
+    local cFornec   as character
+
+    jParams  := oFilter:getParameters()
+    cProduto  := jParams["MV_PAR01"][1]
+    cNatureza := jParams["MV_PAR02"][1]
+    cRateio   := jParams["MV_PAR03"][1]
+    cCentro   := jParams["MV_PAR04"][1]
+    cConta    := jParams["MV_PAR05"][1]
+    cContrato := jParams["MV_PAR06"][1]
+    cFilial   := jParams["MV_PAR07"][1]
+    cFornec   := jParams["MV_PAR08"][1]
 
     cQuery := "SELECT CN9.CN9_FILIAL          FILIAL, "
     cQuery += "CN9.CN9_NUMERO         CONTRATO, "
@@ -68,6 +89,31 @@ method getData(nPage as numeric, oFilter as object) as object class CTJTReportsB
     cQuery += "LEFT JOIN " + RetSqlName('SB1') + " SB1 ON SB1.B1_COD = CNB.CNB_PRODUT AND SB1.D_E_L_E_T_ = ' ' "
     cQuery += "LEFT JOIN " + RetSqlName('SED') + " SED ON SED.ED_CODIGO = CNA.CNA_NATURE AND SED.D_E_L_E_T_ = ' ' "
     cQuery += "WHERE CN9.D_E_L_E_T_ = ' '"
+
+    if !Empty(cProduto)
+        cQuery += " AND CNB.CNB_PRODUT = '" + cProduto + "'"
+    endif
+    if !Empty(cNatureza)
+        cQuery += " AND CNA.CNA_NATURE = '" + cNatureza + "'"
+    endif
+    if !Empty(cRateio)
+        cQuery += " AND CTJ.CTJ_RATEIO = '" + cRateio + "'"
+    endif
+    if !Empty(cCentro)
+        cQuery += " AND CTJ.CTJ_CCD = '" + cCentro + "'"
+    endif
+    if !Empty(cConta)
+        cQuery += " AND CTJ.CTJ_DEBITO = '" + cConta + "'"
+    endif
+    if !Empty(cContrato)
+        cQuery += " AND CN9.CN9_NUMERO = '" + cContrato + "'"
+    endif
+    if !Empty(cFilial)
+        cQuery += " AND CN9.CN9_FILIAL = '" + cFilial + "'"
+    endif
+    if !Empty(cFornec)
+        cQuery += " AND CNA.CNA_FORNEC = '" + cFornec + "'"
+    endif
 
     if oFilter:hasFilter()
         cQuery += " AND " + oFilter:getSQLExpression()
