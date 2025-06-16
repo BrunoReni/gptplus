@@ -1,0 +1,38 @@
+#include "protheus.ch"
+#include "msobject.ch"
+
+#include "totvs.framework.treports.integratedprovider.th"
+
+namespace custom.contabilidade.rateios.integratedprovider
+
+
+@totvsFrameworkTReportsIntegratedProvider(active=.T., team="SIGACTB", tables="CTJ", name="Rateioexterno", country="ALL", initialRelease="12.1.2310")
+
+class CTJTReportsBusinessObject from totvs.framework.treports.integratedprovider.IntegratedProvider
+	public method new() as object
+	public method getDisplayName() as character
+	public method getAreas() as array
+	public method getData() as object
+	public method getSchema() as object
+endclass
+
+
+method new()  as object class CTJTReportsBusinessObject
+	_Super:new()
+	self:setDescription("Rateios externos")
+return self
+
+method getDisplayName() as character class CTJTReportsBusinessObject
+return "Rateios externos"
+
+method getAreas() as array class CTJTReportsBusinessObject
+return {"Contabilidade"}
+
+method getData(nPage as numeric, oFilter as object) as object class CTJTReportsBusinessObject
+    self:aliasToData("CTJ", oFilter)
+return self:oData
+
+
+method getSchema() as object class CTJTReportsBusinessObject
+    self:aliasToSchema("CTJ")
+return self:oSchema

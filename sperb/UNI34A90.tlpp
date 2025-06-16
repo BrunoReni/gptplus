@@ -1,0 +1,98 @@
+#include "tlpp-core.th"
+
+
+/*/{Protheus.doc} UNI034A90
+@Description  Fonte que realiza a importação dos códigos de rateio dos contratos 
+@Type		 Function 
+@Author 	 Sperb 
+@Since  	 09/06/2025
+/*/
+User Function UNI034A90()
+	Local aPergs := {}
+	Local cArquivo :=space(200)
+
+
+
+	aAdd(aPergs, {1, "Arquivo",     cArquivo, "", ".T.", "",    ".T.", 200, .T.})
+	If ! ParamBox(aPergs, "Importação de Rateios", "UNI034A90")
+		FWAlertWarning("Parâmetros não informados", "Rotina cancelada")
+	endif
+	cArquivo := alltrim(MV_PAR01)
+    Processa({|| imoprtarRateios(cArquivo)},"Importando codigos de rateio ",OemToAnsi("Aguarde..."))
+    fwAlertInfo("Importação de rateios Finalizada!", "UNI034A90")
+Return
+
+
+/*/{Protheus.doc} imoprtarRateios
+@Description  Função utilizada para o processamento da importação dos rateios dos contratos
+@Type		 Function 
+@Author 	 Sperb 
+@Since  	 09/06/2025
+/*/
+Static Function imoprtarRateios(cArquivo)
+	Local oArquivo :=' '
+    Local aAux     := {}
+    Local alinha :={}
+    Local nAux   
+	If (oArquivo:Open())
+		aAux := oArquivo:GetAllLines()
+	else
+		FWAlertWarning("Erro ao abrir arquivo")
+		return
+	endif
+
+    ProcRegua(len(aAux) -1)
+    for nAux := 2 to len(aAux)
+        alinha := StrTokArr( aAux[nAux], ';' )
+        alimentarateio(alinha)
+        incproc()
+    next 
+Return
+
+
+
+/*/{Protheus.doc} Function Name
+@Description Função posiciona e altera a CN9
+@Type		 Fuction 
+@Author 	 Sperb 
+@Since  	 09/06/2025
+/*/
+Static Function alimentarateio(aLinha)
+    Local cCotrato :=  ' '
+    Local cFili := ''
+    Local cRateio :=''
+    Local cRevisa :=' '
+
+    cFili := alltrim(strzero(val(aLinha[1]),6))
+    cCotrato := alltrim(strzero(val(aLinha[2]),15))
+    cRateio  := alltrim(aLinha[3])
+    cRevisa  := Getrevisa(cFili,cCotrato)
+
+    CN9->(DbSetOrder(1))
+    if CN9->(DbSeek(cFili + cCotrato+cRevisa))
+            CN9->(RecLock('CN9',.f.))
+            CN9->CN9_XRATEI := cRateio  
+            CN9->(Msunlock())
+            CN9->(DbSkip())
+    endif 
+Return
+
+
+Static Function GetRevisa(_cFil, cContrato)
+	Local cQuery :=' '
+	Local cAlias :=' '
+	Local cRevisa := space(3)
+	cQuery :=" select Max(CN9_REVISA) revisao from CN9010 "
+	cQuery +=" where CN9_FILIAL = '"+_cFil+"' "
+	cQuery +=" and CN9_NUMERO = '"+cContrato+"' "
+	cQuery +=" and d_e_l_e_t_=' ' "
+	cAlias := mpsysopenquery(cQuery)
+	if select(cAlias) == 0 .or. empty((cAlias)->revisao)
+		if select(cAlias) > 0
+			(cAlias)->(dbclosearea())
+		endif
+		return cRevisa
+	endif
+	cRevisa := (cAlias)->revisao
+	(cAlias)->(dbclosearea())
+return cRevisa
